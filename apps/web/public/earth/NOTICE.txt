@@ -1,0 +1,13 @@
+Earth imagery
+
+Solar System Scope / INOVE
+https://www.solarsystemscope.com/textures/
+
+Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/
+
+The publisher credits NASA Blue Marble and other geodata. These are static, adjusted composites, not live weather; no single observation epoch is supplied. No NASA endorsement is implied.
+
+Active day and cloud maps are the unmodified original 8192x4096JPEGs from the publisher. GPUs supporting less than 8192px use the preserved 4096x2048fallbacks. Fallback changes: Lanczos downsampling, grayscale PNG cloud conversion. Ocean/specular mask converted from TIFF to grayscale PNG. Rendering adjusts saturation, lighting, cloud opacity and material response. Geography was not generated or redrawn. See asset-provenance.json for exact sources, sizes and SHA256 hashes.
+
+Rendering: a display-only approximate atmosphere and Sun direction, independent of RF, weather, orbital dynamics and delivered data. The orbit arc is only the returned synthetic Run history. Locator sizes are exaggerated.

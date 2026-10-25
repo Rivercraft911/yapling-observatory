@@ -1,0 +1,111 @@
+{
+  "schema_version": "1.0",
+  "retrieved_utc": "2026-10-25T10:43:45.151846+00:00",
+  "publisher_page": "https://www.solarsystemscope.com/textures/",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "credit": "Earth imagery: Solar System Scope / INOVE, based on NASA Blue Marble and other geodata. CC BY 4.0. Runtime derivatives prepared for Stanford SSI Link Workspace.",
+  "limits": [
+    "Static artistic composite, not live weather. Publisher does not provide a single observation epoch.",
+    "Publisher describes adjusted/saturated colors and merged geodata. Runtime shader further adjusts saturation, illumination and ocean response.",
+    "No city-light texture or terrain geometry is used. Ocean mask is a visual material mask, not a measured bidirectional reflectance function.",
+    "Cloud-mask density, height, shadow and atmospheric scattering are visual approximations and never enter RF or numerical results."
+  ],
+  "assets": [
+    {
+      "file": "earth-day-4k.jpg",
+      "publisher": "Solar System Scope / INOVE",
+      "source_url": "https://www.solarsystemscope.com/textures/download/8k_earth_daymap.jpg",
+      "source_dimensions": [
+        8192,
+        4096
+      ],
+      "runtime_dimensions": [
+        4096,
+        2048
+      ],
+      "source_sha256": "88ab060b6e7d241cfc590c69f528fab2b3247b738d40124cb590999a6fe44abc",
+      "runtime_sha256": "f8d5d48a7820af54a1832181f2ab0101f154b353b45b4b4ce751590d30bb2746",
+      "runtime_bytes": 1750111,
+      "transform": "Converted to RGB; Lanczos resize to 4096x2048",
+      "acquisition_epoch": null,
+      "role": "fallback only on GPUs limited below8192px"
+    },
+    {
+      "file": "earth-clouds-4k.png",
+      "publisher": "Solar System Scope / INOVE",
+      "source_url": "https://www.solarsystemscope.com/textures/download/8k_earth_clouds.jpg",
+      "source_dimensions": [
+        8192,
+        4096
+      ],
+      "runtime_dimensions": [
+        4096,
+        2048
+      ],
+      "source_sha256": "c792eca228989d36ebb45d3ea6ff1198be5e21a25d70d2fbcb2124ffd14ba7f5",
+      "runtime_sha256": "3476b09dc54ed60877ea0d57d0de7326328aabcca71c1c8802363b027160054e",
+      "runtime_bytes": 5625217,
+      "transform": "Converted to L; Lanczos resize to 4096x2048",
+      "acquisition_epoch": null,
+      "role": "fallback only on GPUs limited below8192px"
+    },
+    {
+      "file": "earth-ocean-2k.png",
+      "publisher": "Solar System Scope / INOVE",
+      "source_url": "https://www.solarsystemscope.com/textures/download/2k_earth_specular_map.tif",
+      "source_dimensions": [
+        2048,
+        1024
+      ],
+      "runtime_dimensions": [
+        2048,
+        1024
+      ],
+      "source_sha256": "6b90ecfce248591a1ecc9a3e49acca1a7059b6828877e718302ed9a6b4471bd7",
+      "runtime_sha256": "614dc01e489ffb50d2dc27df87629217c30f9a28f655d288023bf15e812ee75f",
+      "runtime_bytes": 136040,
+      "transform": "Converted from TIFF RGB to L PNG",
+      "acquisition_epoch": null
+    },
+    {
+      "file": "earth-day-8k.jpg",
+      "publisher": "Solar System Scope / INOVE",
+      "source_url": "https://www.solarsystemscope.com/textures/download/8k_earth_daymap.jpg",
+      "source_dimensions": [
+        8192,
+        4096
+      ],
+      "runtime_dimensions": [
+        8192,
+        4096
+      ],
+      "source_sha256": "88ab060b6e7d241cfc590c69f528fab2b3247b738d40124cb590999a6fe44abc",
+      "runtime_sha256": "88ab060b6e7d241cfc590c69f528fab2b3247b738d40124cb590999a6fe44abc",
+      "runtime_bytes": 4565076,
+      "transform": "Unmodified original8192x4096JPEG, bytes identical to publisher download",
+      "acquisition_epoch": null,
+      "role": "active on GPUs supporting8192px textures"
+    },
+    {
+      "file": "earth-clouds-8k.jpg",
+      "publisher": "Solar System Scope / INOVE",
+      "source_url": "https://www.solarsystemscope.com/textures/download/8k_earth_clouds.jpg",
+      "source_dimensions": [
+        8192,
+        4096
+      ],
+      "runtime_dimensions": [
+        8192,
+        4096
+      ],
+      "source_sha256": "c792eca228989d36ebb45d3ea6ff1198be5e21a25d70d2fbcb2124ffd14ba7f5",
+      "runtime_sha256": "c792eca228989d36ebb45d3ea6ff1198be5e21a25d70d2fbcb2124ffd14ba7f5",
+      "runtime_bytes": 11619184,
+      "transform": "Unmodified original8192x4096JPEG, sampled as linear cloud-density artwork",
+      "acquisition_epoch": null,
+      "role": "active on GPUs supporting8192px textures"
+    }
+  ],
+  "updated_utc": "2026-10-25T10:53:53.054297+00:00"
+}
