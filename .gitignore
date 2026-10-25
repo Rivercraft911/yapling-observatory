@@ -1,0 +1,9 @@
+.DS_Store
+.venv/
+__pycache__/
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+# Large generated results and imagery will receive explicit storage rules when implemented.
