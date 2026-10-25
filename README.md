@@ -1,6 +1,6 @@
 # Stanford SSI Link Workspace
 
-Explore a CubeSat pass, inspect antenna lobes, and compare uplink and downlink budgets. Follow the spacecraft above Earth or work with its physical model. Resize the panes, choose the lower plots, and replay a computed run at 0.25× to 1000×. Click or drag a plot to scrub. Hovering leaves playback alone.
+Explore a CubeSat pass, inspect antenna lobes, and compare uplink and downlink budgets. Follow the spacecraft above Earth or work with its physical model. Resize the panes, choose the lower plots, and replay a computed run at 0.25× to 1000×. Click or drag a plot to scrub. Hover to inspect a sampled value while playback continues. Graphics interpolate between samples for smooth replay.
 
 Python owns the engineering calculations. The browser displays immutable results and handles cameras, geometry and controls. Equations have named homes such as [`rf/free_space.py`](services/simulator/src/cubesat_sim/rf/free_space.py), [`rf/link_budget.py`](services/simulator/src/cubesat_sim/rf/link_budget.py) and [`orbit/circular_pass.py`](services/simulator/src/cubesat_sim/orbit/circular_pass.py). See the [model map and numerical guide](services/simulator/README.md).
 
@@ -15,11 +15,11 @@ python3 scripts/dev.py
 
 Open the printed localhost address. Ctrl-C stops both processes. The launcher accepts `--api-port` and `--web-port`.
 
-Spacecraft CAD and working renders stay in ignored local storage. The viewer reads the allowlisted GLB paths in `private/model-development/web-models.json`. A fresh checkout can run numerical studies without those assets and will report when a physical model is unavailable.
+The spacecraft view includes an optional cutaway with a removable tracker. Spacecraft CAD and working renders stay in ignored local storage. The viewer reads the allowlisted GLB paths in `private/model-development/web-models.json`. A fresh checkout can run numerical studies without those assets and will report when a physical model is unavailable.
 
 ## Model limits
 
-The current pass is a constructed circular example with prescribed tracking or tumble. RF uses analytical vector patterns and ideal threshold capacity. DVB-S2 supports QPSK and 8PSK. UHF LoRa is separate, with an unresolved receiver threshold. The V/tape mesh has no validated installed radiation pattern.
+The current pass is a constructed circular example with prescribed tracking or tumble. RF uses analytical vector patterns and ideal threshold capacity. DVB-S2 supports QPSK and 8PSK. UHF LoRa is separate, with an unresolved receiver threshold. The antenna lab includes two bent-wire V references with prescribed current and patch half-power cuts. The rendered hardware has no validated installed radiation pattern.
 
 Real orbit forecasts, physical attitude control, hardware receiver behavior, power and thermal histories remain planned. Bundled station and radio values are examples with inspectable provenance. Earth imagery and shader lighting do not affect the calculations.
 
@@ -45,6 +45,10 @@ node --experimental-strip-types apps/web/src/earth/geodesy.test.mjs
 node --experimental-strip-types apps/web/src/earth/follow-frames.test.mjs
 node apps/web/src/earth/regional-lod.test.mjs
 node --experimental-strip-types apps/web/src/earth/follow-link.test.mjs
+node --experimental-strip-types apps/web/src/earth/earth-depth.test.mjs
+node --experimental-strip-types apps/web/src/graphics/display-interpolation.test.mjs
+node --experimental-strip-types apps/web/src/graphics/frame-size.test.mjs
+node --experimental-strip-types apps/web/src/spacecraft/preview-visibility.test.mjs
 ```
 
 Tests cover physical reference cases, numerical regressions and dependency boundaries. The GitHub workflow is configured to run the same checks. Use `npm --prefix apps/web run format` after frontend edits.

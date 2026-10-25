@@ -24,3 +24,7 @@ jobs:
       - run: node --experimental-strip-types apps/web/src/earth/follow-frames.test.mjs
       - run: node apps/web/src/earth/regional-lod.test.mjs
       - run: node --experimental-strip-types apps/web/src/earth/follow-link.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/earth-depth.test.mjs
+      - run: node --experimental-strip-types apps/web/src/graphics/display-interpolation.test.mjs
+      - run: node --experimental-strip-types apps/web/src/graphics/frame-size.test.mjs
+      - run: node --experimental-strip-types apps/web/src/spacecraft/preview-visibility.test.mjs
