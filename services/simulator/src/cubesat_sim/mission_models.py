@@ -7,6 +7,7 @@ import math
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .models import Station, Link, Schedule
+from .operations.radio_delivery_models import RadioDeliveryConfig
 from .orbit.elements import OrbitElements
 from .orbit.gravity import EGM2008_MU_M3_S2, EGM2008_REFERENCE_RADIUS_M, EGM2008_J2
 from .attitude.actuators import WheelSpec, MagnetorquerSpec
@@ -200,7 +201,7 @@ class MissionPower(MissionModel):
     regulator_heat_node_id: str = "bus"
     storage_loss_heat_node_id: str = "bus"
     radio_heat_node_id: str = "radio"
-    spacecraft_tx_electrical_w: float = Field(default=10.8, ge=0)
+    spacecraft_tx_electrical_w: float = Field(default=10, ge=0)
     spacecraft_receive_w: float = Field(default=1.5, ge=0)
     radio_idle_w: float = Field(default=0.5, ge=0)
     transmit_radiation_efficiency: float = Field(default=1, ge=0, le=1)
@@ -284,7 +285,7 @@ class MissionScenario(MissionModel):
     schema_version: Literal["0.1.0"] = "0.1.0"
     name: str = "Provisional terminator mission"
     run_kind: Literal["single_pass", "targeted", "long_mission"] = "long_mission"
-    duration_s: float = Field(default=86400, gt=0, le=604800)
+    duration_s: float = Field(default=86400, gt=0, le=2592000)
     orbit: MissionOrbit
     clocks: MissionClocks = MissionClocks()
     station: Station = Station()
@@ -292,6 +293,7 @@ class MissionScenario(MissionModel):
     uplink: Link
     downlink: Link
     schedule: Schedule = Schedule()
+    radio_delivery: RadioDeliveryConfig | None = None
     spacecraft: MissionSpacecraft = MissionSpacecraft()
     conops: MissionConops = MissionConops()
     power: MissionPower
@@ -302,8 +304,11 @@ class MissionScenario(MissionModel):
         return self.orbit.elements.epoch_utc
 
     def identity(self):
+        values = self.model_dump(mode="json")
+        if self.radio_delivery is None:
+            values.pop("radio_delivery", None)
         encoded = json.dumps(
-            self.model_dump(mode="json"),
+            values,
             sort_keys=True,
             separators=(",", ":"),
             allow_nan=False,
@@ -360,14 +365,21 @@ class MissionScenario(MissionModel):
                 self.schedule.slot_duration_s,
             )
         ]
-        if min(strides) < 1 or count > 1_000_000 or count // strides[2] > 20000:
-            raise ValueError("Mission exceeds1M dynamics ticks or20k output intervals")
+        extended = self.duration_s > 604800
+        if extended and self.run_kind != "long_mission":
+            raise ValueError("Requests longer than seven days require long_mission")
+        max_ticks = 3_000_000 if extended else 1_000_000
+        if min(strides) < 1 or count > max_ticks or count // strides[2] > 20000:
+            raise ValueError(
+                f"Mission exceeds {max_ticks} dynamics ticks or 20000 output intervals; choose an explicit valid output clock without silently changing physics clocks"
+            )
         if count % strides[2] or strides[2] % strides[1]:
             raise ValueError(
                 "Output must divide duration and be a multiple of thermal step"
             )
-        if self.duration_s / (dt / self.clocks.orbit_substeps) > 2_000_000:
-            raise ValueError("Orbit exceeds2M fixed substeps")
+        max_orbit_ticks = 6_000_000 if extended else 2_000_000
+        if self.duration_s / (dt / self.clocks.orbit_substeps) > max_orbit_ticks:
+            raise ValueError(f"Orbit exceeds {max_orbit_ticks} fixed substeps")
         windows = sorted(self.conops.windows, key=lambda w: w.start_s)
         for i, w in enumerate(windows):
             ticks(w.start_s)
@@ -390,3 +402,22 @@ class MissionScenario(MissionModel):
                 "Onboard transmitter electrical input cannot be less than exported downlink RF"
             )
         return self
+
+
+def mission_execution_limits(config):
+    """Resource policy, not a numerical fidelity preset or completion estimate."""
+    ticks = round(config.duration_s / config.clocks.dynamics_step_s)
+    environments = config.duration_s / config.clocks.thermal_step_s
+    work = (ticks * (1 + len(config.spacecraft.wheels) + config.clocks.orbit_substeps)
+            + environments * len(config.power.surfaces)
+            * config.power.earth_quadrature_rings * config.power.earth_quadrature_azimuths)
+    extended = config.duration_s > 604800
+    work_limit = 300_000_000 if extended else 100_000_000
+    wall = (min(3600, max(180, math.ceil(ticks * 0.001 + work * 0.000001)))
+            if config.duration_s > 86400 else 180)
+    return dict(policy="bounded_long_mission_v1", estimated_work_units=work,
+                maximum_work_units=work_limit, worker_wall_limit_s=wall,
+                maximum_dynamics_ticks=3_000_000 if extended else 1_000_000,
+                maximum_orbit_substeps=6_000_000 if extended else 2_000_000,
+                maximum_output_intervals=20000,
+                live_output="bounded UTC day summaries; no sample streaming or resume")

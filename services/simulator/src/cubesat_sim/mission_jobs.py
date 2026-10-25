@@ -10,7 +10,9 @@ import sys
 import tempfile
 import time
 import uuid
-from .mission_models import MissionScenario
+from .mission_models import MissionScenario, mission_execution_limits
+
+MAX_RESULT_BYTES = 64 * 1024 * 1024
 
 
 @dataclass
@@ -39,7 +41,7 @@ class MissionJob:
 
 
 class MissionJobManager:
-    def __init__(self, *, timeout_s=180.0, max_active=2, max_retained=8):
+    def __init__(self, *, timeout_s=None, max_active=2, max_retained=8):
         self.timeout_s = timeout_s
         self.max_active = max_active
         self.max_retained = max_retained
@@ -47,6 +49,9 @@ class MissionJobManager:
         self.slot = asyncio.Semaphore(1)
 
     def create(self, scenario):
+        limits = mission_execution_limits(scenario)
+        if limits["estimated_work_units"] > limits["maximum_work_units"]:
+            raise ValueError("Mission exceeds the reference work-unit budget")
         active = sum(job.status in ("queued", "running") for job in self.jobs.values())
         if active >= self.max_active:
             raise ValueError("Mission queue full")
@@ -63,6 +68,7 @@ class MissionJobManager:
                 raise ValueError("Mission retention full")
             del self.jobs[finished]
         job = MissionJob(scenario)
+        job.progress = dict(state="queued", execution_limits=limits)
         self.jobs[job.run_id] = job
         job.task = asyncio.create_task(self._execute(job))
         return job
@@ -123,7 +129,10 @@ class MissionJobManager:
                         start_new_session=True,
                     )
                     communicate = asyncio.create_task(job.process.communicate())
-                    deadline = time.monotonic() + self.timeout_s
+                    limits = mission_execution_limits(job.scenario)
+                    timeout_s = (self.timeout_s if self.timeout_s is not None
+                                 else limits["worker_wall_limit_s"])
+                    deadline = time.monotonic() + timeout_s
                     try:
                         while not communicate.done():
                             if time.monotonic() >= deadline:
@@ -132,7 +141,7 @@ class MissionJobManager:
                                 )
                             if progress_path.exists():
                                 try:
-                                    job.progress = json.loads(progress_path.read_text())
+                                    job.progress = json.loads(progress_path.read_text()) | dict(execution_limits=limits)
                                 except (OSError, json.JSONDecodeError):
                                     pass
                             await asyncio.wait({communicate}, timeout=0.15)
@@ -145,6 +154,10 @@ class MissionJobManager:
                         return
                     if job.process.returncode != 0:
                         raise ValueError(stderr.decode(errors="replace")[-3000:])
+                    if destination.stat().st_size > MAX_RESULT_BYTES:
+                        raise ValueError(
+                            "Mission result exceeds 64 MiB; choose an explicitly coarser output clock or a narrower telemetry configuration"
+                        )
                     result = json.loads(destination.read_text())
                     if (
                         result["manifest"]["scenario_hash"]
@@ -153,7 +166,7 @@ class MissionJobManager:
                         raise ValueError("Worker input identity mismatch")
                     job.result = result
                     if progress_path.exists():
-                        job.progress = json.loads(progress_path.read_text())
+                        job.progress = json.loads(progress_path.read_text()) | dict(execution_limits=limits)
                     job.status = "complete"
         except asyncio.CancelledError:
             await self._stop_process(job)

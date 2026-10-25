@@ -10,7 +10,7 @@ import hashlib
 import math
 from pathlib import Path
 import platform
-from ..mission_models import MissionScenario
+from ..mission_models import MissionScenario, mission_execution_limits
 from ..orbit.elements import elements_to_cartesian
 from ..orbit.two_body import CartesianState, TwoBodyConfig, step as orbit_step
 from ..attitude.dynamics import (
@@ -65,6 +65,7 @@ from .environment import (
 )
 from .geometry import geometry_at, operation_at, target_direction
 from .defaults import orbit_metadata
+from .reporting import MissionReporter
 
 MODEL_VERSION = "coupled-reference-mission-0.1.0"
 
@@ -179,6 +180,11 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
     unloading_command_time_s = None
     capacity = {d: 0.0 for d in ("uplink", "downlink")}
     capacity_available = {d: True for d in capacity}
+    radio_delivery = None
+    if config.radio_delivery is not None:
+        from ..operations.radio_delivery import RadioDeliveryAccumulator
+        radio_delivery = RadioDeliveryAccumulator(config.radio_delivery)
+    reporting = MissionReporter(config.epoch_utc, delivery_enabled=radio_delivery is not None)
     samples = {}
     stage_energy = {}
     events = []
@@ -564,6 +570,8 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
                 node_emitted_ir_w=dict(zip(nodes, rates.emitted_ir_w)),
             ),
         )
+        if radio_delivery is not None:
+            row["radio_delivery"] = radio_delivery.sample()
         _append(samples, row)
 
     component_ids = {
@@ -572,6 +580,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         "magnetorquers",
         *[load.component_id for profile in power.mode_loads for load in profile.loads],
     }
+    progress_stride = max(1, round(10 / dt), math.ceil(count / 10000))
     for tick in range(count):
         if tick % 16 == 0 and cancelled and cancelled():
             raise InterruptedError("Mission cancelled")
@@ -840,14 +849,51 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             last_electrical = battery
         if tick == 0:
             append_sample()
+        interval_links = {}
         for d in capacity:
-            rate = evaluate_link_budget(
+            interval_links[d] = evaluate_link_budget(
                 config, d, geo, radio_active and direction == d
-            )["ideal_rate_bps"]
+            )
+            rate = interval_links[d]["ideal_rate_bps"]
             if rate is None:
                 capacity_available[d] = False
             elif capacity_available[d]:
                 capacity[d] += rate * dt
+        def delivery_interval(start_s, end_s):
+            before = radio_delivery.sample()
+            radio_delivery.advance(
+                start_s, end_s, active_direction=direction, radio_active=radio_active,
+                cn0_db_hz={d: interval_links[d]["cn0_dbhz"] for d in capacity},
+                known_outage={
+                    d: interval_links[d]["reason"] == "field_or_polarization_null"
+                    for d in capacity
+                },
+            )
+            after = radio_delivery.sample()
+            increments = {}
+            for d in capacity:
+                unresolved = (after[d]["unresolved_time_s"] > before[d]["unresolved_time_s"]
+                              or after[d]["unresolved_frames"] > before[d]["unresolved_frames"])
+                old_bits = before[d]["delivered_useful_bits"]
+                new_bits = after[d]["delivered_useful_bits"]
+                increments[d] = dict(
+                    delivered_useful_bits=(new_bits - old_bits
+                                           if old_bits is not None and new_bits is not None else 0),
+                    delivery_available=not unresolved and new_bits is not None,
+                    receiver_locked_s=after[d]["locked_time_s"] - before[d]["locked_time_s"],
+                    receiver_ready_s=after[d]["ready_time_s"] - before[d]["ready_time_s"],
+                    boundary_delivered_useful_bits=after[d]["boundary_delivered_useful_bits"],
+                    boundary_delivered_frames=after[d]["boundary_delivered_frames"],
+                    boundary_unresolved_frames=after[d]["boundary_unresolved_frames"],
+                )
+            return increments
+        reporting.advance(
+            tick * dt, (tick + 1) * dt,
+            visible=geo["visible"], elevation_deg=geo["elevation_deg"],
+            radio_active=radio_active, direction=direction,
+            ideal_rates_bps={d: interval_links[d]["ideal_rate_bps"] for d in capacity},
+            delivery_interval=delivery_interval if radio_delivery is not None else None,
+        )
         energy = battery.stored_energy_j
         if electrical:
             soc = battery.soc
@@ -864,7 +910,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         if completed_ticks % output_stride == 0:
             append_sample()
         if progress and (
-            completed_ticks % max(1, round(10 / dt)) == 0 or completed_ticks == count
+            completed_ticks % progress_stride == 0 or completed_ticks == count
         ):
             progress(
                 dict(
@@ -873,6 +919,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
                     fraction=completed_ticks / count,
                     output_samples=len(samples.get("time_s", [])),
                     state="running",
+                    reporting=reporting.snapshot(include_passes=False),
                 )
             )
     flush_thermal()
@@ -927,7 +974,8 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             power_sample_semantics="preceding dynamics interval average;initial sample first-interval values",
             completed_dynamics_ticks=completed_ticks,
         ),
-        prefix_semantics="completed result is immutable; no live sample streaming; power termination retains last valid common-state prefix",
+        prefix_semantics="completed result is immutable; bounded UTC day progress summaries are live but samples are not streamed; termination retains last valid common-state prefix; no resume checkpoint",
+        execution_limits=mission_execution_limits(config),
         source_code_hashes=source_hashes_at_start,
         source_identity_capture="disk source hashes at run start, checked again before result publication; API uses fresh isolated process",
         versions=dict(python=platform.python_version()),
@@ -1017,7 +1065,9 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         raise RuntimeError(
             "Numerical source files changed during mission; retry after implementation is stable"
         )
+    reporting.finish(geometry_at(config, orbit, attitude)["visible"])
     summary = dict(
+        reporting=reporting.snapshot(),
         requested_duration_s=config.duration_s,
         computed_duration_s=orbit.time_s,
         end_reason=end_reason,
@@ -1040,6 +1090,37 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         ),
         maximum_quaternion_projection_error=maximum_quaternion_norm_error,
     )
+    if radio_delivery is not None:
+        summary["radio_delivery"] = radio_delivery.summary()
+        manifest["radio_delivery"] = radio_delivery.metadata() | dict(
+            configuration=config.radio_delivery.model_dump(mode="json"),
+            channel_semantics="C/N0 held on accepted dynamics intervals; receiver and frame timing split at UTC midnight without changing physics clocks",
+            driver_limits="Explicit assumed acquisition/lock/frame policy; no hardware correlation, packet acknowledgements or retransmission guarantees",
+        )
+        receiver_events = [
+            event | {"type": "radio_delivery"}
+            for event in radio_delivery.events
+            if 0 <= event["time_s"] <= orbit.time_s
+        ]
+        receiver_event_limit = 20000
+        omitted = max(0, len(receiver_events) - receiver_event_limit)
+        receiver_events = receiver_events[:receiver_event_limit]
+        manifest["radio_delivery"]["events_dropped"] += omitted
+        manifest["radio_delivery"]["event_export"] = dict(
+            maximum_receiver_events=receiver_event_limit,
+            exported_receiver_events=len(receiver_events),
+            outside_computed_prefix=sum(
+                not 0 <= event["time_s"] <= orbit.time_s
+                for event in radio_delivery.events
+            ),
+            order="Stable by time; mission events precede receiver events at ties; receiver causal and direction tie order is preserved",
+        )
+        events.extend(receiver_events)
+        events.sort(key=lambda event: event["time_s"])
+    if config.duration_s > 86400:
+        manifest["warnings"].append(
+            "Week/month results extend the same approximate fixed-epoch frame, central/J2 gravity, degree-one magnetic field and provisional hardware models. No drag, orbit determination, calibrated receiver reliability or mission-lifetime accuracy is established."
+        )
     if progress:
         progress(
             dict(
@@ -1049,6 +1130,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
                 output_samples=len(samples["time_s"]),
                 state="finished",
                 end_reason=end_reason,
+                reporting=reporting.snapshot(include_passes=False),
             )
         )
     return dict(manifest=manifest, summary=summary, samples=samples, events=events)

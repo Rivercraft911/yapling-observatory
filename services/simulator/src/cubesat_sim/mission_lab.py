@@ -19,6 +19,7 @@ from .orbit.elements import first_order_sso_inclination_deg
 from .orbit.gravity import GravityPotential
 from .models import Link
 from .power.radio import transmit_power, heat_only_load
+from .operations.radio_delivery_models import delivery_example
 
 router = APIRouter(prefix="/api/mission", tags=["mission"])
 
@@ -33,6 +34,19 @@ class RadioPowerRequest(MissionModel):
     idle_electrical_w: float = Field(ge=0, strict=True)
     downlink: Link
     analytical_radiation_efficiency: float = Field(ge=0, le=1, strict=True)
+
+
+class DeliveryExampleRequest(MissionModel):
+    uplink: Link
+    downlink: Link
+
+
+@router.post("/delivery-example")
+def receiver_example(request: DeliveryExampleRequest):
+    try:
+        return delivery_example(request.uplink, request.downlink).model_dump(mode="json")
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
 
 
 class OrbitRequest(MissionModel):
@@ -83,19 +97,13 @@ def resolve_orbit(request: OrbitRequest):
 @router.post("/runs", status_code=202)
 async def create_run(request: MissionRequest, http_request: Request):
     config = request.scenario
-    ticks = round(config.duration_s / config.clocks.dynamics_step_s)
-    environments = config.duration_s / config.clocks.thermal_step_s
-    cost = (
-        ticks * (1 + len(config.spacecraft.wheels))
-        + environments
-        * len(config.power.surfaces)
-        * config.power.earth_quadrature_rings
-        * config.power.earth_quadrature_azimuths
-    )
-    if cost > 100_000_000:
+    from .mission_models import mission_execution_limits
+
+    limits = mission_execution_limits(config)
+    if limits["estimated_work_units"] > limits["maximum_work_units"]:
         raise HTTPException(
             422,
-            "Mission exceeds explicit100M reference work-unit budget; choose shorter duration or a documented coarser/faster fidelity setting",
+            f"Mission exceeds the {limits['maximum_work_units']} reference work-unit budget; reduce explicit model cost or duration",
         )
     try:
         return http_request.app.state.mission_jobs.create(config).record()
