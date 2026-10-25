@@ -30,6 +30,7 @@ export function EarthView({ snapshot, sampleIndex, displayTime, asset, variant }
   const currentVariant = useRef(selectedVariant);
   currentVariant.current = selectedVariant;
   const [cameraMode, setCameraMode] = useState<EarthCameraMode>('earth');
+  const [thermalView, setThermalView] = useState(false);
   const mode = useRef(cameraMode);
   mode.current = cameraMode;
   const [followStatus, setFollowStatus] = useState<FollowStatus>({
@@ -83,19 +84,24 @@ export function EarthView({ snapshot, sampleIndex, displayTime, asset, variant }
   useEffect(() => {
     scene.current?.setCameraMode(cameraMode);
   }, [cameraMode]);
+  useEffect(() => {
+    scene.current?.setThermalView(thermalView);
+  }, [thermalView, retry]);
   const samples = snapshot?.run.result?.samples;
   const direction = samples?.active_direction[sampleIndex];
   const visible = samples?.visible[sampleIndex];
   const margin = direction ? samples?.[direction].margin_db[sampleIndex] : null;
   const state = !samples
     ? 'NO RUN'
-    : !visible
-      ? 'BELOW MASK'
-      : margin == null
-        ? 'RF UNRESOLVED'
-        : margin < 0
-          ? 'BELOW THRESHOLD'
-          : 'IDEAL LINK';
+    : samples.radio_active?.[sampleIndex] === false
+      ? 'RADIO IDLE'
+      : !visible
+        ? 'BELOW MASK'
+        : margin == null
+          ? 'RF UNRESOLVED'
+          : margin < 0
+            ? 'BELOW THRESHOLD'
+            : 'IDEAL LINK';
   const time = samples?.time_s[sampleIndex] ?? 0;
   const date = snapshot
     ? new Date(new Date(snapshot.scenario.epoch_utc).getTime() + time * 1000)
@@ -161,6 +167,14 @@ export function EarthView({ snapshot, sampleIndex, displayTime, asset, variant }
           )}
         </div>
       )}
+      {follow && thermalView && (
+        <div className="earth-thermal-scale">
+          <span>0 °C</span>
+          <i />
+          <span>80 °C</span>
+          <small>gray = unmapped</small>
+        </div>
+      )}
       <div className="earth-footer">
         <div className="earth-view-tools">
           <div className="earth-camera-modes" aria-label="Camera mode">
@@ -192,6 +206,15 @@ export function EarthView({ snapshot, sampleIndex, displayTime, asset, variant }
             </>
           )}
         </div>
+        {follow && samples?.thermal && (
+          <button
+            aria-pressed={thermalView}
+            onClick={() => setThermalView(!thermalView)}
+            title="Computed lumped temperatures: 0–80 °C. Unmapped hardware stays gray."
+          >
+            {thermalView ? 'Materials' : 'Temperature'}
+          </button>
+        )}
         <div className="earth-credit">
           <a
             href="/earth/NOTICE.txt"
@@ -201,7 +224,7 @@ export function EarthView({ snapshot, sampleIndex, displayTime, asset, variant }
           >
             Imagery · SSS / NASA ↗
           </a>
-          <span title="Synthetic circular Run samples, not a new orbital prediction. Camera and visual illumination never change RF or delivery results.">
+          <span title="Returned mission positions and attitudes. Camera changes never affect numerical results. Static clouds do not supply RF weather losses.">
             ECEF · static cloud composite
           </span>
         </div>

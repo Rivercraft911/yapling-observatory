@@ -1,0 +1,117 @@
+.dynamics-lab {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(150px, 0.7fr) 31px auto minmax(220px, 1fr);
+  background: #111214;
+}
+.dynamics-plots {
+  grid-row: 4;
+  min-height: 0;
+  display: grid;
+  grid-auto-rows: minmax(100px, 1fr);
+  overflow: auto;
+}
+.dynamics-scrub {
+  grid-row: 3;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 15px;
+  color: #a79a9f;
+  font: 10px 'IBM Plex Mono';
+  border-bottom: 1px solid #343033;
+}
+.dynamics-scrub input {
+  flex: 1;
+  min-width: 0;
+}
+.dynamics-controls .study-number input {
+  width: 98px;
+}
+.dynamics-controls .study-number small {
+  font-size: 9px;
+  min-width: 36px;
+}
+.dynamics-diagnostics {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 9px;
+  color: #b8acaf;
+  font: 10px 'IBM Plex Mono';
+  margin: 18px 0;
+}
+.dynamics-diagnostics dd {
+  margin: 0;
+  color: #e1d7d9;
+}
+.dynamics-cancel {
+  width: 100%;
+  margin-top: 6px;
+}
+.orbital-six {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 10px 0;
+}
+.orbital-element {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: #d5c9ce;
+}
+.orbital-element > span {
+  display: flex;
+  justify-content: space-between;
+  font: 15px 'IBM Plex Sans';
+}
+.orbital-fields small {
+  color: #9b8d92;
+  font: 9px 'IBM Plex Mono';
+}
+.orbital-fields input,
+.orbital-fields select {
+  min-width: 0;
+  width: 100%;
+  font: 11px 'IBM Plex Mono';
+  color: #e8dfe2;
+  background: #171719;
+  border: 1px solid #493d42;
+  border-radius: 3px;
+  padding: 6px 7px;
+  color-scheme: dark;
+}
+.orbital-fields input:focus-visible,
+.orbital-fields select:focus-visible {
+  outline: 1px solid #ba6876;
+  outline-offset: 1px;
+}
+.orbital-fields input[readonly] {
+  color: #95868c;
+}
+.orbital-epoch {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0;
+  font-size: 11px;
+}
+.orbital-solar-node {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  font-size: 11px;
+}
+.orbital-solar-node > label {
+  display: grid;
+  gap: 5px;
+}
+.orbital-terminator {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+}
+.orbital-fields .orbital-input-error {
+  color: #e89ba6;
+  line-height: 1.4;
+}

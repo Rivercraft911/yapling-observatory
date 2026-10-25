@@ -24,6 +24,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import type { Material } from 'three';
 import type { AssetInfo, Variant } from '../types';
 import { createSpacecraftDisplay } from '../graphics/spacecraftDisplay';
+import { createThermalOverlay } from '../graphics/thermalOverlay';
 
 // Display basis C: body/ECEF (x,y,z) -> glTF/display (x,z,-y).
 const C = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -Math.PI / 2);
@@ -87,6 +88,8 @@ export class SpacecraftFollow {
   private readonly raycaster = new Raycaster();
   private readonly viewport = new Vector3();
   private root: Group | null = null;
+  private thermalOverlay: ReturnType<typeof createThermalOverlay> | null = null;
+  private temperatures: Record<string, number> | undefined;
   private display: ReturnType<typeof createSpacecraftDisplay> | null = null;
   private abort: AbortController | null = null;
   private ticket = 0;
@@ -251,6 +254,8 @@ export class SpacecraftFollow {
       const sphere = new Box3().setFromObject(this.root).getBoundingSphere(new Sphere());
       this.radius = Math.max(0.05, sphere.radius + sphere.center.length());
       this.display = createSpacecraftDisplay(this.root);
+      this.thermalOverlay = createThermalOverlay(this.root);
+      this.thermalOverlay.update(this.temperatures);
       this.report({ state: 'ready', revision: headerRevision });
     } catch (cause) {
       if (
@@ -268,6 +273,11 @@ export class SpacecraftFollow {
         });
       }
     }
+  }
+
+  setTemperatures(temperatures?: Record<string, number>) {
+    this.temperatures = temperatures;
+    this.thermalOverlay?.update(temperatures);
   }
 
   update(dt: number) {
@@ -322,6 +332,8 @@ export class SpacecraftFollow {
   }
 
   private clearModel() {
+    this.thermalOverlay?.dispose();
+    this.thermalOverlay = null;
     if (this.root) {
       this.poseRoot.remove(this.root);
       disposeModel(this.root);

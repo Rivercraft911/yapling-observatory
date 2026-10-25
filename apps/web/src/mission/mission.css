@@ -1,0 +1,62 @@
+.mission-controls-body {
+  min-width: 0;
+}
+.mission-run-kinds,
+.mission-presets {
+  display: flex;
+  gap: 4px;
+  margin: 14px 0;
+}
+.mission-run-kinds button,
+.mission-presets button {
+  flex: 1;
+  font-size: 11px;
+}
+.mission-run-kinds [aria-pressed='true'] {
+  border-color: var(--accent);
+  color: #e2ddd7;
+  background: #8c24322b;
+}
+.mission-details {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.mission-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 11px;
+}
+.mission-details > small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+  margin: 10px 0;
+}
+.mission-run-actions {
+  display: grid;
+  gap: 8px;
+  margin: 20px 0;
+  position: sticky;
+  bottom: 0;
+  background: #19191b;
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+}
+.mission-run-actions .primary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.mission-error {
+  font-size: 11px;
+  color: #ef8791;
+  white-space: pre-wrap;
+  display: flex;
+  gap: 8px;
+  align-items: start;
+}
+.mission-error button {
+  border: 0;
+  margin-left: auto;
+}

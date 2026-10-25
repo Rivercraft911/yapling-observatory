@@ -10,7 +10,19 @@ export type PlotId =
   | 'doppler'
   | 'polarization'
   | 'tracking'
-  | 'capacity';
+  | 'capacity'
+  | 'body_rate'
+  | 'wheel_speed'
+  | 'wheel_capacity'
+  | 'saturation'
+  | 'power'
+  | 'energy'
+  | 'charge'
+  | 'battery_voltage'
+  | 'battery_current'
+  | 'actuator_power'
+  | 'temperatures'
+  | 'bus_heat';
 export interface PlotDefinition {
   id: PlotId;
   title: string;
@@ -35,8 +47,8 @@ export const plotDefinitions: PlotDefinition[] = [
     title: 'Pointing error',
     unit: 'deg',
     minimumSpan: 1,
-    description: 'Patch +Y boresight to station. Current attitude is prescribed.',
-    read: (s) => [{ label: 'Patch → GS', values: s.attitude_angle_deg || [] }],
+    description: 'Returned body-boresight error to the active guidance target.',
+    read: (s) => [{ label: 'Boresight → target', values: s.attitude_angle_deg || [] }],
   },
   {
     id: 'margin',
@@ -96,6 +108,126 @@ export const plotDefinitions: PlotDefinition[] = [
     description: 'Cumulative ideal scheduled data, decimal megabytes. No packet or queue model.',
     read: (s) => paired(s, 'cumulative_ideal_bits', 8e6),
   },
+
+  {
+    id: 'body_rate',
+    title: 'Body rate',
+    unit: 'deg/s',
+    description: 'Actual rigid-body angular velocity, body axes.',
+    read: (s) =>
+      [0, 1, 2].map((axis) => ({
+        label: 'xyz'[axis],
+        values: (s.gnc?.omega_body_rad_s || []).map((v) => (v[axis] * 180) / Math.PI),
+      })),
+  },
+  {
+    id: 'wheel_speed',
+    title: 'Wheel speed',
+    unit: 'rpm',
+    description: 'Rotor speed relative to the spacecraft.',
+    read: (s) =>
+      Array.from({ length: s.gnc?.wheel_relative_speed_rad_s[0]?.length || 0 }, (_, i) => ({
+        label: `W${i + 1}`,
+        values: (s.gnc?.wheel_relative_speed_rad_s || []).map((v) => (v[i] * 60) / (2 * Math.PI)),
+      })),
+  },
+  {
+    id: 'wheel_capacity',
+    title: 'Wheel capacity',
+    unit: '%',
+    minimumSpan: 100,
+    description: 'Absolute rotor speed as a fraction of the configured speed limit.',
+    read: (s) =>
+      Array.from({ length: s.gnc?.wheel_speed_utilization?.[0]?.length || 0 }, (_, i) => ({
+        label: `W${i + 1}`,
+        values: (s.gnc?.wheel_speed_utilization || []).map((v) => 100 * v[i]),
+      })),
+  },
+  {
+    id: 'saturation',
+    title: 'Actuator limits',
+    unit: 'flag',
+    stepped: true,
+    minimumSpan: 1,
+    description: 'One indicates an active torque, speed, power or dipole limit.',
+    read: (s) => [
+      { label: 'Wheel', values: (s.gnc?.wheel_saturated || []).map(Number) },
+      { label: 'MTQ', values: (s.gnc?.magnetic_saturated || []).map(Number) },
+    ],
+  },
+  {
+    id: 'power',
+    title: 'Bus power',
+    unit: 'W',
+    description:
+      'Available solar generation and requested loads, averaged over preceding dynamics interval.',
+    read: (s) => [
+      { label: 'Solar available', values: s.power?.potential_bus_w || [] },
+      { label: 'Load', values: s.power?.requested_load_w || [] },
+      { label: 'Net', values: s.power?.net_bus_w || [] },
+    ],
+  },
+  {
+    id: 'energy',
+    title: 'Stored energy',
+    unit: 'Wh',
+    description: 'Computed chemical-energy storage, capacity model.',
+    read: (s) => [{ label: 'Battery', values: s.power?.stored_energy_wh || [] }],
+  },
+  {
+    id: 'charge',
+    title: 'Remaining energy',
+    unit: '%',
+    description: 'Stored energy fraction. This is not a charge-based electrochemical SOC model.',
+    read: (s) => [
+      { label: 'Battery', values: (s.power?.energy_fraction || []).map((v) => v * 100) },
+    ],
+  },
+  {
+    id: 'battery_voltage',
+    title: 'Battery voltage',
+    unit: 'V',
+    description: 'Unresolved until a terminal-voltage model is configured.',
+    read: (s) => [{ label: 'Unresolved', values: s.power?.battery_voltage_v || [] }],
+  },
+  {
+    id: 'battery_current',
+    title: 'Battery current',
+    unit: 'A',
+    description: 'Unresolved until a terminal-voltage/current model is configured.',
+    read: (s) => [{ label: 'Unresolved', values: s.power?.battery_current_a || [] }],
+  },
+  {
+    id: 'actuator_power',
+    title: 'Actuator power',
+    unit: 'W',
+    description: 'Actual actuator electrical input and dissipated heat.',
+    read: (s) => [
+      { label: 'Electrical', values: s.power?.actuator_bus_w || [] },
+      { label: 'Heat', values: s.power?.actuator_heat_w || [] },
+    ],
+  },
+  {
+    id: 'temperatures',
+    title: 'Temperature',
+    unit: '°C',
+    description: 'Computed lumped-node temperature.',
+    read: (s) =>
+      ['bus', 'battery', 'panel', 'radio'].map((node) => ({
+        label: node,
+        values: (s.thermal?.node_temperature_k[node] || []).map((v) => v - 273.15),
+      })),
+  },
+  {
+    id: 'bus_heat',
+    title: 'Bus heat',
+    unit: 'W',
+    description: 'Returned internal dissipation and net heat at the bus thermal node.',
+    read: (s) => [
+      { label: 'Internal', values: s.thermal?.node_internal_heat_w?.bus || [] },
+      { label: 'Net', values: s.thermal?.node_net_heat_w?.bus || [] },
+    ],
+  },
 ];
 export function plotTraces(
   definition: PlotDefinition,
@@ -104,7 +236,7 @@ export function plotTraces(
 ): Trace[] {
   const samples = snapshot?.run.result?.samples;
   if (!samples) return [];
-  return definition.read(samples).map((series) => ({
+  return definition.read(samples).map((series, index) => ({
     ...series,
     values:
       series.values.length === samples.time_s.length
@@ -121,7 +253,7 @@ export function plotTraces(
             : '#e6e1d9'
           : pinned
             ? '#6b6865'
-            : '#c9c4bd',
+            : ['#c9c4bd', '#c89974', '#78a5b3', '#bd7184'][index % 4],
     dash: pinned
       ? series.label === 'DL'
         ? [2, 5]

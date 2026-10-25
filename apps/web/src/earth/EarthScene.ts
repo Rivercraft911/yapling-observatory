@@ -71,6 +71,11 @@ export class EarthScene {
   private readonly followLink: FollowLink;
   private readonly followEarthCamera = new PerspectiveCamera(34, 1, 0.0001, 40);
   private cameraMode: EarthCameraMode = 'earth';
+  private thermalView = false;
+  setThermalView(enabled: boolean) {
+    this.thermalView = enabled;
+    this.updateSample(this.sampleIndex);
+  }
   private readonly history = new Group();
   private readonly satelliteGeometry = new BufferGeometry().setAttribute(
     'position',
@@ -367,10 +372,39 @@ export class EarthScene {
     this.satellite.position.fromArray(ecefToDisplay(p));
     this.satellite.visible = true;
     const visualTime = bracket?.time ?? samples.time_s[index];
-    const sun = visualSunDirection(snapshot.scenario.epoch_utc, visualTime);
+    const sunEcef = samples.sun_direction_ecef
+      ? bracket
+        ? interpolateVector3(
+            samples.sun_direction_ecef[bracket.lower],
+            samples.sun_direction_ecef[bracket.upper],
+            bracket.alpha,
+          )
+        : samples.sun_direction_ecef[index]
+      : null;
+    const sun = sunEcef
+      ? (new Vector3(sunEcef[0], sunEcef[2], -sunEcef[1]).normalize().toArray() as [
+          number,
+          number,
+          number,
+        ])
+      : visualSunDirection(snapshot.scenario.epoch_utc, visualTime);
     this.appearance?.setSun(sun);
     this.follow.setSun(sun);
     this.follow.setPosition(p);
+    const nodeTemperatures = samples.thermal?.node_temperature_k;
+    this.follow.setTemperatures(
+      this.thermalView && nodeTemperatures
+        ? Object.fromEntries(
+            Object.entries(nodeTemperatures).map(([node, values]) => [
+              node,
+              bracket
+                ? values[bracket.lower] +
+                  (values[bracket.upper] - values[bracket.lower]) * bracket.alpha
+                : values[index],
+            ]),
+          )
+        : undefined,
+    );
     const inertialStation = bracket
       ? interpolateVector3(
           samples.station_position_m[bracket.lower],

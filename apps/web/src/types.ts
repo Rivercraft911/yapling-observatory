@@ -66,6 +66,41 @@ export interface LinkSamples {
 }
 export interface Samples {
   time_s: number[];
+  mode?: string[];
+  radio_active?: boolean[];
+  sun_direction_ecef?: number[][];
+  ecef_from_inertial_angle_rad?: number[];
+  gnc?: {
+    omega_body_rad_s: number[][];
+    wheel_relative_speed_rad_s: number[][];
+    wheel_speed_utilization?: number[][];
+    wheel_absolute_axial_momentum_nms: number[][];
+    requested_torque_body_nm: number[][];
+    actual_torque_body_nm: number[][];
+    residual_torque_body_nm: number[][];
+    wheel_saturated: boolean[];
+    magnetic_saturated: boolean[];
+    controller_status: string[];
+  };
+  power?: {
+    generated_bus_w: number[];
+    potential_bus_w: number[];
+    requested_load_w: number[];
+    served_load_w: number[];
+    net_bus_w: number[];
+    stored_energy_wh: number[];
+    energy_fraction: number[];
+    battery_voltage_v: Scalar[];
+    battery_current_a: Scalar[];
+    actuator_bus_w: number[];
+    actuator_heat_w: number[];
+    sun_visibility: number[];
+  };
+  thermal?: {
+    node_temperature_k: Record<string, number[]>;
+    node_internal_heat_w?: Record<string, number[]>;
+    node_net_heat_w?: Record<string, number[]>;
+  };
   satellite_position_m: number[][];
   station_position_m: number[][];
   satellite_position_ecef_m: number[][];
@@ -82,6 +117,7 @@ export interface Samples {
   downlink: LinkSamples;
 }
 export interface RunResult {
+  events?: { time_s: number; type: string; mode?: string; [key: string]: unknown }[];
   manifest: Record<string, unknown>;
   summary: {
     ideal_capacity_bits: { uplink: number | null; downlink: number | null };
@@ -101,7 +137,19 @@ export interface Run {
 }
 export interface RunSnapshot {
   run: Run;
-  scenario: Scenario;
+  scenario: Pick<
+    Scenario,
+    | 'name'
+    | 'epoch_utc'
+    | 'duration_s'
+    | 'step_s'
+    | 'station'
+    | 'antenna_variant'
+    | 'uplink'
+    | 'downlink'
+    | 'schedule'
+    | 'provenance'
+  >;
 }
 export interface AssetInfo {
   revision: string;

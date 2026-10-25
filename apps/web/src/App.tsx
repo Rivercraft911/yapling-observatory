@@ -1,33 +1,25 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, cloneScenario } from './api';
-import type {
-  Assets,
-  Direction,
-  Radio,
-  RadioCatalog,
-  Run,
-  RunSnapshot,
-  Scenario,
-  Variant,
-} from './types';
+import { api } from './api';
+import type { Assets, RadioCatalog, Variant, RunSnapshot } from './types';
 import { Workbench } from './Workbench';
 import { PaneDivider } from './Resizer';
 import { closestIndex, formatValue } from './plots/TracePlot';
 import { PlotDock } from './plots/PlotDock';
 import { SpacecraftInspector } from './spacecraft/SpacecraftInspector';
 import { advanceDisplayTime } from './graphics/displayInterpolation';
+import type { DynamicsSession } from './systems/dynamicsTypes';
 import type { PowerSession } from './systems/powerTypes';
+import { useMission } from './mission/useMission';
+import { MissionInspector } from './mission/MissionInspector';
+import { MissionHardware } from './mission/MissionHardware';
+import { missionDisplaySnapshot } from './mission/displaySnapshot';
 import './systems/systems.css';
-const PowerLab = lazy(() =>
-  import('./systems/PowerLab').then((module) => ({ default: module.PowerLab })),
+const DynamicsLab = lazy(() =>
+  import('./systems/DynamicsLab').then((m) => ({ default: m.DynamicsLab })),
 );
-
-const EarthView = lazy(() =>
-  import('./EarthView').then((module) => ({ default: module.EarthView })),
-);
-const AntennaLab = lazy(() =>
-  import('./AntennaLab').then((module) => ({ default: module.AntennaLab })),
-);
+const PowerLab = lazy(() => import('./systems/PowerLab').then((m) => ({ default: m.PowerLab })));
+const EarthView = lazy(() => import('./EarthView').then((m) => ({ default: m.EarthView })));
+const AntennaLab = lazy(() => import('./AntennaLab').then((m) => ({ default: m.AntennaLab })));
 type WorkspaceView = 'earth' | 'spacecraft' | 'antenna';
 const workspaceViews: { id: WorkspaceView; label: string }[] = [
   { id: 'earth', label: 'Earth' },
@@ -35,56 +27,72 @@ const workspaceViews: { id: WorkspaceView; label: string }[] = [
   { id: 'antenna', label: 'Antenna lab' },
 ];
 const EMPTY: number[] = [];
-const variants: { value: Variant; label: string }[] = [
-  { value: 'dipole', label: 'Straight dipole' },
-  { value: 'turnstile', label: 'Turnstile' },
-  { value: 'v45', label: '45° V / tape' },
-];
-const busyStatuses = new Set(['queued', 'running', 'cancelling']);
 
 export default function App() {
+  const mission = useMission();
+  const scenario = mission.config;
+  const snapshot = useMemo(() => missionDisplaySnapshot(mission.snapshot), [mission.snapshot]);
+  const run = mission.run,
+    error = mission.error,
+    busy = mission.busy,
+    submitting = mission.submitting,
+    dirty = mission.dirty;
   const [view, setView] = useState<WorkspaceView>('earth');
   const [antennaInspector, setAntennaInspector] = useState<HTMLDivElement | null>(null);
   const [antennaFollowsRun, setAntennaFollowsRun] = useState(false);
   const [previewVariant, setPreviewVariant] = useState<Variant | null>(null);
   const [cutaway, setCutaway] = useState(false);
-  const [spacecraftSection, setSpacecraftSection] = useState<'geometry' | 'power' | 'thermal'>(
-    'geometry',
-  );
+  const [spacecraftSection, setSpacecraftSection] = useState<
+    'geometry' | 'hardware' | 'power' | 'thermal' | 'gnc'
+  >('geometry');
+  const [dynamicsSession, setDynamicsSession] = useState<DynamicsSession>({
+    config: null,
+    result: null,
+  });
   const [powerSession, setPowerSession] = useState<PowerSession>({ config: null, result: null });
   const [systemsInspector, setSystemsInspector] = useState<HTMLDivElement | null>(null);
   const [starTrackerVisible, setStarTrackerVisible] = useState(true);
+  const [moduleVisibility, setModuleVisibility] = useState<Record<string, boolean>>({});
+  const [availableModules, setAvailableModules] = useState<string[]>([]);
   const [followAttitude, setFollowAttitude] = useState(false);
-  const [scenario, setScenario] = useState<Scenario | null>(null);
-  const [run, setRun] = useState<Run | null>(null);
-  const [snapshot, setSnapshot] = useState<RunSnapshot | null>(null);
-  const [baseline, setBaseline] = useState<RunSnapshot | null>(null);
   const [assets, setAssets] = useState<Assets>({ variants: {} });
   const [catalog, setCatalog] = useState<RadioCatalog>({ presets: [] });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [reload, setReload] = useState(0);
   const [index, setIndex] = useState(0);
-  const displayTime = useRef(0);
-  const displayReadout = useRef<HTMLSpanElement>(null);
-  const displayTick = useRef<HTMLSpanElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [rate, setRate] = useState(60);
+  const displayTime = useRef(0),
+    displayReadout = useRef<HTMLSpanElement>(null),
+    displayTick = useRef<HTMLSpanElement>(null);
+  const [playing, setPlaying] = useState(false),
+    [rate, setRate] = useState(1000);
   const [panelWidth, setPanelWidth] = useState(() => readLayout().panelWidth);
   const [sceneFraction, setSceneFraction] = useState(() => readLayout().sceneFraction);
   const [layoutSize, setLayoutSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight - 62,
   });
-  const workspaceRef = useRef<HTMLElement>(null);
-  const instrumentRef = useRef<HTMLDivElement>(null);
-  const autoplayNext = useRef(false);
+  const workspaceRef = useRef<HTMLElement>(null),
+    instrumentRef = useRef<HTMLDivElement>(null);
+  const autoplayNext = useRef(false),
+    completeId = useRef('');
   const compact = layoutSize.width <= 760;
   const panelMax = Math.max(240, Math.min(600, layoutSize.width * 0.45));
   const actualPanelWidth = Math.min(panelMax, Math.max(240, panelWidth));
-  const flexibleHeight = Math.max(320, layoutSize.height - 161);
-  const sceneHeight = flexibleHeight * sceneFraction;
+  const flexibleHeight = Math.max(320, layoutSize.height - 161),
+    sceneHeight = flexibleHeight * sceneFraction;
+  const [inspector, setInspector] = useState(false);
+  const [baseline, setBaseline] = useState<RunSnapshot | null>(null);
+  const samples = snapshot?.run.result?.samples,
+    times = samples?.time_s || EMPTY,
+    time = times[index] ?? 0;
+  const renderModules = useMemo(() => {
+    const values = { ...moduleVisibility };
+    if (spacecraftSection === 'hardware' && scenario) {
+      for (const axis of ['X', 'Y', 'Z'])
+        values[`SSI_TORQUER_${axis}`] = !!scenario.spacecraft.magnetorquer?.enabled;
+      for (const axis of ['X', 'Y', 'Z'])
+        values[`SSI_WHEEL_${axis}_OPTIONAL`] = scenario.spacecraft.wheels.some((w) => w.enabled);
+    }
+    return values;
+  }, [moduleVisibility, spacecraftSection, scenario]);
   useEffect(() => {
     const host = workspaceRef.current;
     if (!host) return;
@@ -103,158 +111,52 @@ export default function App() {
     setPanelWidth(310);
     setSceneFraction(0.56);
   };
-  const [inspector, setInspector] = useState(false);
-  const pendingScenario = useRef<Scenario | null>(null);
-  const generation = useRef(0);
-  const completeId = useRef('');
-  const samples = snapshot?.run.result?.samples;
-  const times = samples?.time_s || EMPTY;
-  const time = times[index] ?? 0;
+  useEffect(() => {
+    const abort = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    async function refresh() {
+      try {
+        const data = await api<Assets>('/api/assets', { signal: abort.signal });
+        if (!abort.signal.aborted)
+          setAssets((previous) =>
+            JSON.stringify(previous) === JSON.stringify(data) ? previous : data,
+          );
+      } catch {
+      } finally {
+        if (!abort.signal.aborted) timer = setTimeout(refresh, 5000);
+      }
+    }
+    void refresh();
+    api<RadioCatalog>('/api/radio-profiles', { signal: abort.signal })
+      .then(setCatalog)
+      .catch(() => {});
+    return () => {
+      abort.abort();
+      clearTimeout(timer);
+    };
+  }, []);
   const paintDisplayTime = useCallback(
     (value: number) => {
       displayTime.current = value;
       if (displayReadout.current) displayReadout.current.textContent = value.toFixed(1);
       if (displayTick.current)
-        displayTick.current.style.left = `${(100 * value) / (times[times.length - 1] || 1)}%`;
+        displayTick.current.style.left = `${(100 * value) / (times.at(-1) || 1)}%`;
     },
     [times],
   );
-  const busy = submitting || (!!run && busyStatuses.has(run.status));
-  const dirty =
-    !!scenario && !!snapshot && JSON.stringify(scenario) !== JSON.stringify(snapshot.scenario);
-
-  const startRun = useCallback(async (input: Scenario, autoplay = true) => {
-    autoplayNext.current = autoplay;
-    const ticket = ++generation.current;
-    setError('');
-    setSubmitting(true);
-    setPlaying(false);
-    pendingScenario.current = cloneScenario(input);
-    try {
-      const created = await api<Run>('/api/runs', {
-        method: 'POST',
-        body: JSON.stringify({ scenario: input }),
-      });
-      if (ticket !== generation.current) return;
-      setRun({ ...created, result: created.result ?? null, error: created.error ?? null });
-    } catch (cause) {
-      if (ticket === generation.current)
-        setError(cause instanceof Error ? cause.message : 'Run request failed');
-    } finally {
-      if (ticket === generation.current) setSubmitting(false);
-    }
-  }, []);
-
   useEffect(() => {
-    const abort = new AbortController();
-    let active = true;
-    setLoading(true);
-    setError('');
-    api<{ scenario: Scenario }>('/api/scenarios/default', { signal: abort.signal })
-      .then((data) => {
-        if (!active) return;
-        setScenario(data.scenario);
-        setLoading(false);
-        void startRun(data.scenario, false);
-      })
-      .catch((cause) => {
-        if (active && cause.name !== 'AbortError') {
-          setError(cause.message || 'Local service unavailable');
-          setLoading(false);
-        }
-      });
-    api<Assets>('/api/assets', { signal: abort.signal })
-      .then((data) => {
-        if (active) setAssets(data);
-      })
-      .catch(() => {});
-    api<RadioCatalog>('/api/radio-profiles', { signal: abort.signal })
-      .then((data) => {
-        if (active) setCatalog(data);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-      abort.abort();
-    };
-  }, [reload, startRun]);
-
-  useEffect(() => {
-    const abort = new AbortController();
-    let active = true;
-    let timeout: ReturnType<typeof setTimeout>;
-    async function refresh() {
-      try {
-        const metadata = await api<Assets>('/api/assets', { signal: abort.signal });
-        if (active)
-          setAssets((previous) =>
-            JSON.stringify(previous) === JSON.stringify(metadata) ? previous : metadata,
-          );
-      } catch {
-      } finally {
-        if (active) timeout = setTimeout(refresh, 5000);
-      }
-    }
-    void refresh();
-    return () => {
-      active = false;
-      abort.abort();
-      clearTimeout(timeout);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!run || !busyStatuses.has(run.status)) return;
-    let active = true;
-    let timeout: ReturnType<typeof setTimeout>;
-    const abort = new AbortController();
-    const id = run.run_id;
-    async function poll() {
-      try {
-        const updated = await api<Run>(`/api/runs/${encodeURIComponent(id)}`, {
-          signal: abort.signal,
-        });
-        if (!active) return;
-        setRun(updated);
-        if (busyStatuses.has(updated.status)) timeout = setTimeout(poll, 400);
-      } catch (cause) {
-        if (active && cause instanceof Error && cause.name !== 'AbortError') {
-          setError(cause.message);
-          timeout = setTimeout(poll, 1500);
-        }
-      }
-    }
-    timeout = setTimeout(poll, 100);
-    return () => {
-      active = false;
-      abort.abort();
-      clearTimeout(timeout);
-    };
-  }, [run?.run_id, run?.status]);
-
-  useEffect(() => {
-    if (
-      run?.status === 'complete' &&
-      run.result &&
-      pendingScenario.current &&
-      completeId.current !== run.run_id
-    ) {
-      completeId.current = run.run_id;
-      setSnapshot({ run, scenario: cloneScenario(pendingScenario.current) });
-      displayTime.current = run.result.samples.time_s[0] ?? 0;
-      setIndex(0);
-      setPlaying(autoplayNext.current);
-      autoplayNext.current = false;
-      setError('');
-    }
-    if (run?.status === 'failed') setError(run.error || 'Simulation failed');
-  }, [run]);
-
+    if (!snapshot?.run.result || completeId.current === snapshot.run.run_id) return;
+    completeId.current = snapshot.run.run_id;
+    displayTime.current = times[0] ?? 0;
+    setIndex(0);
+    setPlaying(autoplayNext.current);
+    autoplayNext.current = false;
+  }, [snapshot, times]);
   useEffect(() => {
     if (!playing || times.length < 2) return;
-    let animation = 0;
-    let previous = performance.now();
-    let elapsed = displayTime.current;
+    let animation = 0,
+      previous = performance.now(),
+      elapsed = displayTime.current;
     function tick(now: number) {
       elapsed = advanceDisplayTime(elapsed, (now - previous) / 1000, rate, times[times.length - 1]);
       previous = now;
@@ -268,10 +170,7 @@ export default function App() {
     }
     animation = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animation);
-    // A scrub stops playback; only playback start, rate, or a new immutable history restarts this clock.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, rate, times, paintDisplayTime]);
-
   const scrub = useCallback(
     (value: number) => {
       setPlaying(false);
@@ -281,37 +180,19 @@ export default function App() {
     },
     [times, paintDisplayTime],
   );
-  const update = (change: (draft: Scenario) => void) =>
-    setScenario((current) => {
-      if (!current) return current;
-      const next = cloneScenario(current);
-      change(next);
-      recordEdits(current, next);
-      return next;
-    });
-  const cancel = async () => {
-    if (!run) return;
-    autoplayNext.current = false;
-    try {
-      const cancelled = await api<Run>(`/api/runs/${encodeURIComponent(run.run_id)}`, {
-        method: 'DELETE',
-      });
-      setRun(cancelled);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Cancellation failed');
-    }
-  };
   const segments = useMemo(() => {
     if (!samples?.time_s.length) return [];
-    const result: { start: number; end: number; direction: Direction }[] = [];
-    samples.active_direction.forEach((direction, i) => {
-      const t = samples.time_s[i];
-      const last = result[result.length - 1];
-      if (last?.direction === direction) last.end = t;
-      else result.push({ start: t, end: t, direction });
-    });
+    const states =
+      snapshot?.run.result?.events?.filter((event) => event.type === 'state' && event.mode) || [];
+    const result: { start: number; end: number; mode: string }[] = [];
+    for (const event of states) {
+      const last = result.at(-1);
+      if (last?.mode === event.mode) continue;
+      if (last) last.end = event.time_s;
+      result.push({ start: event.time_s, end: samples.time_s.at(-1)!, mode: event.mode! });
+    }
     return result;
-  }, [samples]);
+  }, [samples, snapshot]);
   const lastTime = times[times.length - 1] || 1;
   const selectedVariant = snapshot?.scenario.antenna_variant || scenario?.antenna_variant || 'v45';
   const modelVariant = previewVariant || selectedVariant;
@@ -326,13 +207,16 @@ export default function App() {
   const showTimeline =
     view === 'earth' ||
     (view === 'spacecraft'
-      ? spacecraftSection === 'geometry' && followAttitude
+      ? (spacecraftSection === 'geometry' || spacecraftSection === 'hardware') && followAttitude
       : antennaFollowsRun);
   const status = busy
     ? submitting
       ? 'Submitting'
       : run?.status || 'Running'
-    : run?.status || 'Offline';
+    : snapshot?.run.result?.summary.end_reason &&
+        snapshot.run.result.summary.end_reason !== 'requested_duration'
+      ? 'Stopped'
+      : run?.status || 'Ready';
   const currentDirection = samples?.active_direction[index];
   const visible = samples?.visible[index];
   const displayedId = snapshot?.run.run_id.slice(0, 8);
@@ -351,11 +235,13 @@ export default function App() {
           LOCAL
           <span className="header-divider" />
           {view === 'earth'
-            ? 'ANALYTICAL EXAMPLE'
+            ? 'COUPLED MISSION'
             : view === 'spacecraft'
-              ? spacecraftSection === 'geometry'
+              ? spacecraftSection === 'geometry' || spacecraftSection === 'hardware'
                 ? 'MODEL PREVIEW'
-                : 'PRESCRIBED STUDY'
+                : spacecraftSection === 'gnc'
+                  ? 'DYNAMICS STUDY'
+                  : 'PRESCRIBED STUDY'
               : 'ANTENNA REFERENCE'}
           {view === 'earth' && (
             <span className={`run-state ${busy ? 'working' : ''}`}>
@@ -369,9 +255,9 @@ export default function App() {
         <div className="error-bar" role="alert">
           <span>{error}</span>
           {!scenario ? (
-            <button onClick={() => setReload((n) => n + 1)}>Reconnect</button>
+            <button onClick={mission.reload}>Reconnect</button>
           ) : (
-            <button onClick={() => setError('')}>Dismiss</button>
+            <button onClick={mission.clearError}>Dismiss</button>
           )}
         </div>
       )}
@@ -440,15 +326,33 @@ export default function App() {
                     assets={assets}
                     onFollowRunChange={setAntennaFollowsRun}
                   />
-                ) : spacecraftSection !== 'geometry' ? (
-                  <PowerLab
-                    session={powerSession}
-                    onSession={setPowerSession}
+                ) : spacecraftSection === 'gnc' ? (
+                  <DynamicsLab
+                    session={dynamicsSession}
+                    onSession={setDynamicsSession}
                     inspectorTarget={systemsInspector}
                     asset={modelAsset}
                     variant={modelVariant}
                     cutaway={cutaway}
                     starTrackerVisible={starTrackerVisible}
+                    moduleVisibility={renderModules}
+                  />
+                ) : spacecraftSection !== 'geometry' && spacecraftSection !== 'hardware' ? (
+                  <PowerLab
+                    session={powerSession}
+                    onSession={setPowerSession}
+                    inspectorTarget={systemsInspector}
+                    asset={
+                      spacecraftSection === 'thermal' && cutawayAsset?.available
+                        ? cutawayAsset
+                        : modelAsset
+                    }
+                    variant={modelVariant}
+                    cutaway={
+                      spacecraftSection === 'thermal' && cutawayAsset?.available ? true : cutaway
+                    }
+                    starTrackerVisible={starTrackerVisible}
+                    moduleVisibility={renderModules}
                     section={spacecraftSection}
                   />
                 ) : (
@@ -457,6 +361,8 @@ export default function App() {
                     asset={modelAsset}
                     preview={cutaway ? 'cutaway' : 'exterior'}
                     starTrackerVisible={starTrackerVisible}
+                    moduleVisibility={renderModules}
+                    onAvailableModules={setAvailableModules}
                     quaternion={
                       followAttitude ? samples?.q_body_from_inertial_wxyz[index] : undefined
                     }
@@ -570,10 +476,13 @@ export default function App() {
                       <output>{formatSpeed(rate)}×</output>
                     </label>
                   </div>
-                  <span className="eyebrow">CONOPS / ALTERNATING</span>
+                  <span className="eyebrow">
+                    {samples?.mode?.[index]?.replaceAll('_', ' ') || 'CONOPS'}
+                  </span>
                   <div className="direction-key">
-                    <span className="uplink-color">UL</span>
-                    <span className="downlink-color">DL</span>
+                    <span>SUN</span>
+                    <span className="uplink-color">GS</span>
+                    <span>IMG</span>
                   </div>
                 </div>
                 <div className="timeline-track">
@@ -581,12 +490,12 @@ export default function App() {
                     {segments.map((segment, i) => (
                       <span
                         key={i}
-                        className={segment.direction}
+                        className={segment.mode}
+                        title={`${segment.mode.replaceAll('_', ' ')} · ${segment.start}–${segment.end} s`}
                         style={{
                           left: `${(segment.start / lastTime) * 100}%`,
-                          width: `${Math.max(0.1, ((segment.end - segment.start + (snapshot?.scenario.step_s || 0)) / lastTime) * 100)}%`,
+                          width: `${Math.max(0.1, ((segment.end - segment.start) / lastTime) * 100)}%`,
                         }}
-                        title={`${segment.direction} · ${segment.start.toFixed(0)}–${segment.end.toFixed(0)} s`}
                       />
                     ))}
                   </div>
@@ -618,9 +527,11 @@ export default function App() {
           <footer className="instrument-footer">
             <span>
               {view === 'spacecraft'
-                ? spacecraftSection === 'geometry'
+                ? spacecraftSection === 'geometry' || spacecraftSection === 'hardware'
                   ? `${cutaway ? 'LAYOUT STUDY' : 'MODEL'} ${modelAsset?.revision || '—'}`
-                  : `${spacecraftSection.toUpperCase()} · ${powerSession.result?.manifest.model_version || 'NOT RUN'}`
+                  : spacecraftSection === 'gnc'
+                    ? 'GNC · INDEPENDENT DYNAMICS STUDY'
+                    : `${spacecraftSection.toUpperCase()} · ${powerSession.result?.manifest.model_version || 'NOT RUN'}`
                 : view === 'antenna'
                   ? 'ANTENNA REFERENCE'
                   : snapshot
@@ -633,11 +544,13 @@ export default function App() {
                 ? 'Ideal threshold capacity · no packet dynamics'
                 : view === 'antenna'
                   ? 'Analytical patterns · nominal geometry'
-                  : spacecraftSection !== 'geometry'
-                    ? 'Prescribed CONOPS · provisional thermal inputs'
-                    : cutaway
-                      ? 'Visual layout study'
-                      : 'Concept geometry'}
+                  : spacecraftSection === 'gnc'
+                    ? 'Supplied target and magnetic field · illustrative actuators'
+                    : spacecraftSection !== 'geometry' && spacecraftSection !== 'hardware'
+                      ? 'Prescribed CONOPS · provisional thermal inputs'
+                      : cutaway
+                        ? 'Visual layout study'
+                        : 'Concept geometry'}
             </span>
           </footer>
         </div>
@@ -666,21 +579,30 @@ export default function App() {
           {view === 'spacecraft' ? (
             <>
               <nav className="spacecraft-sections" aria-label="Spacecraft sections">
-                {(['geometry', 'power', 'thermal'] as const).map((section) => (
+                {(['geometry', 'hardware', 'power', 'thermal', 'gnc'] as const).map((section) => (
                   <button
                     key={section}
                     aria-pressed={spacecraftSection === section}
-                    onClick={() => setSpacecraftSection(section)}
+                    onClick={() => {
+                      setSpacecraftSection(section);
+                      if (section === 'hardware' && cutawayAsset?.available) setCutaway(true);
+                    }}
                   >
                     {section === 'geometry'
                       ? 'Geometry'
-                      : section === 'power'
-                        ? 'Power & avionics'
-                        : 'Thermal'}
+                      : section === 'hardware'
+                        ? 'Hardware'
+                        : section === 'power'
+                          ? 'Power & avionics'
+                          : section === 'thermal'
+                            ? 'Thermal'
+                            : 'GNC'}
                   </button>
                 ))}
               </nav>
-              {spacecraftSection !== 'geometry' ? (
+              {spacecraftSection === 'hardware' && scenario ? (
+                <MissionHardware config={scenario} edit={mission.edit} />
+              ) : spacecraftSection !== 'geometry' && spacecraftSection !== 'hardware' ? (
                 <div ref={setSystemsInspector} />
               ) : (
                 <SpacecraftInspector
@@ -691,12 +613,20 @@ export default function App() {
                   cutawayAvailable={cutawayAsset?.available === true}
                   starTrackerVisible={starTrackerVisible}
                   onStarTrackerVisible={setStarTrackerVisible}
+                  moduleVisibility={renderModules}
+                  availableModules={availableModules}
+                  onModuleVisibility={(groups, visible) =>
+                    setModuleVisibility((current) => ({
+                      ...current,
+                      ...Object.fromEntries(groups.map((name) => [name, visible])),
+                    }))
+                  }
                   onVariant={setPreviewVariant}
                   followAttitude={followAttitude}
                   onFollowAttitude={setFollowAttitude}
                   hasRun={!!samples}
                   onApply={() => {
-                    update((draft) => {
+                    mission.edit((draft) => {
                       draft.antenna_variant = modelVariant;
                     });
                     setView('earth');
@@ -707,265 +637,19 @@ export default function App() {
           ) : view === 'antenna' ? (
             <div className="antenna-inspector-host" ref={setAntennaInspector} />
           ) : (
-            <>
-              <div className="controls-title">
-                <span className="eyebrow">SCENARIO</span>
-                <button
-                  className="text-button"
-                  onClick={() => setInspector(true)}
-                  disabled={!scenario}
-                  title="Inspect the exact inputs and immutable result manifest"
-                >
-                  Inspect ↗
-                </button>
-              </div>
-              {loading ? (
-                <div className="control-loading">
-                  <span className="spinner" />
-                  Connecting to local core
-                </div>
-              ) : scenario ? (
-                <>
-                  <div className="scenario-name">
-                    {scenario.name}
-                    {dirty && (
-                      <small className="pending-edits">
-                        Edits pending · view retains displayed run
-                      </small>
-                    )}
-                  </div>
-                  <fieldset>
-                    <legend>SPACECRAFT</legend>
-                    <Select
-                      label="Wire geometry"
-                      value={scenario.antenna_variant}
-                      onChange={(value) =>
-                        update((draft) => {
-                          draft.antenna_variant = value as Variant;
-                        })
-                      }
-                      options={variants}
-                    />
-                    <Select
-                      label="Attitude"
-                      value={scenario.attitude.mode}
-                      onChange={(value) =>
-                        update((draft) => {
-                          draft.attitude.mode = value as 'tracking' | 'tumble';
-                        })
-                      }
-                      options={[
-                        { value: 'tracking', label: 'Station tracking' },
-                        { value: 'tumble', label: 'Prescribed tumble' },
-                      ]}
-                    />
-                    {scenario.attitude.mode === 'tumble' ? (
-                      <Field
-                        label="Spin rate"
-                        unit="deg/s"
-                        value={scenario.attitude.spin_rate_deg_s}
-                        min={0}
-                        max={90}
-                        step={0.1}
-                        onChange={(value) =>
-                          update((draft) => {
-                            draft.attitude.spin_rate_deg_s = value;
-                          })
-                        }
-                      />
-                    ) : (
-                      <Field
-                        label="Pointing offset"
-                        unit="deg"
-                        value={scenario.attitude.pointing_error_deg}
-                        min={0}
-                        max={90}
-                        step={1}
-                        onChange={(value) =>
-                          update((draft) => {
-                            draft.attitude.pointing_error_deg = value;
-                          })
-                        }
-                      />
-                    )}
-                    <Field
-                      label="Altitude"
-                      unit="km"
-                      value={scenario.orbit.altitude_m / 1000}
-                      min={160}
-                      max={2000}
-                      step={10}
-                      onChange={(value) =>
-                        update((draft) => {
-                          draft.orbit.altitude_m = value * 1000;
-                        })
-                      }
-                    />
-                  </fieldset>
-                  <RadioControls
-                    direction="uplink"
-                    link={scenario.uplink}
-                    catalog={catalog}
-                    onChange={(change) => update((draft) => change(draft.uplink))}
-                  />
-                  <RadioControls
-                    direction="downlink"
-                    link={scenario.downlink}
-                    catalog={catalog}
-                    onChange={(change) => update((draft) => change(draft.downlink))}
-                  />
-                  <fieldset>
-                    <legend>
-                      GROUND<span>Durand · example</span>
-                    </legend>
-                    <div className="static-row">
-                      <span>S band / dish</span>
-                      <b>1.9 m*</b>
-                    </div>
-                    <div className="static-row">
-                      <span>UHF / Yagi</span>
-                      <b>15 dBi*</b>
-                    </div>
-                    <Field
-                      label="Elevation mask"
-                      unit="deg"
-                      value={scenario.station.minimum_elevation_deg}
-                      min={0}
-                      max={89}
-                      step={1}
-                      onChange={(value) =>
-                        update((draft) => {
-                          draft.station.minimum_elevation_deg = value;
-                        })
-                      }
-                    />
-                  </fieldset>
-                  <fieldset>
-                    <legend>RUN</legend>
-                    <Field
-                      label="Duration"
-                      unit="s"
-                      value={scenario.duration_s}
-                      min={10}
-                      max={3600}
-                      step={60}
-                      onChange={(value) =>
-                        update((draft) => {
-                          draft.duration_s = value;
-                        })
-                      }
-                    />
-                    <Field
-                      label="Sample step"
-                      unit="s"
-                      value={scenario.step_s}
-                      min={Math.max(0.05, scenario.duration_s / 7200)}
-                      max={30}
-                      step={0.05}
-                      onChange={(value) =>
-                        update((draft) => {
-                          draft.step_s = value;
-                        })
-                      }
-                    />
-                    <Field
-                      label="Direction slot"
-                      unit="s"
-                      value={scenario.schedule.slot_duration_s}
-                      min={1}
-                      max={3600}
-                      step={5}
-                      onChange={(value) =>
-                        update((draft) => {
-                          draft.schedule.slot_duration_s = value;
-                        })
-                      }
-                    />
-                  </fieldset>
-                  <div className="run-actions">
-                    {busy ? (
-                      <button
-                        className="primary cancel"
-                        onClick={() => void cancel()}
-                        disabled={submitting || run?.status === 'cancelling'}
-                      >
-                        Cancel run
-                      </button>
-                    ) : (
-                      <button className="primary" onClick={() => void startRun(scenario)}>
-                        Run scenario <span>↗</span>
-                      </button>
-                    )}
-                    <button
-                      disabled={!snapshot || busy}
-                      onClick={() => setBaseline(snapshot)}
-                      title="Retain this completed result as a dashed comparison"
-                    >
-                      Pin comparison
-                    </button>
-                  </div>
-                  {baseline && (
-                    <div className="comparison-note">
-                      <span>
-                        – –{' '}
-                        {
-                          variants.find((item) => item.value === baseline.scenario.antenna_variant)
-                            ?.label
-                        }
-                        <small>{baseline.run.run_id.slice(0, 8)}</small>
-                      </span>
-                      <button className="text-button" onClick={() => setBaseline(null)}>
-                        Clear
-                      </button>
-                    </div>
-                  )}
-                  <div className="capacity-totals">
-                    <span className="eyebrow">IDEAL CAPACITY</span>
-                    {snapshot?.run.result?.summary.capacity_available &&
-                      (!snapshot.run.result.summary.capacity_available.uplink ||
-                        !snapshot.run.result.summary.capacity_available.downlink) && (
-                        <small className="unresolved-note">Receiver / pattern unresolved</small>
-                      )}
-                    <div>
-                      <span className="uplink-color">
-                        UL{' '}
-                        <b>
-                          {formatValue(
-                            snapshot?.run.result?.summary.ideal_capacity_bits.uplink == null
-                              ? null
-                              : snapshot.run.result.summary.ideal_capacity_bits.uplink / 8e6,
-                            2,
-                          )}
-                        </b>{' '}
-                        MB
-                      </span>
-                      <span className="downlink-color">
-                        DL{' '}
-                        <b>
-                          {formatValue(
-                            snapshot?.run.result?.summary.ideal_capacity_bits.downlink == null
-                              ? null
-                              : snapshot.run.result.summary.ideal_capacity_bits.downlink / 8e6,
-                            2,
-                          )}
-                        </b>{' '}
-                        MB
-                      </span>
-                    </div>
-                  </div>
-                  <div className="provenance-note">
-                    Example inputs · analytical models
-                    <br />
-                    <span>* User-reported station hardware. Survey pending.</span>
-                  </div>
-                </>
-              ) : (
-                <div className="offline-note">
-                  Local core unavailable.
-                  <button onClick={() => setReload((n) => n + 1)}>Reconnect</button>
-                </div>
-              )}
-            </>
+            <MissionInspector
+              mission={mission}
+              catalog={catalog}
+              onRun={() => {
+                setPlaying(false);
+                autoplayNext.current = true;
+                void mission.start();
+              }}
+              onInspect={() => setInspector(true)}
+              canPin={!!snapshot}
+              hasBaseline={!!baseline}
+              onPin={() => setBaseline(baseline ? null : snapshot)}
+            />
           )}
         </aside>
       </main>
@@ -1009,292 +693,10 @@ export default function App() {
   );
 }
 
-function Field({
-  label,
-  unit,
-  value,
-  min,
-  max,
-  step,
-  onChange,
-}: {
-  label: string;
-  unit: string;
-  value: number | null;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (value: number) => void;
-}) {
-  const [text, setText] = useState(value == null ? '' : String(value));
-  useEffect(() => setText(value == null ? '' : String(Number(value.toPrecision(10)))), [value]);
-  return (
-    <label className="field-row">
-      <span>{label}</span>
-      <span className="numeric-field">
-        <input
-          aria-label={label}
-          type="number"
-          value={text}
-          placeholder="—"
-          min={min}
-          max={max}
-          step={step}
-          onChange={(event) => setText(event.target.value)}
-          onBlur={(event) => {
-            const number = event.currentTarget.valueAsNumber;
-            if (Number.isFinite(number) && number >= min && number <= max) onChange(number);
-            else setText(value == null ? '' : String(value));
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') event.currentTarget.blur();
-          }}
-        />
-        <small>{unit}</small>
-      </span>
-    </label>
-  );
-}
-function Select({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <label className="field-row">
-      <span>{label}</span>
-      <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
 function formatUtc(epoch: string, elapsed: number) {
   const date = new Date(new Date(epoch).getTime() + elapsed * 1000);
   return Number.isNaN(date.getTime()) ? '—' : date.toISOString().slice(11, 19);
 }
-function recordEdits(before: Scenario, after: Scenario) {
-  const changes: { path: string; previous: unknown }[] = [];
-  function walk(left: unknown, right: unknown, path: string) {
-    if (JSON.stringify(left) === JSON.stringify(right)) return;
-    if (
-      left &&
-      right &&
-      typeof left === 'object' &&
-      typeof right === 'object' &&
-      !Array.isArray(left) &&
-      !Array.isArray(right)
-    ) {
-      Object.keys(right)
-        .filter((key) => key !== 'provenance')
-        .forEach((key) =>
-          walk(
-            (left as Record<string, unknown>)[key],
-            (right as Record<string, unknown>)[key],
-            path ? `${path}.${key}` : key,
-          ),
-        );
-    } else changes.push({ path, previous: left });
-  }
-  walk(before, after, '');
-  const prior = before.provenance.filter(
-    (entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object',
-  );
-  after.provenance = [
-    ...before.provenance.filter(
-      (entry) =>
-        !changes.some(
-          (change) =>
-            entry && typeof entry === 'object' && 'path' in entry && entry.path === change.path,
-        ),
-    ),
-    ...changes.map((change) => {
-      const previous = prior.find((entry) => entry.path === change.path);
-      return {
-        path: change.path,
-        status: 'user_input',
-        source: 'Local workbench input edit',
-        conditions:
-          `Previous value: ${JSON.stringify(change.previous)}.${previous ? ` Prior evidence: ${JSON.stringify(previous)}` : ''}`.slice(
-            0,
-            2000,
-          ),
-      };
-    }),
-  ];
-}
-function RadioControls({
-  direction,
-  link,
-  catalog,
-  onChange,
-}: {
-  direction: Direction;
-  link: Radio;
-  catalog: RadioCatalog;
-  onChange: (change: (draft: Radio) => void) => void;
-}) {
-  const preset = catalog.presets.find(
-    (item) =>
-      item.profile.modulation === link.profile.modulation &&
-      item.profile.code_rate === link.profile.code_rate &&
-      item.profile.waveform === link.profile.waveform,
-  );
-  const options = catalog.presets.map((item) => ({ value: item.id, label: item.label }));
-  if (!preset)
-    options.unshift({
-      value: 'current',
-      label: `${link.profile.modulation} · ${link.profile.code_rate}`,
-    });
-  return (
-    <fieldset>
-      <legend>
-        <span className={direction === 'uplink' ? 'uplink-color' : 'downlink-color'}>
-          {direction.toUpperCase()}
-        </span>
-        <span>{link.frequency_hz / 1e6} MHz</span>
-      </legend>
-      <Select
-        label="Profile"
-        value={preset?.id || 'current'}
-        options={options}
-        onChange={(id) => {
-          const selected = catalog.presets.find((item) => item.id === id);
-          if (selected)
-            onChange((draft) => {
-              draft.frequency_hz = selected.frequency_hz;
-              draft.spacecraft_antenna = selected.spacecraft_antenna;
-              draft.spacecraft_peak_gain_dbi = selected.spacecraft_peak_gain_dbi;
-              draft.profile = cloneScenario(selected.profile);
-              if (selected.ground_peak_gain_dbi != null)
-                draft.ground_peak_gain_dbi = selected.ground_peak_gain_dbi;
-              if (selected.rx_system_noise_temperature_k != null)
-                draft.rx_system_noise_temperature_k = selected.rx_system_noise_temperature_k;
-            });
-        }}
-      />
-      <Select
-        label="Spacecraft feed"
-        value={link.spacecraft_antenna}
-        options={[
-          { value: 'patch', label: 'Patch' },
-          { value: 'wire', label: 'Wire surrogate' },
-        ]}
-        onChange={(value) =>
-          onChange((draft) => {
-            draft.spacecraft_antenna = value as 'patch' | 'wire';
-            if (value === 'wire')
-              draft.spacecraft_peak_gain_dbi = Math.min(draft.spacecraft_peak_gain_dbi, 2.15);
-          })
-        }
-      />
-      <Field
-        label="Carrier"
-        unit="MHz"
-        value={link.frequency_hz / 1e6}
-        min={1.000001}
-        max={40000}
-        step={0.1}
-        onChange={(value) =>
-          onChange((draft) => {
-            draft.frequency_hz = value * 1e6;
-          })
-        }
-      />
-      <Field
-        label="Source power"
-        unit="W"
-        value={link.tx_power_w}
-        min={0.0001}
-        max={1000}
-        step={0.1}
-        onChange={(value) =>
-          onChange((draft) => {
-            draft.tx_power_w = value;
-          })
-        }
-      />
-      <Field
-        label="Ground gain"
-        unit="dBi"
-        value={link.ground_peak_gain_dbi}
-        min={-10}
-        max={70}
-        step={0.1}
-        onChange={(value) =>
-          onChange((draft) => {
-            draft.ground_peak_gain_dbi = value;
-          })
-        }
-      />
-      {link.profile.waveform === 'lora' ? (
-        <Field
-          label="Information rate"
-          unit="kb/s"
-          value={
-            link.profile.information_rate_bps == null
-              ? null
-              : link.profile.information_rate_bps / 1000
-          }
-          min={0.000001}
-          max={100000}
-          step={0.1}
-          onChange={(value) =>
-            onChange((draft) => {
-              draft.profile.information_rate_bps = value * 1000;
-            })
-          }
-        />
-      ) : (
-        <Field
-          label="Symbol rate"
-          unit="Msym/s"
-          value={link.profile.symbol_rate_sps == null ? null : link.profile.symbol_rate_sps / 1e6}
-          min={0.000001}
-          max={100}
-          step={0.1}
-          onChange={(value) =>
-            onChange((draft) => {
-              draft.profile.symbol_rate_sps = value * 1e6;
-            })
-          }
-        />
-      )}
-      <Field
-        label={link.profile.threshold_metric === 'cn0' ? 'C/N₀ threshold' : 'Es/N₀ threshold'}
-        unit={link.profile.threshold_metric === 'cn0' ? 'dB Hz' : 'dB'}
-        value={link.profile.threshold_db}
-        min={-50}
-        max={150}
-        step={0.1}
-        onChange={(value) =>
-          onChange((draft) => {
-            draft.profile.threshold_db = value;
-            draft.profile.threshold_status = 'illustrative';
-          })
-        }
-      />
-      <div className="profile-evidence">
-        {link.profile.threshold_status === 'unresolved'
-          ? 'Threshold unresolved'
-          : link.profile.threshold_status === 'ideal_awgn'
-            ? 'Ideal AWGN threshold'
-            : 'Illustrative threshold'}
-      </div>
-    </fieldset>
-  );
-}
-
 function readLayout() {
   try {
     const value = JSON.parse(localStorage.getItem('ssi-workspace-layout') || 'null');

@@ -1720,3 +1720,20 @@ legend > span:last-child:not(:first-child) {
   scrollbar-color: #665155 #171719;
   scrollbar-width: thin;
 }
+
+.operation-segments .sun_pointing {
+  background: #85817a;
+  opacity: 0.35;
+}
+.operation-segments .ground_tracking {
+  background: #bc1d2c;
+  opacity: 0.85;
+}
+.operation-segments .imaging {
+  background: #d3a96d;
+  opacity: 0.7;
+}
+.operation-segments .detumble {
+  background: #7197ad;
+  opacity: 0.7;
+}

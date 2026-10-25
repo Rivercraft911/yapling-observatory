@@ -254,3 +254,23 @@
     font-size: 7px;
   }
 }
+
+.earth-thermal-scale {
+  position: absolute;
+  bottom: 51px;
+  left: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 10px var(--mono);
+  color: #b8b1ac;
+  pointer-events: none;
+}
+.earth-thermal-scale i {
+  width: 100px;
+  height: 5px;
+  background: linear-gradient(90deg, #416b9a, #aeb7b7, #e2a062, #c93b48);
+}
+.earth-thermal-scale small {
+  font-size: 9px;
+}

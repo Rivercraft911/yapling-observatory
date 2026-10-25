@@ -9,7 +9,9 @@ const emptyTimes: number[] = [];
 const defaults: PlotId[] = ['pointing', 'margin', 'rate'];
 const presets: { label: string; values: PlotId[] }[] = [
   { label: 'Link', values: defaults },
-  { label: 'Motion', values: ['pointing', 'tracking', 'elevation'] },
+  { label: 'GNC', values: ['pointing', 'wheel_capacity', 'saturation'] },
+  { label: 'Power', values: ['power', 'charge', 'actuator_power'] },
+  { label: 'Thermal', values: ['temperatures', 'bus_heat'] },
 ];
 function readSelection(): PlotId[] {
   try {

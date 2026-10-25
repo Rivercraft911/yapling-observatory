@@ -13,8 +13,8 @@ compiled = compiled.replace(
   (_match, name) => `from '${import.meta.resolve(name)}'`,
 );
 compiled = compiled.replace(
-  /from ['"]\.\.\/graphics\/spacecraftDisplay['"]/g,
-  `from '${new URL('../graphics/spacecraftDisplay.ts', import.meta.url).href}'`,
+  /from ['"]\.\.\/graphics\/(spacecraftDisplay|thermalOverlay)['"]/g,
+  (_match, name) => `from '${new URL(`../graphics/${name}.ts`, import.meta.url).href}'`,
 );
 const { spacecraftEarthQuaternion } = await import(
   `data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`
