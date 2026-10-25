@@ -1,34 +1,49 @@
-# CubeSat Link Simulator
+# Stanford SSI Link Workspace
 
-Planning repository for Stanford SSI's antenna, attitude, orbit, and radio-link simulator. Created 2026-10-24 at River's request. No simulator implementation or validated mission-performance result exists yet.
+Explore a CubeSat pass, inspect antenna lobes, and compare uplink and downlink budgets. Follow the spacecraft above Earth or work with its physical model. Resize the panes, choose the lower plots, and replay a computed run at 0.25× to 1000×. Click or drag a plot to scrub. Hovering leaves playback alone.
 
-The intended experience combines a detailed, interactive Earth and orbit view with a spacecraft antenna laboratory. A shared simulation timeline connects antenna geometry, polarization, spacecraft motion, ground tracking, radio acquisition, and useful data delivery. Google Earth viewed from space is the user-specified visual benchmark.
+Python owns the engineering calculations. The browser displays immutable results and handles cameras, geometry and controls. Equations have named homes such as [`rf/free_space.py`](services/simulator/src/cubesat_sim/rf/free_space.py), [`rf/link_budget.py`](services/simulator/src/cubesat_sim/rf/link_budget.py) and [`orbit/circular_pass.py`](services/simulator/src/cubesat_sim/orbit/circular_pass.py). See the [model map and numerical guide](services/simulator/README.md).
 
-## Start here
+## Run locally
 
-- [Implementation plan](docs/implementation-plan.md): scope, two teams, staged delivery, and acceptance gates.
-- [Model and interface contracts](docs/model-contracts.md): numerical conventions and the boundary between the teams.
-- [Visual references and reuse research](docs/research-and-reuse.md): inspected projects, primary references, licenses, and selection decisions.
+Use Python 3.11 or newer and Node.js 22 or newer:
 
-## User-supplied inputs
+```sh
+python3 scripts/setup.py
+python3 scripts/dev.py
+```
 
-| Item | Current input | Status |
-| --- | --- | --- |
-| High-frequency link | Bidirectional DVB-S2 around 2.4 GHz, QPSK and APSK | Requested scope; exact carriers and supported profiles remain configurable |
-| UHF link | 438 MHz starting frequency, editable | Requested scope; radio selection open |
-| UHF candidate | NiceRF MiniF27, described as 800 mW | Candidate; SX1262 versus LLCC68 variant must be identified |
-| Flight antennas | Dipole, turnstile, tape-measure / bunny-ear forms, patch | Compare designs; geometry and feeding remain inputs |
-| Attitude | Uncontrolled tumble and controlled pointing throughout slews; evaluate magnetorquer-only control | Requested scope |
-| Ground site | Durand Building roof, Stanford, California | User report; antenna reference-point coordinates and height need survey |
-| Ground dish | 1.9 m at 2.4 GHz | User report; gain, pattern, feed, losses, and noise require characterization |
-| Ground UHF antenna | Yagi, approximately 15 dBi | User estimate; model, polarization, pattern, and gain reference need confirmation |
-| Ground polarization | Believed horizontally linear | Provisional user belief; record separately for each antenna and its mechanical mount |
-| Flight polarization | User describes a horizontal dipole or turnstile | Dipole orientation must be defined in spacecraft axes; turnstile polarization depends on feed and viewing direction |
+Open the printed localhost address. Ctrl-C stops both processes. The launcher accepts `--api-port` and `--web-port`.
 
-The related SATS workspace describes a 1U vehicle and 550 km circular planning orbit. Inclination and several system allocations are unresolved. These are scenario assumptions, not approved requirements. Previous link studies have conflicting or superseded dish assumptions; the new 1.9 m user report takes precedence for this plan.
+Spacecraft CAD and working renders stay in ignored local storage. The viewer reads the allowlisted GLB paths in `private/model-development/web-models.json`. A fresh checkout can run numerical studies without those assets and will report when a physical model is unavailable.
 
-## Engineering policy
+## Model limits
 
-Keep assumptions, analytical predictions, electromagnetic simulations, and measurements distinguishable. Preserve source revisions, units, reference planes, model limits, and reproduction instructions with each result. Graphics settings and playback speed must not change scientific results. Reuse established libraries with their notices and tested versions; keep mission scenarios separate from the reusable software.
+The current pass is a constructed circular example with prescribed tracking or tumble. RF uses analytical vector patterns and ideal threshold capacity. DVB-S2 supports QPSK and 8PSK. UHF LoRa is separate, with an unresolved receiver threshold. The V/tape mesh has no validated installed radiation pattern.
 
-This repository is local. No GitHub repository, remote, or publication is implied.
+Real orbit forecasts, physical attitude control, hardware receiver behavior, power and thermal histories remain planned. Bundled station and radio values are examples with inspectable provenance. Earth imagery and shader lighting do not affect the calculations.
+
+## Repository
+
+| Path | Purpose |
+| --- | --- |
+| `services/simulator/` | Numerical domains, validated inputs, API and tests |
+| `apps/web/src/earth/` | Earth rendering and spacecraft-follow camera |
+| `apps/web/src/graphics/` | Shared display and material handling |
+| `apps/web/src/antenna/` | Antenna inspection graphics |
+| `apps/web/src/plots/` | Selection and display of returned traces |
+| `scripts/` | Local setup and process lifecycle |
+| `private/` | Ignored mission notes, studies, source CAD and renders |
+
+## Checks
+
+```sh
+.venv/bin/python -m pytest services/simulator/tests
+npm --prefix apps/web run format:check
+npm --prefix apps/web run build
+node --experimental-strip-types apps/web/src/earth/geodesy.test.mjs
+node --experimental-strip-types apps/web/src/earth/follow-frames.test.mjs
+node apps/web/src/earth/regional-lod.test.mjs
+```
+
+Tests cover physical reference cases, numerical regressions and dependency boundaries. The GitHub workflow is configured to run the same checks. Use `npm --prefix apps/web run format` after frontend edits.
