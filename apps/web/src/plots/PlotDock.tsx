@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import type { RunSnapshot } from '../types';
 import { TracePlot } from './TracePlot';
 import { plotDefinitions, plotTraces } from './registry';
@@ -15,7 +16,9 @@ function readSelection(): PlotId[] {
     const saved: unknown = JSON.parse(localStorage.getItem('ssi-workspace-plots') || 'null');
     if (
       Array.isArray(saved) &&
-      saved.length === 3 &&
+      saved.length >= 1 &&
+      saved.length <= 6 &&
+      new Set(saved).size === saved.length &&
       saved.every((id) => plotDefinitions.some((definition) => definition.id === id))
     )
       return saved;
@@ -34,11 +37,28 @@ export function PlotDock({
   onScrub: (time: number) => void;
 }) {
   const [selection, setSelection] = useState(readSelection);
+  const [choosing, setChoosing] = useState(false);
+  const chooser = useRef<HTMLDivElement>(null);
   useEffect(() => {
     try {
       localStorage.setItem('ssi-workspace-plots', JSON.stringify(selection));
     } catch {}
   }, [selection]);
+  useEffect(() => {
+    if (!choosing) return;
+    const outside = (event: PointerEvent) => {
+      if (!chooser.current?.contains(event.target as Node)) setChoosing(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setChoosing(false);
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [choosing]);
   const panels = useMemo(
     () =>
       selection.map((id) => {
@@ -56,6 +76,16 @@ export function PlotDock({
       }),
     [selection, snapshot, baseline],
   );
+  const toggle = (id: PlotId) =>
+    setSelection((current) =>
+      current.includes(id)
+        ? current.length > 1
+          ? current.filter((value) => value !== id)
+          : current
+        : current.length < 6
+          ? [...current, id]
+          : current,
+    );
   return (
     <section className="plot-dock" aria-label="Run plots">
       <nav className="plot-groups" aria-label="Plot groups">
@@ -68,11 +98,50 @@ export function PlotDock({
             {preset.label}
           </button>
         ))}
+        <div className="plot-chooser" ref={chooser}>
+          <button
+            aria-expanded={choosing}
+            aria-controls="plot-options"
+            onClick={() => setChoosing(!choosing)}
+          >
+            Plots <span>{selection.length}</span>
+          </button>
+          {choosing && (
+            <div className="plot-options" id="plot-options" role="group" aria-label="Choose plots">
+              <div className="plot-options-heading">
+                SHOW PLOTS <span>{selection.length} / 6</span>
+              </div>
+              {plotDefinitions.map((item) => (
+                <label key={item.id} title={item.description}>
+                  <input
+                    type="checkbox"
+                    checked={selection.includes(item.id)}
+                    disabled={
+                      selection.includes(item.id) ? selection.length === 1 : selection.length === 6
+                    }
+                    onChange={() => toggle(item.id)}
+                  />
+                  <span>{item.title}</span>
+                  <small>{item.unit}</small>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
       </nav>
-      <div className="trace-stack">
-        {panels.map(({ definition, traces, baseline: comparison }, slot) => (
+      <div
+        className="trace-stack"
+        data-dense={selection.length > 3}
+        style={
+          {
+            '--plot-count': selection.length,
+            '--plot-pairs': Math.ceil(selection.length / 2),
+          } as CSSProperties
+        }
+      >
+        {panels.map(({ definition, traces, baseline: comparison }) => (
           <TracePlot
-            key={slot}
+            key={definition.id}
             title={definition.title}
             unit={definition.unit}
             minimumSpan={definition.minimumSpan}
@@ -82,27 +151,6 @@ export function PlotDock({
             baseline={comparison}
             cursorTime={cursorTime}
             onScrub={onScrub}
-            titleControl={
-              <select
-                className="plot-selector"
-                aria-label={`Plot ${slot + 1}`}
-                title={definition.description}
-                value={definition.id}
-                onChange={(event) =>
-                  setSelection((current) =>
-                    current.map((id, index) =>
-                      index === slot ? (event.target.value as PlotId) : id,
-                    ),
-                  )
-                }
-              >
-                {plotDefinitions.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title}
-                  </option>
-                ))}
-              </select>
-            }
           />
         ))}
       </div>

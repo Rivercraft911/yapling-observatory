@@ -29,7 +29,8 @@ if (typeof ASSET_DIR === 'undefined') {
   const { ecefToDisplay, geodeticToEcef } = await import('./geodesy.ts');
   const { Vector3 } = await import('three');
   const bytes = await readFile(ASSET_DIR + '/earth-day-stanford-500m.jpg');
-  const manifest = JSON.parse(await readFile(ASSET_DIR + '/regional-lod.json'));
+  const manifest = JSON.parse(await readFile(ASSET_DIR + '/../../src/earth/regional-lod.json'));
+  assert.deepEqual(manifest, JSON.parse(await readFile(ASSET_DIR + '/regional-lod.json')));
   const cameras = {
     close: { position: new Vector3(...ecefToDisplay(geodeticToEcef(37.4275, -122.1697, 550000))) },
     far: {

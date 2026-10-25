@@ -1,0 +1,11 @@
+.workbench {
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  contain: layout paint;
+}
+.workbench > .scene-bottom {
+  position: absolute;
+  z-index: 3;
+}

@@ -3,19 +3,23 @@ import type { AssetInfo, RunSnapshot, Variant } from './types';
 import { EarthScene } from './earth/EarthScene';
 import type { EarthCameraMode } from './earth/EarthScene';
 import type { FollowStatus } from './earth/SpacecraftFollow';
+import type { DisplayTimeSource } from './graphics/displayInterpolation';
 import './earth.css';
 
 export interface EarthViewProps {
   snapshot: RunSnapshot | null;
   sampleIndex: number;
+  displayTime?: DisplayTimeSource;
   asset?: AssetInfo;
   variant?: Variant;
 }
-export function EarthView({ snapshot, sampleIndex, asset, variant }: EarthViewProps) {
+export function EarthView({ snapshot, sampleIndex, displayTime, asset, variant }: EarthViewProps) {
   const host = useRef<HTMLDivElement>(null),
     station = useRef<HTMLDivElement>(null),
     satellite = useRef<HTMLDivElement>(null);
   const scene = useRef<EarthScene | null>(null);
+  const displayClock = useRef(displayTime);
+  displayClock.current = displayTime;
   const history = useRef(snapshot);
   history.current = snapshot;
   const selected = useRef(sampleIndex);
@@ -58,6 +62,7 @@ export function EarthView({ snapshot, sampleIndex, asset, variant }: EarthViewPr
     scene.current = view;
     view.setHistory(history.current);
     view.updateSample(selected.current);
+    view.setDisplayTimeSource(displayClock.current);
     view.setAsset(currentVariant.current, currentAsset.current);
     view.setCameraMode(mode.current);
     return () => {
@@ -69,6 +74,9 @@ export function EarthView({ snapshot, sampleIndex, asset, variant }: EarthViewPr
     scene.current?.setHistory(snapshot);
     scene.current?.updateSample(sampleIndex);
   }, [snapshot, sampleIndex]);
+  useEffect(() => {
+    scene.current?.setDisplayTimeSource(displayTime);
+  }, [displayTime]);
   useEffect(() => {
     scene.current?.setAsset(selectedVariant, asset);
   }, [selectedVariant, asset?.url, asset?.revision, asset?.sha256, asset?.available]);

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import uPlot from 'uplot';
 
@@ -35,6 +35,8 @@ export function TracePlot({
   const plot = useRef<uPlot | null>(null);
   const scrub = useRef(onScrub);
   scrub.current = onScrub;
+  const hovering = useRef(false);
+  const [hoverTime, setHoverTime] = useState<number | null>(null);
   const cursor = useRef(cursorTime);
   cursor.current = cursorTime;
   useEffect(() => {
@@ -118,7 +120,19 @@ export function TracePlot({
       instance.over.setPointerCapture(event.pointerId);
       scrubAt(event);
     };
+    const inspectAt = (event: PointerEvent) => {
+      hovering.current = true;
+      const bounds = instance.over.getBoundingClientRect();
+      const x = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left));
+      setHoverTime(instance.posToVal(x, 'x'));
+    };
+    const leavePlot = () => {
+      hovering.current = false;
+      setHoverTime(null);
+      instance.setCursor({ left: instance.valToPos(cursor.current, 'x'), top: -10 }, false);
+    };
     const moveScrub = (event: PointerEvent) => {
+      inspectAt(event);
       if (event.pointerId === activePointer) scrubAt(event);
     };
     const endScrub = () => {
@@ -126,6 +140,8 @@ export function TracePlot({
         instance.over.releasePointerCapture(activePointer);
       activePointer = null;
     };
+    instance.over.addEventListener('pointerenter', inspectAt);
+    instance.over.addEventListener('pointerleave', leavePlot);
     instance.over.addEventListener('pointerdown', beginScrub);
     instance.over.addEventListener('pointermove', moveScrub);
     instance.over.addEventListener('pointerup', endScrub);
@@ -141,6 +157,9 @@ export function TracePlot({
     instance.setCursor({ left: instance.valToPos(cursor.current, 'x'), top: -10 }, false);
     return () => {
       endScrub();
+      hovering.current = false;
+      instance.over.removeEventListener('pointerenter', inspectAt);
+      instance.over.removeEventListener('pointerleave', leavePlot);
       instance.over.removeEventListener('pointerdown', beginScrub);
       instance.over.removeEventListener('pointermove', moveScrub);
       instance.over.removeEventListener('pointerup', endScrub);
@@ -153,9 +172,10 @@ export function TracePlot({
   }, [times, traces, baseline, minimumSpan, stepped]);
   useEffect(() => {
     const instance = plot.current;
-    if (instance) instance.setCursor({ left: instance.valToPos(cursorTime, 'x'), top: -10 }, false);
+    if (instance && !hovering.current)
+      instance.setCursor({ left: instance.valToPos(cursorTime, 'x'), top: -10 }, false);
   }, [cursorTime]);
-  const index = closestIndex(times, cursorTime);
+  const index = closestIndex(times, hoverTime ?? cursorTime);
   return (
     <section className="trace-panel" aria-label={`${title} in ${unit}`}>
       <div className="trace-heading">
@@ -163,7 +183,10 @@ export function TracePlot({
           {titleControl || title}
           <span>{unit}</span>
         </h2>
-        <div className="trace-values">
+        <div className="trace-values" data-inspecting={hoverTime !== null}>
+          {hoverTime !== null && (
+            <span className="trace-hover-time">T+ {formatValue(times[index])} s</span>
+          )}
           {traces.map((trace) => (
             <span key={trace.label} style={{ color: trace.color }}>
               <i />

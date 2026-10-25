@@ -1,3 +1,4 @@
+import { FrameSize } from '../graphics/frameSize';
 import {
   BufferGeometry,
   Color,
@@ -28,11 +29,17 @@ import type { AssetInfo, RunSnapshot, Variant } from '../types';
 import { createRenderer } from '../graphics/renderer';
 import { createEarthAppearance } from './atmosphereAdapter';
 import type { EarthAppearance } from './atmosphereAdapter';
-import { earthGeometry } from './geometry';
+import { earthGeometry, earthDepthRange } from './geometry';
 import { SpacecraftFollow } from './SpacecraftFollow';
 import { FollowLink } from './FollowLink';
-import regionalImagery from '../../public/earth/regional-lod.json';
+import regionalImagery from './regional-lod.json';
 import type { FollowStatus } from './SpacecraftFollow';
+import {
+  displayBracket,
+  interpolateVector3,
+  interpolateQuaternion,
+} from '../graphics/displayInterpolation';
+import type { DisplayTimeSource } from '../graphics/displayInterpolation';
 import {
   ecefToDisplay,
   geodeticToEcef,
@@ -109,11 +116,17 @@ export class EarthScene {
   private snapshot: RunSnapshot | null = null;
   private stationPoint = new Vector3();
   private stationEcefM: number[] = [];
+  private historySegments: number[] = [];
+  private losSegment: number[] = [];
+  private sceneExtent = 1.02;
   private sampleIndex = 0;
+  private displayTimeSource: DisplayTimeSource | undefined;
+  private lastDisplayTime = NaN;
   private stationNormal = new Vector3();
   private frame = 0;
   private disposed = false;
   private observer: ResizeObserver;
+  private frameSize = new FrameSize();
   private autoFramed = false;
   private frameTimes: number[] = [];
   private lastFrame = 0;
@@ -134,6 +147,8 @@ export class EarthScene {
       'Earth pass view. Drag to orbit, right-drag to pan, scroll to zoom.',
     );
     canvas.dataset.renderer = `Three r${REVISION} / WebGL 2`;
+    const gl = this.renderer.getContext();
+    canvas.dataset.depthBits = String(gl.getParameter(gl.DEPTH_BITS));
     this.renderer.toneMappingExposure = 1.08;
     this.host.appendChild(canvas);
     this.controls = new OrbitControls(this.camera, canvas);
@@ -166,13 +181,9 @@ export class EarthScene {
     this.station.visible = false;
     this.losSolid.visible = false;
     this.losDashed.visible = false;
+    this.frameSize.request(this.host.clientWidth, this.host.clientHeight);
     this.observer = new ResizeObserver(() => {
-      const width = this.host.clientWidth,
-        height = this.host.clientHeight;
-      this.camera.aspect = width / Math.max(height, 1);
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(width, height);
-      this.follow.setSize(width, height);
+      this.frameSize.request(this.host.clientWidth, this.host.clientHeight);
     });
     this.observer.observe(host);
     void this.load();
@@ -227,6 +238,9 @@ export class EarthScene {
     if (snapshot === this.snapshot) return;
     this.snapshot = snapshot;
     this.clearHistory();
+    this.historySegments = [];
+    this.losSegment = [];
+    this.sceneExtent = 1.02;
     const samples = snapshot?.run.result?.samples;
     if (!snapshot || !samples?.satellite_position_ecef_m.length) {
       this.history.visible = false;
@@ -266,6 +280,17 @@ export class EarthScene {
         ...ecefToDisplay(b),
       );
     }
+    this.historySegments = [...above, ...below];
+    for (let i = 0; i < this.historySegments.length; i += 3)
+      this.sceneExtent = Math.max(
+        this.sceneExtent,
+        Math.hypot(
+          this.historySegments[i],
+          this.historySegments[i + 1],
+          this.historySegments[i + 2],
+        ),
+      );
+    this.sceneExtent = Math.max(this.sceneExtent, this.stationPoint.length());
     for (const [vertices, color, opacity] of [
       [below, '#706b65', 0.34],
       [above, '#e6e1d9', 0.66],
@@ -290,34 +315,63 @@ export class EarthScene {
     this.updateSample(this.sampleIndex);
   }
 
-  updateSample(index: number) {
+  setDisplayTimeSource(source?: DisplayTimeSource) {
+    this.displayTimeSource = source;
+    this.lastDisplayTime = NaN;
+    if (!source) this.updateSample(this.sampleIndex);
+  }
+
+  updateSample(index: number, displayTimeS?: number) {
+    if (displayTimeS === undefined) this.lastDisplayTime = NaN;
     this.sampleIndex = index;
     const snapshot = this.snapshot,
       samples = snapshot?.run.result?.samples;
-    const p = samples?.satellite_position_ecef_m[index];
+    const bracket =
+      samples && displayTimeS !== undefined ? displayBracket(samples.time_s, displayTimeS) : null;
+    const p = bracket
+      ? interpolateVector3(
+          samples!.satellite_position_ecef_m[bracket.lower],
+          samples!.satellite_position_ecef_m[bracket.upper],
+          bracket.alpha,
+        )
+      : samples?.satellite_position_ecef_m[index];
     if (!snapshot || !samples || !p || p.length !== 3 || !p.every(Number.isFinite)) {
       this.satellite.visible = false;
       this.losSolid.visible = false;
       this.losDashed.visible = false;
       this.followLink.clear();
+      this.losSegment = [];
       this.labels.satellite.hidden = true;
       this.labels.station.hidden = true;
       return;
     }
     this.satellite.position.fromArray(ecefToDisplay(p));
     this.satellite.visible = true;
-    const sun = visualSunDirection(snapshot.scenario.epoch_utc, samples.time_s[index]);
+    const visualTime = bracket?.time ?? samples.time_s[index];
+    const sun = visualSunDirection(snapshot.scenario.epoch_utc, visualTime);
     this.appearance?.setSun(sun);
     this.follow.setSun(sun);
     this.follow.setPosition(p);
-    const inertialStation = samples.station_position_m[index];
+    const inertialStation = bracket
+      ? interpolateVector3(
+          samples.station_position_m[bracket.lower],
+          samples.station_position_m[bracket.upper],
+          bracket.alpha,
+        )
+      : samples.station_position_m[index];
     const angle =
       inertialStation?.length === 3
         ? Math.atan2(-this.stationPoint.z, this.stationPoint.x) -
           Math.atan2(inertialStation[1], inertialStation[0])
         : undefined;
-    const pose = samples.q_body_from_inertial_wxyz[index];
-    if (pose) this.follow.setPose(pose, samples.time_s[index], snapshot.scenario.duration_s, angle);
+    const pose = bracket
+      ? interpolateQuaternion(
+          samples.q_body_from_inertial_wxyz[bracket.lower],
+          samples.q_body_from_inertial_wxyz[bracket.upper],
+          bracket.alpha,
+        )
+      : samples.q_body_from_inertial_wxyz[index];
+    if (pose) this.follow.setPose(pose, visualTime, snapshot.scenario.duration_s, angle);
     const direction = samples.active_direction[index],
       margin = samples[direction]?.margin_db[index];
     const positive = samples.visible[index] && margin != null && margin >= 0;
@@ -339,6 +393,16 @@ export class EarthScene {
     const position = this.losGeometry.getAttribute('position');
     position.setXYZ(0, 0, 0, 0);
     const delta = segment?.deltaDisplayM || [0, 0, 0];
+    this.losSegment = segment
+      ? [
+          this.satellite.position.x,
+          this.satellite.position.y,
+          this.satellite.position.z,
+          this.satellite.position.x + delta[0] / WGS84_A_M,
+          this.satellite.position.y + delta[1] / WGS84_A_M,
+          this.satellite.position.z + delta[2] / WGS84_A_M,
+        ]
+      : [];
     position.setXYZ(1, delta[0] / WGS84_A_M, delta[1] / WGS84_A_M, delta[2] / WGS84_A_M);
     position.needsUpdate = true;
     // Rebase before Float32 conversion. The origin and dash phase are at SC.
@@ -350,6 +414,11 @@ export class EarthScene {
     this.losDashed.visible = !!segment && !this.losSolid.visible;
     this.renderer.domElement.dataset.sampleIndex = String(index);
     this.renderer.domElement.dataset.elapsedSeconds = String(samples.time_s[index]);
+    this.renderer.domElement.dataset.displayTimeSeconds = String(visualTime);
+    this.renderer.domElement.dataset.displayInterpolation =
+      bracket && bracket.lower !== bracket.upper
+        ? `${bracket.lower}:${bracket.upper}:${bracket.alpha.toFixed(6)}`
+        : 'sample';
   }
 
   setAsset(variant: Variant, asset?: AssetInfo) {
@@ -428,6 +497,18 @@ export class EarthScene {
 
   private animate = (now: number) => {
     if (this.disposed) return;
+    // Resizing clears the drawing buffer. Do it only in the frame that redraws it.
+    this.frameSize.apply((width, height) => {
+      this.camera.aspect = width / height;
+      this.camera.updateProjectionMatrix();
+      this.renderer.setSize(width, height, false);
+      this.follow.setSize(width, height);
+    });
+    const displayTime = this.displayTimeSource?.current;
+    if (displayTime !== undefined && displayTime !== this.lastDisplayTime) {
+      this.updateSample(this.sampleIndex, displayTime);
+      this.lastDisplayTime = displayTime;
+    }
     const dt = this.lastFrame ? Math.min(0.1, (now - this.lastFrame) / 1000) : 0;
     const follow =
       this.cameraMode === 'spacecraft' &&
@@ -438,10 +519,8 @@ export class EarthScene {
       this.follow.update(dt);
       this.clipFollowCamera();
       const local = this.follow.camera;
-      // View-layer threshold: suppress misleading near-camera history fragments
-      // while the background near plane is large relative to the follow offset.
-      closeFollow = local.position.length() < this.followEarthCamera.near * WGS84_A_M * 8;
-      this.followLink.update(local, this.followEarthCamera.near);
+      // Keep the existing 5.1km history-display threshold independent of adaptive depth.
+      closeFollow = local.position.length() < 0.0008 * WGS84_A_M;
       this.followEarthCamera.position
         .copy(this.satellite.position)
         .addScaledVector(local.position, 1 / WGS84_A_M);
@@ -460,6 +539,19 @@ export class EarthScene {
         !!this.snapshot?.run.result?.samples.satellite_position_ecef_m[this.sampleIndex];
     }
     this.history.visible = this.history.children.length > 0 && !closeFollow;
+    this.fitDepthRange(activeCamera, !follow);
+    if (follow) {
+      // The local pass owns the LOS before the adaptive background near plane.
+      // If its conservative Earth gate declines, fit the background to the full LOS.
+      let nearLink = this.followLink.update(this.follow.camera, activeCamera.near);
+      if (!nearLink) {
+        this.fitDepthRange(activeCamera, true);
+        nearLink = this.followLink.update(this.follow.camera, activeCamera.near);
+      }
+      this.renderer.domElement.dataset.followNearLinkActive = String(nearLink);
+    }
+    this.renderer.domElement.dataset.earthNear = activeCamera.near.toPrecision(6);
+    this.renderer.domElement.dataset.earthFar = activeCamera.far.toPrecision(6);
     this.renderer.domElement.dataset.followHistoryVisible = String(this.history.visible);
     if (this.station.visible)
       this.placeLabel(this.labels.station, this.station.position, activeCamera);
@@ -490,6 +582,27 @@ export class EarthScene {
     this.lastFrame = now;
     this.frame = requestAnimationFrame(this.animate);
   };
+
+  private fitDepthRange(camera: PerspectiveCamera, includeLos: boolean) {
+    const groups = [
+      this.history.visible ? this.historySegments : [],
+      includeLos && (this.losSolid.visible || this.losDashed.visible) ? this.losSegment : [],
+    ];
+    const points = [];
+    if (this.station.visible) points.push(this.station.position);
+    if (this.satellite.visible) points.push(this.satellite.position);
+    const range = earthDepthRange(
+      camera.position,
+      camera.getEffectiveFOV(),
+      camera.aspect,
+      this.sceneExtent,
+      groups,
+      points,
+    );
+    camera.near = range.near;
+    camera.far = range.far;
+    camera.updateProjectionMatrix();
+  }
 
   private updateRegionalImagery(camera: PerspectiveCamera, now: number) {
     if (!this.appearance) return;

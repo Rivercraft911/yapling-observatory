@@ -1605,3 +1605,90 @@ legend > span:last-child:not(:first-child) {
 .plot-groups button:hover {
   color: #fff;
 }
+
+.plot-dock {
+  grid-template-rows: 34px minmax(0, 1fr);
+}
+.plot-groups {
+  position: relative;
+  gap: 20px;
+  z-index: 4;
+}
+.plot-groups > button,
+.plot-chooser > button {
+  font-size: 12px;
+}
+.plot-chooser {
+  position: relative;
+  margin-left: auto;
+}
+.plot-chooser > button {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+}
+.plot-chooser > button span {
+  color: #b1a6a4;
+  font: 10px var(--mono);
+}
+.plot-options {
+  max-height: min(390px, 35vh);
+  overflow-y: auto;
+  position: absolute;
+  right: 0;
+  top: 32px;
+  width: 255px;
+  padding: 12px;
+  background: #202023;
+  border: 1px solid #554549;
+  box-shadow: 0 8px 28px #0008;
+}
+.plot-options-heading {
+  display: flex;
+  justify-content: space-between;
+  color: #9e9392;
+  font: 9px var(--mono);
+  padding: 2px 4px 10px;
+}
+.plot-options label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.plot-options label:hover {
+  background: #2b282b;
+}
+.plot-options input {
+  accent-color: var(--accent-bright);
+  margin: 0;
+}
+.plot-options small {
+  margin-left: auto;
+  color: #9f9696;
+  font: 10px var(--mono);
+}
+.trace-stack {
+  grid-template-rows: repeat(var(--plot-count, 3), minmax(100px, 1fr));
+  overflow: auto;
+}
+.trace-heading h2 {
+  font-size: 12px;
+  color: #ddd5d1;
+}
+@media (min-width: 1081px) {
+  .trace-stack[data-dense='true'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(var(--plot-pairs), minmax(110px, 1fr));
+    column-gap: 20px;
+  }
+}
+.trace-hover-time {
+  color: #d7a0a7;
+  font: 10px var(--mono);
+}
+.trace-values[data-inspecting='true'] b {
+  color: #fff4ee;
+}

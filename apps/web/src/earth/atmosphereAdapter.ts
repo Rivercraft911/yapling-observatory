@@ -50,7 +50,7 @@ void main(){
  float luminance=dot(albedo,vec3(.2126,.7152,.0722));albedo=mix(vec3(luminance),albedo,.83);
  albedo*=mix(.93,.48,water);float direct=smoothstep(-.025,.10,ndl)*max(ndl,0.);
  vec2 shadowUv=directionUv(vPosition+sun*(.00125/max(ndl,.16)));
- float shadow=smoothstep(.06,.87,texture2D(cloudMap,shadowUv).r)*.26;
+ float shadow=texture2D(cloudMap,shadowUv).r*.26;
  vec3 color=albedo*(.003+direct*1.65*(1.-shadow));
  vec3 halfVector=normalize(sun+view);float specular=pow(max(dot(n,halfVector),0.),100.)*water*smoothstep(0.,.15,ndl);
  float fresnel=.025+.975*pow(1.-max(dot(n,view),0.),5.);
@@ -66,9 +66,10 @@ void main(){
     vertexShader: vertex,
     transparent: true,
     depthWrite: false,
+    // Linear coverage commutes with mip filtering; a post-filter threshold loses wisps at distance.
     fragmentShader: `
 uniform sampler2D cloudMap;uniform vec3 sun;varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
-void main(){float density=texture2D(cloudMap,vUv).r;float opacity=smoothstep(.035,.94,density)*.94;float ndl=dot(normalize(vNormal),sun);float light=smoothstep(-.035,.08,ndl)*pow(max(ndl,0.),.52);
+void main(){float density=texture2D(cloudMap,vUv).r;float opacity=density*.94;float ndl=dot(normalize(vNormal),sun);float light=smoothstep(-.035,.08,ndl)*pow(max(ndl,0.),.52);
 vec3 color=vec3(.99,.99,1.)*(.008+light*1.4);gl_FragColor=vec4(color,opacity);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>

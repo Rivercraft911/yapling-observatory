@@ -15,6 +15,7 @@ import { PaneDivider } from './Resizer';
 import { closestIndex, formatValue } from './plots/TracePlot';
 import { PlotDock } from './plots/PlotDock';
 import { SpacecraftInspector } from './spacecraft/SpacecraftInspector';
+import { advanceDisplayTime } from './graphics/displayInterpolation';
 
 const EarthView = lazy(() =>
   import('./EarthView').then((module) => ({ default: module.EarthView })),
@@ -39,7 +40,10 @@ const busyStatuses = new Set(['queued', 'running', 'cancelling']);
 export default function App() {
   const [view, setView] = useState<WorkspaceView>('earth');
   const [antennaInspector, setAntennaInspector] = useState<HTMLDivElement | null>(null);
+  const [antennaFollowsRun, setAntennaFollowsRun] = useState(false);
   const [previewVariant, setPreviewVariant] = useState<Variant | null>(null);
+  const [cutaway, setCutaway] = useState(false);
+  const [starTrackerVisible, setStarTrackerVisible] = useState(true);
   const [followAttitude, setFollowAttitude] = useState(false);
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [run, setRun] = useState<Run | null>(null);
@@ -52,6 +56,9 @@ export default function App() {
   const [submitting, setSubmitting] = useState(false);
   const [reload, setReload] = useState(0);
   const [index, setIndex] = useState(0);
+  const displayTime = useRef(0);
+  const displayReadout = useRef<HTMLSpanElement>(null);
+  const displayTick = useRef<HTMLSpanElement>(null);
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(60);
   const [panelWidth, setPanelWidth] = useState(() => readLayout().panelWidth);
@@ -93,6 +100,15 @@ export default function App() {
   const samples = snapshot?.run.result?.samples;
   const times = samples?.time_s || EMPTY;
   const time = times[index] ?? 0;
+  const paintDisplayTime = useCallback(
+    (value: number) => {
+      displayTime.current = value;
+      if (displayReadout.current) displayReadout.current.textContent = value.toFixed(1);
+      if (displayTick.current)
+        displayTick.current.style.left = `${(100 * value) / (times[times.length - 1] || 1)}%`;
+    },
+    [times],
+  );
   const busy = submitting || (!!run && busyStatuses.has(run.status));
   const dirty =
     !!scenario && !!snapshot && JSON.stringify(scenario) !== JSON.stringify(snapshot.scenario);
@@ -215,6 +231,7 @@ export default function App() {
     ) {
       completeId.current = run.run_id;
       setSnapshot({ run, scenario: cloneScenario(pendingScenario.current) });
+      displayTime.current = run.result.samples.time_s[0] ?? 0;
       setIndex(0);
       setPlaying(autoplayNext.current);
       autoplayNext.current = false;
@@ -227,10 +244,11 @@ export default function App() {
     if (!playing || times.length < 2) return;
     let animation = 0;
     let previous = performance.now();
-    let elapsed = times[index] ?? 0;
+    let elapsed = displayTime.current;
     function tick(now: number) {
-      elapsed += Math.min((now - previous) / 1000, 0.2) * rate;
+      elapsed = advanceDisplayTime(elapsed, (now - previous) / 1000, rate, times[times.length - 1]);
       previous = now;
+      paintDisplayTime(elapsed);
       setIndex(closestIndex(times, elapsed));
       if (elapsed >= times[times.length - 1]) {
         setPlaying(false);
@@ -242,14 +260,16 @@ export default function App() {
     return () => cancelAnimationFrame(animation);
     // A scrub stops playback; only playback start, rate, or a new immutable history restarts this clock.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, rate, times]);
+  }, [playing, rate, times, paintDisplayTime]);
 
   const scrub = useCallback(
     (value: number) => {
       setPlaying(false);
-      setIndex(closestIndex(times, value));
+      const selected = closestIndex(times, value);
+      paintDisplayTime(times[selected] ?? 0);
+      setIndex(selected);
     },
-    [times],
+    [times, paintDisplayTime],
   );
   const update = (change: (draft: Scenario) => void) =>
     setScenario((current) => {
@@ -285,7 +305,16 @@ export default function App() {
   const lastTime = times[times.length - 1] || 1;
   const selectedVariant = snapshot?.scenario.antenna_variant || scenario?.antenna_variant || 'v45';
   const modelVariant = previewVariant || selectedVariant;
-  const showTimeline = view !== 'spacecraft' || followAttitude;
+  const cutawayAsset = assets.previews?.cutaway;
+  const modelAsset = cutaway
+    ? cutawayAsset || {
+        revision: 'unavailable',
+        url: '/api/assets/previews/cutaway.glb',
+        available: false,
+      }
+    : assets.variants[modelVariant];
+  const showTimeline =
+    view === 'earth' || (view === 'spacecraft' ? followAttitude : antennaFollowsRun);
   const status = busy
     ? submitting
       ? 'Submitting'
@@ -370,6 +399,7 @@ export default function App() {
             </nav>
             <div className="active-view">
               <Suspense
+                key={view}
                 fallback={
                   <div className="view-loading">
                     <span className="spinner" />
@@ -381,6 +411,7 @@ export default function App() {
                   <EarthView
                     snapshot={snapshot}
                     sampleIndex={index}
+                    displayTime={displayTime}
                     asset={assets.variants[selectedVariant]}
                     variant={selectedVariant}
                   />
@@ -390,13 +421,21 @@ export default function App() {
                     sampleIndex={index}
                     inspectorTarget={antennaInspector}
                     assets={assets}
+                    onFollowRunChange={setAntennaFollowsRun}
                   />
                 ) : (
                   <Workbench
                     variant={modelVariant}
-                    asset={assets.variants[modelVariant]}
+                    asset={modelAsset}
+                    preview={cutaway ? 'cutaway' : 'exterior'}
+                    starTrackerVisible={starTrackerVisible}
                     quaternion={
                       followAttitude ? samples?.q_body_from_inertial_wxyz[index] : undefined
+                    }
+                    displayTime={followAttitude ? displayTime : undefined}
+                    quaternionTimes={followAttitude ? times : undefined}
+                    quaternionHistory={
+                      followAttitude ? samples?.q_body_from_inertial_wxyz : undefined
                     }
                   />
                 )}
@@ -468,7 +507,10 @@ export default function App() {
                       className="play-button"
                       disabled={!samples}
                       onClick={() => {
-                        if (index === times.length - 1) setIndex(0);
+                        if (!playing && displayTime.current >= times[times.length - 1]) {
+                          paintDisplayTime(times[0] ?? 0);
+                          setIndex(0);
+                        }
                         setPlaying((value) => !value);
                       }}
                       aria-label={playing ? 'Pause playback' : 'Play playback'}
@@ -476,7 +518,7 @@ export default function App() {
                       {playing ? 'Ⅱ' : '▶'}
                     </button>
                     <span className="time-readout">
-                      T+ {time.toFixed(1)}
+                      T+ <span ref={displayReadout}>{displayTime.current.toFixed(1)}</span>
                       <small>s</small>
                     </span>
                     <label className="playback-speed">
@@ -529,11 +571,14 @@ export default function App() {
                     value={index}
                     disabled={!samples}
                     onChange={(event) => {
-                      setPlaying(false);
-                      setIndex(Number(event.target.value));
+                      scrub(times[Number(event.target.value)] ?? 0);
                     }}
                   />
-                  <span className="time-tick" style={{ left: `${(time / lastTime) * 100}%` }} />
+                  <span
+                    ref={displayTick}
+                    className="time-tick"
+                    style={{ left: `${(displayTime.current / lastTime) * 100}%` }}
+                  />
                 </div>
                 <div className="timeline-labels">
                   <span>0 s</span>
@@ -545,7 +590,7 @@ export default function App() {
           <footer className="instrument-footer">
             <span>
               {view === 'spacecraft'
-                ? `MODEL ${assets.variants[modelVariant]?.revision || '—'}`
+                ? `${cutaway ? 'LAYOUT STUDY' : 'MODEL'} ${modelAsset?.revision || '—'}`
                 : view === 'antenna'
                   ? 'ANTENNA REFERENCE'
                   : snapshot
@@ -558,7 +603,9 @@ export default function App() {
                 ? 'Ideal threshold capacity · no packet dynamics'
                 : view === 'antenna'
                   ? 'Analytical patterns · nominal geometry'
-                  : 'Concept geometry'}
+                  : cutaway
+                    ? 'Visual layout study'
+                    : 'Concept geometry'}
             </span>
           </footer>
         </div>
@@ -587,7 +634,12 @@ export default function App() {
           {view === 'spacecraft' ? (
             <SpacecraftInspector
               variant={modelVariant}
-              asset={assets.variants[modelVariant]}
+              asset={modelAsset}
+              cutaway={cutaway}
+              onCutaway={setCutaway}
+              cutawayAvailable={cutawayAsset?.available === true}
+              starTrackerVisible={starTrackerVisible}
+              onStarTrackerVisible={setStarTrackerVisible}
               onVariant={setPreviewVariant}
               followAttitude={followAttitude}
               onFollowAttitude={setFollowAttitude}
