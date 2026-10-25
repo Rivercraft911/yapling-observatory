@@ -218,6 +218,7 @@ export default function App() {
       ? 'Stopped'
       : run?.status || 'Ready';
   const currentDirection = samples?.active_direction[index];
+  const radioIdle = samples?.radio_active?.[index] === false;
   const visible = samples?.visible[index];
   const displayedId = snapshot?.run.run_id.slice(0, 8);
 
@@ -404,13 +405,21 @@ export default function App() {
                   <span className={`contact-dot ${visible ? 'visible' : ''}`} />
                   <strong>{samples ? (visible ? 'IN VIEW' : 'BELOW MASK') : 'NO RUN'}</strong>
                   <span
-                    className={currentDirection === 'uplink' ? 'uplink-color' : 'downlink-color'}
+                    className={
+                      radioIdle
+                        ? undefined
+                        : currentDirection === 'uplink'
+                          ? 'uplink-color'
+                          : 'downlink-color'
+                    }
                   >
-                    {currentDirection === 'uplink'
-                      ? 'UL'
-                      : currentDirection === 'downlink'
-                        ? 'DL'
-                        : '—'}
+                    {radioIdle
+                      ? 'RADIO IDLE'
+                      : currentDirection === 'uplink'
+                        ? 'UL'
+                        : currentDirection === 'downlink'
+                          ? 'DL'
+                          : '—'}
                   </span>
                 </div>
                 <div>

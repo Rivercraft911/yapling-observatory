@@ -129,7 +129,7 @@ export function EarthView({ snapshot, sampleIndex, displayTime, asset, variant }
         {follow && <small className="earth-follow-revision">{followStatus.revision}</small>}
       </div>
       <div
-        className={`earth-link-state ${visible && margin != null && margin >= 0 ? 'positive' : ''}`}
+        className={`earth-link-state ${state === 'IDEAL LINK' ? 'positive' : ''}`}
         title="Uses the selected Run sample and ideal threshold model. Above-mask geometry and receiver margin are separate conditions."
       >
         <i />
