@@ -1,4 +1,4 @@
-Earth imagery
+Global Earth imagery and fallback
 
 Solar System Scope / INOVE
 https://www.solarsystemscope.com/textures/
@@ -8,7 +8,7 @@ https://creativecommons.org/licenses/by/4.0/
 
 The publisher credits NASA Blue Marble and other geodata. These are static, adjusted composites, not live weather; no single observation epoch is supplied. No NASA endorsement is implied.
 
-Active day and cloud maps are the unmodified original 8192x4096JPEGs from the publisher. GPUs supporting less than 8192px use the preserved 4096x2048fallbacks. Fallback changes: Lanczos downsampling, grayscale PNG cloud conversion. Ocean/specular mask converted from TIFF to grayscale PNG. Rendering adjusts saturation, lighting, cloud opacity and material response. Geography was not generated or redrawn. See asset-provenance.json for exact sources, sizes and SHA256 hashes.
+Global day and cloud maps are the unmodified original 8192x4096JPEGs from the publisher. GPUs supporting less than 8192px use the preserved 4096x2048fallbacks. Fallback changes: Lanczos downsampling, grayscale PNG cloud conversion. Ocean/specular mask converted from TIFF to grayscale PNG. Rendering adjusts saturation, lighting, cloud opacity and material response. Geography was not generated or redrawn. See asset-provenance.json for exact sources, sizes and SHA256 hashes.
 
 Rendering: a display-only approximate atmosphere and Sun direction, independent of RF, weather, orbital dynamics and delivered data. The orbit arc is only the returned synthetic Run history. Locator sizes are exaggerated.
 
@@ -20,4 +20,14 @@ https://www.nasa.gov/nasa-brand-center/images-and-media/
 
 Blue Marble: Next Generation, August 2004 base map, A1 native 21600 × 21600 source. The runtime 4096 × 4096 JPEG is an exact pixel crop, with no upsampling or invented detail. Geographic coverage:29.1–46.166666667 degrees N,130.666666667–113.6 degrees W. Published nominal product resolution 500 m; angular grid spacing 1/240 degree. Dates describe a monthly composite, not simulated-time imagery or live weather. This patch has separate NASA imagery-use terms; it is not covered by the Solar System Scope CC BY license. NASA content generally is not subject to US copyright and may be used for educational/informational computer simulations with source acknowledgment. No NASA endorsement is implied.
 
-The western-US patch is lazy-loaded only for a visible close camera near its coverage, with soft geographic/distance blending into the preserved global 8K fallback. Outside coverage, only the global map is available. Clouds remain the static 8K composite. See regional-lod.json for exact source, crop bounds, bytes, transformations and SHA-256 identities.
+The western-US patch is lazy-loaded only for a visible close camera near its coverage, with soft geographic/distance blending into the preserved global 8K fallback. Outside coverage, only the global map is available. Global clouds remain the static 8K composite;close western-US views can use the separately identified NASA regional cloud layer below. See regional-lod.json for exact source, crop bounds, bytes, transformations and SHA-256 identities.
+
+Regional cloud coverage LOD
+
+NASA Goddard Space Flight Center / Reto Stöckli (clouds); Robert Simmon (compositing enhancements)
+https://science.nasa.gov/earth/earth-observatory/the-blue-marble-true-color-global-imagery-at-1km-resolution/
+https://www.nasa.gov/nasa-brand-center/images-and-media/
+
+The 2048 × 2048 grayscale PNG is a native crop of NASA's original 21600 × 21600 western-half cloud image, with no resizing or synthetic detail. It has the same bounds as the regional daytime patch:29.1–46.166666667 degrees N,130.666666667–113.6 degrees W. The published product class is 1 km;angular grid spacing is 1/120 degree. The 2002 NASA description identifies a cloud composite using two days of visible imagery and a third day of thermal-IR imagery over the poles. This retained 2001 composite is not the simulated epoch or live weather, cloud water content, RF loss or thermal-environment truth. No city-light imagery is used.
+
+The regional mask and its surface shadow share the same source, coordinates and blend weight. Each NASA patch loads/fails/cancels independently;global imagery remains the fallback. Soft geographic and camera blending joins different composites rather than implying a contemporaneous weather mosaic. See /earth/regional-cloud.json for original/crop SHA-256 identities, exact bounds, dates, byte sizes and transformation. Combined extra regional day/cloud texture storage is at most106.67 MiB including mipmaps. No NASA endorsement is implied.

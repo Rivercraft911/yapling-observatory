@@ -49,7 +49,7 @@
     "Regional coverage only.500m is the publisher product class, not global runtime resolution; angular pixel spacing is1/240degree and east-west physical spacing varies with latitude.",
     "August2004 cloud-free MODIS composite. It is not the simulated epoch, live imagery, measured albedo or a weather product.",
     "Global8K Solar System Scope map remains the fallback; region and camera-distance feathering blend imagery with differing dates/colors.",
-    "Clouds retain the licensed8K static composite. Cloud, terrain and ocean detail are not upgraded by this patch.",
+    "Daytime patch alone does not change cloud detail.A separate NASA1kmregional cloud layer is identified in regional-cloud.json;global8Kclouds remain its fallback.",
     "Loaded only for a visible close Earth camera near this region;SHA256 checked before decode;one4096square RGBA texture+mips, at most85.34MiB additional GPU storage. Released after15s outside the active close region and immediately when Earth unmounts."
   ]
 }

@@ -10,11 +10,28 @@ export interface EarthAppearance {
   setSun: (direction: readonly number[]) => void;
   setRegionalMap: (texture: Texture | null, bounds?: readonly number[]) => void;
   setRegionalOpacity: (opacity: number) => void;
+  setRegionalCloudMap: (texture: Texture | null, bounds?: readonly number[]) => void;
+  setRegionalCloudOpacity: (opacity: number) => void;
   dispose: () => void;
 }
 const vertex = `
 varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
 void main(){vUv=uv;vPosition=(modelMatrix*vec4(position,1.)).xyz;vNormal=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}
+`;
+const cloudSampling = `
+uniform sampler2D cloudMap;uniform sampler2D regionalCloudMap;
+uniform vec4 regionalCloudBounds;uniform float regionalCloudOpacity;
+float cloudCoverage(vec2 uv){
+ float base=texture2D(cloudMap,uv).r;
+ vec2 localUv=(uv-regionalCloudBounds.xy)/(regionalCloudBounds.zw-regionalCloudBounds.xy);
+ float edge=min(min(localUv.x,localUv.y),min(1.-localUv.x,1.-localUv.y));
+ float blend=regionalCloudOpacity*smoothstep(0.,.07,edge);
+ if(regionalCloudOpacity>0.){
+  float regional=texture2D(regionalCloudMap,clamp(localUv,0.,1.)).r;
+  base=mix(base,regional,blend);
+ }
+ return base;
+}
 `;
 export function createEarthAppearance(
   day: Texture,
@@ -22,10 +39,16 @@ export function createEarthAppearance(
   ocean: Texture,
 ): EarthAppearance {
   const sun = { value: new Vector3(1, 0, 0) };
+  const cloudUniforms = {
+    cloudMap: { value: cloud },
+    regionalCloudMap: { value: cloud },
+    regionalCloudBounds: { value: new Vector4(0, 0, 1, 1) },
+    regionalCloudOpacity: { value: 0 },
+  };
   const uniforms = {
     sun,
+    ...cloudUniforms,
     dayMap: { value: day },
-    cloudMap: { value: cloud },
     oceanMap: { value: ocean },
     regionalDayMap: { value: day },
     regionalBounds: { value: new Vector4(0, 0, 1, 1) },
@@ -35,7 +58,8 @@ export function createEarthAppearance(
     uniforms,
     vertexShader: vertex,
     fragmentShader: `
-uniform sampler2D dayMap;uniform sampler2D cloudMap;uniform sampler2D oceanMap;uniform vec3 sun;
+uniform sampler2D dayMap;uniform sampler2D oceanMap;uniform vec3 sun;
+${cloudSampling}
 uniform sampler2D regionalDayMap;uniform vec4 regionalBounds;uniform float regionalOpacity;
 varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
 const float PI=3.141592653589793;
@@ -46,11 +70,14 @@ void main(){
  vec2 regionalUv=(vUv-regionalBounds.xy)/(regionalBounds.zw-regionalBounds.xy);
  float edge=min(min(regionalUv.x,regionalUv.y),min(1.-regionalUv.x,1.-regionalUv.y));
  float regionalMix=regionalOpacity*smoothstep(0.,.07,edge);
- if(regionalMix>0.)albedo=mix(albedo,texture2D(regionalDayMap,clamp(regionalUv,0.,1.)).rgb,regionalMix);
+ if(regionalOpacity>0.){
+  vec3 regional=texture2D(regionalDayMap,clamp(regionalUv,0.,1.)).rgb;
+  albedo=mix(albedo,regional,regionalMix);
+ }
  float luminance=dot(albedo,vec3(.2126,.7152,.0722));albedo=mix(vec3(luminance),albedo,.83);
  albedo*=mix(.93,.48,water);float direct=smoothstep(-.025,.10,ndl)*max(ndl,0.);
  vec2 shadowUv=directionUv(vPosition+sun*(.00125/max(ndl,.16)));
- float shadow=texture2D(cloudMap,shadowUv).r*.26;
+ float shadow=cloudCoverage(shadowUv)*.26;
  vec3 color=albedo*(.003+direct*1.65*(1.-shadow));
  vec3 halfVector=normalize(sun+view);float specular=pow(max(dot(n,halfVector),0.),100.)*water*smoothstep(0.,.15,ndl);
  float fresnel=.025+.975*pow(1.-max(dot(n,view),0.),5.);
@@ -62,14 +89,15 @@ void main(){
 }`,
   });
   const clouds = new ShaderMaterial({
-    uniforms: { sun, cloudMap: { value: cloud } },
+    uniforms: { sun, ...cloudUniforms },
     vertexShader: vertex,
     transparent: true,
     depthWrite: false,
     // Linear coverage commutes with mip filtering; a post-filter threshold loses wisps at distance.
     fragmentShader: `
-uniform sampler2D cloudMap;uniform vec3 sun;varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
-void main(){float density=texture2D(cloudMap,vUv).r;float opacity=density*.94;float ndl=dot(normalize(vNormal),sun);float light=smoothstep(-.035,.08,ndl)*pow(max(ndl,0.),.52);
+${cloudSampling}
+uniform vec3 sun;varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
+void main(){float density=cloudCoverage(vUv);float opacity=density*.94;float ndl=dot(normalize(vNormal),sun);float light=smoothstep(-.035,.08,ndl)*pow(max(ndl,0.),.52);
 vec3 color=vec3(.99,.99,1.)*(.008+light*1.4);gl_FragColor=vec4(color,opacity);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
@@ -119,6 +147,14 @@ void main(){
     },
     setRegionalOpacity: (opacity) => {
       uniforms.regionalOpacity.value = opacity;
+    },
+    setRegionalCloudMap: (texture, bounds) => {
+      cloudUniforms.regionalCloudMap.value = texture || cloud;
+      if (bounds) cloudUniforms.regionalCloudBounds.value.fromArray(bounds);
+      if (!texture) cloudUniforms.regionalCloudOpacity.value = 0;
+    },
+    setRegionalCloudOpacity: (opacity) => {
+      cloudUniforms.regionalCloudOpacity.value = opacity;
     },
     dispose: () => {
       surface.dispose();

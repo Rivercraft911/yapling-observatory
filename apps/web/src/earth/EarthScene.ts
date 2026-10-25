@@ -33,6 +33,7 @@ import { earthGeometry, earthDepthRange } from './geometry';
 import { SpacecraftFollow } from './SpacecraftFollow';
 import { FollowLink } from './FollowLink';
 import regionalImagery from './regional-lod.json';
+import regionalClouds from './regional-cloud.json';
 import type { FollowStatus } from './SpacecraftFollow';
 import {
   displayBracket,
@@ -48,6 +49,13 @@ import {
   WGS84_A_M,
   WGS84_B_OVER_A,
 } from './geodesy';
+
+interface RegionalTextureAsset {
+  url: string;
+  runtime_bytes: number;
+  runtime_sha256: string;
+  runtime_dimensions: number[];
+}
 
 export interface EarthLabels {
   station: HTMLElement;
@@ -111,6 +119,12 @@ export class EarthScene {
   private regionalBitmap: ImageBitmap | null = null;
   private regionalAbort: AbortController | null = null;
   private regionalFailed = false;
+  private regionalCloudTexture: Texture | null = null;
+  private regionalCloudBitmap: ImageBitmap | null = null;
+  private regionalCloudAbort: AbortController | null = null;
+  private regionalCloudFailed = false;
+  private regionalCloudUnusedSince = 0;
+  private regionalCloudNeededSince = 0;
   private regionalUnusedSince = 0;
   private regionalNeededSince = 0;
   private snapshot: RunSnapshot | null = null;
@@ -174,6 +188,11 @@ export class EarthScene {
     canvas.dataset.regionalImageryBounds = JSON.stringify(regionalImagery.bounds_deg);
     canvas.dataset.regionalImageryEpoch = regionalImagery.acquisition_epoch;
     canvas.dataset.regionalImagerySha256 = regionalImagery.runtime_sha256;
+    canvas.dataset.regionalCloudState = 'global-only';
+    canvas.dataset.regionalCloudRevision = regionalClouds.revision;
+    canvas.dataset.regionalCloudBounds = JSON.stringify(regionalClouds.bounds_deg);
+    canvas.dataset.regionalCloudEpoch = regionalClouds.acquisition_epoch;
+    canvas.dataset.regionalCloudSha256 = regionalClouds.runtime_sha256;
     canvas.dataset.imageryProvenanceUrl = '/earth/asset-provenance.json';
     this.scene.add(this.history, this.satellite, this.station, this.losSolid, this.losDashed);
     this.history.visible = false;
@@ -623,6 +642,7 @@ export class EarthScene {
       !document.hidden &&
       this.host.clientWidth > 0 &&
       this.host.clientHeight > 0;
+    this.updateRegionalClouds(desired, weight, now);
     if (!desired) {
       this.regionalNeededSince = 0;
       this.regionalAbort?.abort();
@@ -650,46 +670,136 @@ export class EarthScene {
       : '0';
   }
 
+  private async readRegionalBitmap(
+    source: RegionalTextureAsset,
+    controller: AbortController,
+    mime: string,
+  ) {
+    const response = await fetch(source.url, { signal: controller.signal });
+    if (!response.ok) throw new Error(`Regional imagery HTTP${response.status}`);
+    const bytes = await response.arrayBuffer();
+    if (bytes.byteLength !== source.runtime_bytes)
+      throw new Error('Regional imagery size mismatch');
+    const hash = await crypto.subtle.digest('SHA-256', bytes);
+    const digest = [...new Uint8Array(hash)]
+      .map((value) => value.toString(16).padStart(2, '0'))
+      .join('');
+    if (digest !== source.runtime_sha256) throw new Error('Regional imagery hash mismatch');
+    if (controller.signal.aborted || this.disposed) return null;
+    // ImageBitmap ignores WebGL unpack flipY; orient data once at decode.
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: mime }), {
+      imageOrientation: 'flipY',
+      colorSpaceConversion: 'none',
+      premultiplyAlpha: 'none',
+    });
+    if (controller.signal.aborted || this.disposed) {
+      bitmap.close();
+      return null;
+    }
+    if (
+      bitmap.width !== source.runtime_dimensions[0] ||
+      bitmap.height !== source.runtime_dimensions[1]
+    ) {
+      bitmap.close();
+      throw new Error('Regional imagery dimensions mismatch');
+    }
+    return bitmap;
+  }
+
+  private createRegionalTexture(bitmap: ImageBitmap, cloudMask: boolean) {
+    const texture = new Texture(bitmap);
+    texture.colorSpace = cloudMask ? NoColorSpace : SRGBColorSpace;
+    texture.flipY = false;
+    texture.wrapS = ClampToEdgeWrapping;
+    texture.wrapT = ClampToEdgeWrapping;
+    texture.minFilter = LinearMipmapLinearFilter;
+    texture.magFilter = LinearFilter;
+    texture.generateMipmaps = true;
+    texture.anisotropy = Math.min(this.renderer.capabilities.getMaxAnisotropy(), 16);
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  private updateRegionalClouds(desired: boolean, weight: number, now: number) {
+    if (!this.appearance) return;
+    if (!desired) {
+      this.regionalCloudNeededSince = 0;
+      this.regionalCloudAbort?.abort();
+      this.appearance.setRegionalCloudOpacity(0);
+      this.renderer.domElement.dataset.regionalCloudMix = '0';
+      if (!this.regionalCloudUnusedSince) this.regionalCloudUnusedSince = now;
+      if (this.regionalCloudTexture && now - this.regionalCloudUnusedSince > 15000)
+        this.releaseRegionalClouds();
+      return;
+    }
+    this.regionalCloudUnusedSince = 0;
+    if (!this.regionalCloudNeededSince) this.regionalCloudNeededSince = now;
+    if (
+      !this.regionalCloudTexture &&
+      !this.regionalCloudAbort &&
+      !this.regionalCloudFailed &&
+      now - this.regionalCloudNeededSince > 250 &&
+      this.renderer.capabilities.maxTextureSize >= 2048
+    )
+      void this.loadRegionalClouds();
+    this.appearance.setRegionalCloudOpacity(this.regionalCloudTexture ? weight : 0);
+    this.renderer.domElement.dataset.regionalCloudMix = this.regionalCloudTexture
+      ? weight.toFixed(3)
+      : '0';
+  }
+
+  private async loadRegionalClouds() {
+    const controller = new AbortController();
+    this.regionalCloudAbort = controller;
+    this.renderer.domElement.dataset.regionalCloudState = 'loading';
+    let bitmap: ImageBitmap | null = null;
+    try {
+      bitmap = await this.readRegionalBitmap(regionalClouds, controller, 'image/png');
+      if (!bitmap) return;
+      const texture = this.createRegionalTexture(bitmap, true);
+      this.regionalCloudTexture = texture;
+      this.regionalCloudBitmap = bitmap;
+      const b = regionalClouds.bounds_deg;
+      this.appearance?.setRegionalCloudMap(texture, [
+        (b.west + 180) / 360,
+        (b.south + 90) / 180,
+        (b.east + 180) / 360,
+        (b.north + 90) / 180,
+      ]);
+      this.renderer.domElement.dataset.regionalCloudState = 'ready';
+    } catch (error) {
+      bitmap?.close();
+      if (!controller.signal.aborted && !this.disposed) {
+        this.regionalCloudFailed = true;
+        this.renderer.domElement.dataset.regionalCloudState = 'unavailable';
+        this.renderer.domElement.dataset.regionalCloudError =
+          error instanceof Error ? error.message : 'Regional clouds unavailable';
+      }
+    } finally {
+      if (this.regionalCloudAbort === controller) this.regionalCloudAbort = null;
+      if (controller.signal.aborted && !this.disposed && !this.regionalCloudTexture)
+        this.renderer.domElement.dataset.regionalCloudState = 'global-only';
+    }
+  }
+
+  private releaseRegionalClouds() {
+    this.appearance?.setRegionalCloudMap(null);
+    this.regionalCloudTexture?.dispose();
+    this.regionalCloudBitmap?.close();
+    this.regionalCloudTexture = null;
+    this.regionalCloudBitmap = null;
+    this.renderer.domElement.dataset.regionalCloudState = 'global-only';
+  }
+
   private async loadRegionalImagery() {
     const controller = new AbortController();
     this.regionalAbort = controller;
     this.renderer.domElement.dataset.regionalImageryState = 'loading';
     let bitmap: ImageBitmap | null = null;
     try {
-      const response = await fetch(regionalImagery.url, { signal: controller.signal });
-      if (!response.ok) throw new Error(`Regional imagery HTTP${response.status}`);
-      const bytes = await response.arrayBuffer();
-      if (bytes.byteLength !== regionalImagery.runtime_bytes)
-        throw new Error('Regional imagery size mismatch');
-      const hash = await crypto.subtle.digest('SHA-256', bytes);
-      const digest = [...new Uint8Array(hash)]
-        .map((value) => value.toString(16).padStart(2, '0'))
-        .join('');
-      if (digest !== regionalImagery.runtime_sha256)
-        throw new Error('Regional imagery hash mismatch');
-      if (controller.signal.aborted || this.disposed) return;
-      // ImageBitmap ignores WebGL unpack flipY, so orient the source at decode.
-      bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }), {
-        imageOrientation: 'flipY',
-        colorSpaceConversion: 'none',
-        premultiplyAlpha: 'none',
-      });
-      if (controller.signal.aborted || this.disposed) {
-        bitmap.close();
-        return;
-      }
-      if (bitmap.width !== 4096 || bitmap.height !== 4096)
-        throw new Error('Regional imagery dimensions mismatch');
-      const texture = new Texture(bitmap);
-      texture.colorSpace = SRGBColorSpace;
-      texture.flipY = false;
-      texture.wrapS = ClampToEdgeWrapping;
-      texture.wrapT = ClampToEdgeWrapping;
-      texture.minFilter = LinearMipmapLinearFilter;
-      texture.magFilter = LinearFilter;
-      texture.generateMipmaps = true;
-      texture.anisotropy = Math.min(this.renderer.capabilities.getMaxAnisotropy(), 16);
-      texture.needsUpdate = true;
+      bitmap = await this.readRegionalBitmap(regionalImagery, controller, 'image/jpeg');
+      if (!bitmap) return;
+      const texture = this.createRegionalTexture(bitmap, false);
       this.regionalTexture = texture;
       this.regionalBitmap = bitmap;
       const b = regionalImagery.bounds_deg;
@@ -776,7 +886,9 @@ export class EarthScene {
     this.follow.dispose();
     this.followLink.dispose();
     this.regionalAbort?.abort();
+    this.regionalCloudAbort?.abort();
     this.releaseRegionalImagery();
+    this.releaseRegionalClouds();
     this.clearHistory();
     this.earthMeshes.forEach((mesh) => mesh.geometry.dispose());
     this.appearance?.dispose();
