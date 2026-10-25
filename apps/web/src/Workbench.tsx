@@ -1,3 +1,4 @@
+import { createThermalOverlay } from './graphics/thermalOverlay';
 import { FrameSize } from './graphics/frameSize';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -23,7 +24,12 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import type { AssetInfo, Quaternion, Variant } from './types';
 import { createRenderer } from './graphics/renderer';
 import { createSpacecraftDisplay } from './graphics/spacecraftDisplay';
-import { isVisiblePart, setStarTrackerVisibility } from './spacecraft/previewVisibility';
+import {
+  isVisiblePart,
+  setStarTrackerVisibility,
+  setModuleVisibility,
+  OPTIONAL_MODULES,
+} from './spacecraft/previewVisibility';
 import { displayBracket, interpolateQuaternion } from './graphics/displayInterpolation';
 import type { DisplayTimeSource } from './graphics/displayInterpolation';
 import './spacecraft/workbench.css';
@@ -42,6 +48,7 @@ type Handle = {
   focus: () => void;
   setMode: (mode: Mode) => void;
   setStarTracker: (visible: boolean) => void;
+  setModules: (visibility: Record<string, boolean>) => void;
 };
 const variantLabels: Record<Variant, string> = {
   dipole: 'Straight dipole',
@@ -58,6 +65,9 @@ export function Workbench({
   quaternionHistory,
   preview = 'exterior',
   starTrackerVisible = true,
+  moduleVisibility,
+  onAvailableModules,
+  thermalTemperaturesK,
 }: {
   variant: Variant;
   asset?: AssetInfo;
@@ -67,6 +77,9 @@ export function Workbench({
   quaternionHistory?: readonly Quaternion[];
   preview?: 'exterior' | 'cutaway';
   starTrackerVisible?: boolean;
+  moduleVisibility?: Record<string, boolean>;
+  onAvailableModules?: (groups: string[]) => void;
+  thermalTemperaturesK?: Record<string, number>;
 }) {
   const mount = useRef<HTMLDivElement>(null);
   const handle = useRef<Handle | null>(null);
@@ -76,6 +89,10 @@ export function Workbench({
   playback.current = { displayTime, quaternionTimes, quaternionHistory };
   const trackerVisibility = useRef(starTrackerVisible);
   trackerVisibility.current = starTrackerVisible;
+  const modules = useRef(moduleVisibility);
+  modules.current = moduleVisibility;
+  const reportModules = useRef(onAvailableModules);
+  reportModules.current = onAvailableModules;
   const modelLabel = preview === 'cutaway' ? 'Cutaway layout study' : 'Spacecraft';
   const [mode, setMode] = useState<Mode>('orbit');
   const navigationMode = useRef<Mode>(mode);
@@ -86,6 +103,8 @@ export function Workbench({
   const [revision, setRevision] = useState(asset?.revision || 'Revision unverified');
   const [retry, setRetry] = useState(0);
   pose.current = quaternion;
+  const temperatures = useRef(thermalTemperaturesK);
+  temperatures.current = thermalTemperaturesK;
 
   useEffect(() => {
     const host = mount.current;
@@ -101,6 +120,7 @@ export function Workbench({
     }
     setStatus('Loading model');
     setError('');
+    reportModules.current?.([]);
     setSelection(modelLabel);
     setRevision(asset?.revision || 'Revision unverified');
     const scene = new Scene();
@@ -158,6 +178,7 @@ export function Workbench({
     controls.enabled = currentMode === 'orbit';
     let root: Group | null = null;
     let display: ReturnType<typeof createSpacecraftDisplay> | null = null;
+    let thermal: ReturnType<typeof createThermalOverlay> | null = null;
     let selected: Mesh | null = null;
     let radius = 0.3;
     let flyTargetDistance = savedView ? camera.position.distanceTo(savedView.target) : radius;
@@ -180,7 +201,21 @@ export function Workbench({
       controls.minDistance = Math.max(0.006, r * 0.12);
       controls.update();
     }
+    function applyModules(visibility: Record<string, boolean>) {
+      if (!root) return;
+      for (const [name, visible] of Object.entries(visibility)) {
+        const result = setModuleVisibility(root, name, visible, selected);
+        if (selected !== result.selected) {
+          selected = result.selected;
+          setSelection(modelLabel);
+        }
+      }
+      canvas.dataset.hiddenModules = JSON.stringify(
+        Object.keys(visibility).filter((name) => root!.getObjectByName(name)?.visible === false),
+      );
+    }
     handle.current = {
+      setModules: applyModules,
       frame: () => {
         selected = null;
         setSelection(modelLabel);
@@ -235,7 +270,14 @@ export function Workbench({
         root = gltf.scene;
         poseRoot.add(root);
         setStarTrackerVisibility(root, trackerVisibility.current, null);
+        applyModules(modules.current || {});
+        reportModules.current?.(
+          OPTIONAL_MODULES.flatMap((module) => module.groups).filter(
+            (name) => !!root!.getObjectByName(name),
+          ),
+        );
         display = createSpacecraftDisplay(root);
+        thermal = createThermalOverlay(root);
         box.setFromObject(root);
         box.getBoundingSphere(sphere);
         radius = Math.max(sphere.radius, 0.05);
@@ -394,6 +436,8 @@ export function Workbench({
         }
       }
       display?.update(camera, canvas.height, radius);
+      thermal?.update(temperatures.current);
+      canvas.dataset.thermalOverlay = temperatures.current ? 'lumped-temperature' : 'off';
       canvas.dataset.cameraPosition = JSON.stringify(camera.position.toArray());
       canvas.dataset.cameraTarget = JSON.stringify(controls.target.toArray());
       canvas.dataset.navigationMode = currentMode;
@@ -427,6 +471,7 @@ export function Workbench({
       controls.dispose();
       environment.dispose();
       pmrem.dispose();
+      thermal?.dispose();
       if (root) disposeModel(root);
       renderer.dispose();
       canvas.remove();
@@ -436,6 +481,10 @@ export function Workbench({
   useEffect(() => {
     handle.current?.setStarTracker(starTrackerVisible);
   }, [starTrackerVisible]);
+
+  useEffect(() => {
+    handle.current?.setModules(moduleVisibility || {});
+  }, [moduleVisibility]);
 
   useEffect(() => {
     handle.current?.setMode(mode);

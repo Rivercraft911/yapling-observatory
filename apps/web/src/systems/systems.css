@@ -148,3 +148,25 @@
   color: #8f8388;
   font-size: 12px;
 }
+
+.thermal-key {
+  position: absolute;
+  left: 18px;
+  bottom: 45px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font: 10px 'IBM Plex Mono';
+  color: #ded7d4;
+  pointer-events: none;
+}
+.thermal-key i {
+  width: 120px;
+  height: 7px;
+  background: linear-gradient(to right, #416b9a, #aeb7b7, #e2a062, #c93b48);
+}
+.thermal-key small {
+  margin-left: 8px;
+  color: #9a9295;
+  font-size: 9px;
+}

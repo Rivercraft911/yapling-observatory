@@ -92,6 +92,9 @@ export interface PowerResult {
     energy_fraction: number[];
     sun_visibility: number[];
     node_temperature_k: Record<string, number[]>;
+    node_internal_heat_w: Record<string, number[]>;
+    node_net_heat_w: Record<string, number[]>;
+    node_emitted_ir_w: Record<string, number[]>;
     component_heat_w: Record<string, number[]>;
   };
   stages: {

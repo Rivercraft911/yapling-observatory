@@ -1,4 +1,5 @@
 import type { AssetInfo, Variant } from '../types';
+import { OPTIONAL_MODULES } from './previewVisibility';
 
 export function SpacecraftInspector({
   variant,
@@ -13,6 +14,9 @@ export function SpacecraftInspector({
   cutawayAvailable,
   starTrackerVisible,
   onStarTrackerVisible,
+  moduleVisibility,
+  availableModules,
+  onModuleVisibility,
 }: {
   variant: Variant;
   asset?: AssetInfo;
@@ -26,6 +30,9 @@ export function SpacecraftInspector({
   cutawayAvailable: boolean;
   starTrackerVisible: boolean;
   onStarTrackerVisible: (visible: boolean) => void;
+  moduleVisibility: Record<string, boolean>;
+  availableModules: string[];
+  onModuleVisibility: (groups: string[], visible: boolean) => void;
 }) {
   return (
     <div className="spacecraft-inspector">
@@ -60,6 +67,19 @@ export function SpacecraftInspector({
             Star tracker
           </label>
         ) : null}
+        {cutaway &&
+          OPTIONAL_MODULES.filter((module) =>
+            module.groups.every((name) => availableModules.includes(name)),
+          ).map((module) => (
+            <label className="spacecraft-follow" key={module.label}>
+              <input
+                type="checkbox"
+                checked={module.groups.every((name) => moduleVisibility[name] !== false)}
+                onChange={(event) => onModuleVisibility(module.groups, event.target.checked)}
+              />
+              Show {module.label.toLowerCase()}
+            </label>
+          ))}
         {!cutaway ? (
           <label className="field-row">
             <span>Antenna assembly</span>

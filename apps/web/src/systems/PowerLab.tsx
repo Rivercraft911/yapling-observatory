@@ -6,6 +6,9 @@ import { TracePlot, closestIndex } from '../plots/TracePlot';
 import type { AssetInfo, Variant } from '../types';
 import type { PowerConfig, PowerResult, PowerSession, PowerStage } from './powerTypes';
 import './systems.css';
+import { NumberInput } from './StudyNumberInput';
+import { ThermalProperties } from './ThermalProperties';
+import { thermalPlotChoices, thermalPlot } from './thermalPlots';
 
 const colors = ['#e4ddd4', '#d96773', '#9fb9c4', '#c6ac7a', '#b0aaa6', '#9ba693'];
 const names: Record<string, string> = {
@@ -23,6 +26,7 @@ export function PowerLab({
   variant,
   cutaway,
   starTrackerVisible,
+  moduleVisibility,
   section,
 }: {
   session: PowerSession;
@@ -32,6 +36,7 @@ export function PowerLab({
   variant: Variant;
   cutaway: boolean;
   starTrackerVisible: boolean;
+  moduleVisibility?: Record<string, boolean>;
   section: 'power' | 'thermal';
 }) {
   const { config, result } = session;
@@ -50,8 +55,13 @@ export function PowerLab({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   const [phase, setPhase] = useState(0),
-    [node, setNode] = useState('battery'),
     [cursor, setCursor] = useState(0);
+  const [heatView, setHeatView] = useState(true);
+  const [thermalSelection, setThermalSelection] = useState([
+    'bus_temperature',
+    'battery_temperature',
+    'bus_heat',
+  ]);
   const [editor, setEditor] = useState<'loads' | 'arrays' | 'battery' | 'stages'>('loads');
   useEffect(() => {
     if (config) return;
@@ -93,32 +103,7 @@ export function PowerLab({
   const index = closestIndex(times, cursor);
   const plots = useMemo(() => {
     if (!samples) return [];
-    if (section === 'thermal')
-      return [
-        {
-          title: 'Temperature',
-          unit: '°C',
-          traces: Object.entries(samples.node_temperature_k).map(([id, values], i) => ({
-            label: id,
-            color: colors[i % colors.length],
-            values: values.map((t) => t - 273.15),
-          })),
-        },
-        {
-          title: 'Internal heat',
-          unit: 'W',
-          traces: Object.entries(samples.component_heat_w).map(([id, values], i) => ({
-            label: id,
-            color: colors[i % colors.length],
-            values,
-          })),
-        },
-        {
-          title: 'Sun visibility',
-          unit: 'ratio',
-          traces: [{ label: 'Sun', color: colors[0], values: samples.sun_visibility }],
-        },
-      ];
+    if (section === 'thermal') return thermalSelection.map((id) => thermalPlot(id, samples));
     return [
       {
         title: 'Electrical power',
@@ -146,16 +131,13 @@ export function PowerLab({
         ],
       },
     ];
-  }, [samples, section]);
+  }, [samples, section, thermalSelection]);
   const selectedStage = config?.stages[Math.min(phase, config.stages.length - 1)];
-  const nodeIndex = config?.thermal.nodes.findIndex((n) => n.node_id === node) ?? -1;
-  const selectedNode = nodeIndex >= 0 ? config!.thermal.nodes[nodeIndex] : config?.thermal.nodes[0];
-  const actualNodeIndex = Math.max(0, nodeIndex);
   const controls = config ? (
     <div className="systems-controls">
       <div className="controls-title">
         <span className="eyebrow">
-          {section === 'thermal' ? 'THERMAL NETWORK' : 'POWER & AVIONICS'}
+          {section === 'thermal' ? 'THERMAL SIMULATION' : 'POWER & AVIONICS'}
         </span>
       </div>
       <div
@@ -635,120 +617,42 @@ export function PowerLab({
           )}
         </>
       ) : (
-        selectedNode && (
+        <>
+          <nav className="systems-subtabs" aria-label="Thermal appearance">
+            <button aria-pressed={heatView} onClick={() => setHeatView(true)}>
+              Temperature
+            </button>
+            <button aria-pressed={!heatView} onClick={() => setHeatView(false)}>
+              Materials
+            </button>
+          </nav>
           <fieldset>
-            <legend>THERMAL NODE</legend>
-            <label className="field-row">
-              <span>Node</span>
-              <select
-                aria-label="Thermal node"
-                value={selectedNode.node_id}
-                onChange={(e) => setNode(e.target.value)}
-              >
-                {config.thermal.nodes.map((n) => (
-                  <option key={n.node_id} value={n.node_id}>
-                    {n.node_id}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <NumberInput
-              label="Initial temperature"
-              unit="°C"
-              value={selectedNode.initial_temperature_k - 273.15}
-              min={-273.14}
-              onChange={(v) =>
-                edit((d) => {
-                  d.thermal.nodes[actualNodeIndex].initial_temperature_k = v + 273.15;
-                })
-              }
-            />
-            <NumberInput
-              label="Heat capacity"
-              unit="J/K"
-              value={selectedNode.heat_capacity_j_k}
-              min={0.01}
-              onChange={(v) =>
-                edit((d) => {
-                  d.thermal.nodes[actualNodeIndex].heat_capacity_j_k = v;
-                })
-              }
-            />
-            <NumberInput
-              label="Radiating area"
-              unit="m²"
-              value={selectedNode.radiating_area_m2}
-              min={0}
-              step={0.001}
-              onChange={(v) =>
-                edit((d) => {
-                  d.thermal.nodes[actualNodeIndex].radiating_area_m2 = v;
-                })
-              }
-            />
-            <NumberInput
-              label="Solar absorptivity"
-              value={selectedNode.solar_absorptivity}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(v) =>
-                edit((d) => {
-                  d.thermal.nodes[actualNodeIndex].solar_absorptivity = v;
-                  d.panels
-                    .filter((p) => p.thermal_node_id === selectedNode.node_id)
-                    .forEach((p) => {
-                      p.solar_absorptivity = v;
-                    });
-                })
-              }
-            />
-            <NumberInput
-              label="IR emissivity"
-              value={selectedNode.infrared_emissivity}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(v) =>
-                edit((d) => {
-                  d.thermal.nodes[actualNodeIndex].infrared_emissivity = v;
-                })
-              }
-            />
-            <NumberInput
-              label="Space view factor"
-              value={selectedNode.space_view_factor}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(v) =>
-                edit((d) => {
-                  d.thermal.nodes[actualNodeIndex].space_view_factor = v;
-                })
-              }
-            />
-            <details>
-              <summary>Conductive connections</summary>
-              {config.thermal.conductive_links.map((link, i) =>
-                link.first === selectedNode.node_id || link.second === selectedNode.node_id ? (
-                  <NumberInput
-                    key={i}
-                    label={link.first === selectedNode.node_id ? link.second : link.first}
-                    unit="W/K"
-                    value={link.conductance_w_k}
-                    min={0}
-                    step={0.01}
-                    onChange={(v) =>
-                      edit((d) => {
-                        d.thermal.conductive_links[i].conductance_w_k = v;
-                      })
-                    }
-                  />
-                ) : null,
-              )}
-            </details>
+            <legend>PLOTS</legend>
+            {thermalPlotChoices.map((choice) => (
+              <label className="spacecraft-follow" key={choice.id}>
+                <input
+                  type="checkbox"
+                  checked={thermalSelection.includes(choice.id)}
+                  disabled={!thermalSelection.includes(choice.id) && thermalSelection.length >= 6}
+                  onChange={(event) =>
+                    setThermalSelection((current) =>
+                      event.target.checked
+                        ? [...current, choice.id]
+                        : current.length > 1
+                          ? current.filter((id) => id !== choice.id)
+                          : current,
+                    )
+                  }
+                />
+                {choice.label}
+              </label>
+            ))}
           </fieldset>
-        )
+          <details>
+            <summary>Materials & thermal connections</summary>
+            <ThermalProperties config={config} edit={edit} />
+          </details>
+        </>
       )}
       <details>
         <summary>Numerics & assumptions</summary>
@@ -779,7 +683,11 @@ export function PowerLab({
         ))}
       </details>
       <button className="run-button" disabled={busy} onClick={run}>
-        {busy ? 'Computing…' : 'Run power & thermal study'}
+        {busy
+          ? 'Computing…'
+          : section === 'thermal'
+            ? 'Run thermal simulation'
+            : 'Run power & thermal study'}
         {dirty ? ' · edited' : ''}
       </button>
       {error && (
@@ -808,8 +716,28 @@ export function PowerLab({
           asset={asset}
           preview={cutaway ? 'cutaway' : 'exterior'}
           starTrackerVisible={starTrackerVisible}
+          moduleVisibility={moduleVisibility}
+          thermalTemperaturesK={
+            section === 'thermal' && heatView && samples
+              ? Object.fromEntries(
+                  Object.entries(samples.node_temperature_k).map(([id, values]) => [
+                    id,
+                    values[index],
+                  ]),
+                )
+              : undefined
+          }
         />
-        <span className="study-model-note">Geometry preview · prescribed study below</span>
+        {section === 'thermal' && heatView && result ? (
+          <div className="thermal-key">
+            <span>0 °C</span>
+            <i />
+            <span>80 °C</span>
+            <small>Lumped temperatures · gray = unmapped</small>
+          </div>
+        ) : (
+          <span className="study-model-note">Geometry preview · prescribed study below</span>
+        )}
       </div>
       <div className="study-status">
         <strong>{section === 'thermal' ? 'THERMAL' : 'POWER'}</strong>
@@ -820,7 +748,10 @@ export function PowerLab({
         </span>
         {dirty && <b>Unrun edits</b>}
       </div>
-      <div className="study-plots">
+      <div
+        className="study-plots"
+        style={{ gridTemplateRows: `repeat(${Math.max(1, plots.length)}, minmax(110px, 1fr))` }}
+      >
         {plots.map((p) => (
           <TracePlot key={p.title} {...p} times={times} cursorTime={cursor} onScrub={setCursor} />
         ))}
@@ -876,43 +807,5 @@ export function PowerLab({
       )}
       {inspectorTarget ? createPortal(controls, inspectorTarget) : controls}
     </section>
-  );
-}
-function NumberInput({
-  label,
-  value,
-  onChange,
-  unit = '',
-  min,
-  max,
-  step = 0.1,
-}: {
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  unit?: string;
-  min?: number;
-  max?: number;
-  step?: number;
-}) {
-  return (
-    <label className="field-row">
-      <span>{label}</span>
-      <span className="study-number">
-        <input
-          aria-label={label}
-          type="number"
-          value={Number(value.toFixed(6))}
-          min={min}
-          max={max}
-          step={step}
-          onChange={(e) => {
-            if (e.target.value !== '' && Number.isFinite(e.target.valueAsNumber))
-              onChange(e.target.valueAsNumber);
-          }}
-        />
-        {unit && <small>{unit}</small>}
-      </span>
-    </label>
   );
 }
