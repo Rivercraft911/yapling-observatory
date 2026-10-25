@@ -1,4 +1,12 @@
-import { Color, DoubleSide, Mesh, MeshStandardMaterial, Object3D, type Material } from 'three';
+import {
+  Color,
+  DoubleSide,
+  Mesh,
+  MeshStandardMaterial,
+  MeshBasicMaterial,
+  Object3D,
+  type Material,
+} from 'three';
 
 const groups: Record<string, string> = {
   SSI_BATTERY_CASSETTE: 'battery',
@@ -10,9 +18,15 @@ export function thermalNodeForPart(part: Object3D): string | null {
   for (let current: Object3D | null = part; current; current = current.parent) {
     if (groups[current.name]) return groups[current.name];
   }
-  const name = part.name;
-  if (/^(Primary rail|End frame|Rail end)/.test(name)) return 'bus';
-  if (/white PCB/i.test(name) || /cell.*\| (active face|backing)/i.test(name)) return 'panel';
+  for (let current: Object3D | null = part; current; current = current.parent) {
+    const name =
+      typeof current.userData.name === 'string'
+        ? current.userData.name
+        : current.name.replaceAll('_', ' ');
+    if (/^(Primary rail|End frame|Rail end)/.test(name)) return 'bus';
+    if (/white PCB|panel substrate/i.test(name) || /cell.*\| (active face|backing)/i.test(name))
+      return 'panel';
+  }
   return null;
 }
 const stops = ['#416b9a', '#aeb7b7', '#e2a062', '#c93b48'].map((value) => new Color(value));
@@ -24,7 +38,7 @@ export function temperatureColor(kelvin: number | undefined) {
 }
 export function createThermalOverlay(root: Object3D) {
   const parts: { mesh: Mesh; original: Material | Material[]; node: string | null }[] = [];
-  const materials = new Map<string, MeshStandardMaterial>();
+  const materials = new Map<string, MeshStandardMaterial | MeshBasicMaterial>();
   root.traverse((object) => {
     if (!(object instanceof Mesh)) return;
     const original = Array.isArray(object.material) ? object.material : [object.material];
@@ -35,12 +49,14 @@ export function createThermalOverlay(root: Object3D) {
     if (!materials.has(node || 'unmapped')) {
       materials.set(
         node || 'unmapped',
-        new MeshStandardMaterial({
-          color: '#696c70',
-          roughness: 0.8,
-          metalness: 0.05,
-          side: DoubleSide,
-        }),
+        node
+          ? new MeshBasicMaterial({ color: '#696c70', side: DoubleSide, toneMapped: false })
+          : new MeshStandardMaterial({
+              color: '#696c70',
+              roughness: 0.8,
+              metalness: 0.05,
+              side: DoubleSide,
+            }),
       );
     }
   let active = false;
@@ -55,7 +71,8 @@ export function createThermalOverlay(root: Object3D) {
       if (enabled)
         for (const [node, material] of materials) {
           material.color.copy(temperatureColor(temperatures[node]));
-          material.emissive.copy(material.color).multiplyScalar(0.16);
+          if (material instanceof MeshStandardMaterial)
+            material.emissive.copy(material.color).multiplyScalar(0.16);
         }
     },
     dispose() {
