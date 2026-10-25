@@ -15,6 +15,8 @@ python3 scripts/dev.py
 
 Open the printed localhost address. Ctrl-C stops both processes. The launcher accepts `--api-port` and `--web-port`.
 
+Use **File → Save run** to keep a completed mission, including its original inputs, history and source identities. **Open run…** restores it paused for replay or comparison. Saving uses the computed run even when the controls contain unrun edits. Imported runs are labeled; invalid files leave the current work intact. Archives support up to 64 MiB and 20,001 samples. Their checksum checks file integrity, not the physical validity or authorship of the result.
+
 The spacecraft view includes an optional cutaway with a removable tracker. Spacecraft CAD and working renders stay in ignored local storage. The viewer reads the allowlisted GLB paths in `private/model-development/web-models.json`. A fresh checkout can run numerical studies without those assets and will report when a physical model is unavailable.
 
 ## Model limits
@@ -58,6 +60,7 @@ node --experimental-strip-types apps/web/src/graphics/display-interpolation.test
 node --experimental-strip-types apps/web/src/graphics/frame-size.test.mjs
 node --experimental-strip-types apps/web/src/spacecraft/preview-visibility.test.mjs
 node --experimental-strip-types apps/web/src/graphics/thermal-overlay.test.mjs
+node --experimental-strip-types apps/web/src/mission/mission-requests.test.mjs
 ```
 
 Tests cover physical reference cases, numerical regressions and dependency boundaries. The GitHub workflow is configured to run the same checks. Use `npm --prefix apps/web run format` after frontend edits.
