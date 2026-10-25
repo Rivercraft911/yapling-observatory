@@ -1,6 +1,6 @@
 """Mission HTTP adapter. Numerical state/equations live in named pure domains."""
 
-from dataclasses import replace
+from dataclasses import asdict, replace
 import json
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
@@ -17,12 +17,22 @@ from .mission.ephemeris import mean_sun_ra_deg
 from .mission_archive import ArchiveError, export_request, import_archive
 from .orbit.elements import first_order_sso_inclination_deg
 from .orbit.gravity import GravityPotential
+from .models import Link
+from .power.radio import transmit_power, heat_only_load
 
 router = APIRouter(prefix="/api/mission", tags=["mission"])
 
 
 class MissionRequest(MissionModel):
     scenario: MissionScenario
+
+
+class RadioPowerRequest(MissionModel):
+    tx_electrical_w: float = Field(ge=0, strict=True)
+    rx_electrical_w: float = Field(ge=0, strict=True)
+    idle_electrical_w: float = Field(ge=0, strict=True)
+    downlink: Link
+    analytical_radiation_efficiency: float = Field(ge=0, le=1, strict=True)
 
 
 class OrbitRequest(MissionModel):
@@ -140,3 +150,29 @@ async def open_archive(request: Request):
     except ArchiveError as error:
         raise HTTPException(422, str(error)) from error
     return Response(response, media_type="application/json")
+
+
+@router.post("/radio-power")
+def radio_power(request: RadioPowerRequest):
+    efficiency = (
+        request.downlink.spherical_harmonic_profile.radiation_efficiency
+        if request.downlink.spacecraft_antenna == "spherical_harmonic"
+        else request.analytical_radiation_efficiency
+    )
+    try:
+        return dict(
+            transmit=asdict(transmit_power(
+                request.tx_electrical_w, request.downlink.tx_power_w,
+                request.downlink.tx_feed_loss_db, efficiency,
+            )),
+            receive=heat_only_load(request.rx_electrical_w),
+            idle=heat_only_load(request.idle_electrical_w),
+        )
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+
+@router.get("/battery-electrical-default")
+def battery_electrical_default():
+    from .power.battery_electrical import electrical_defaults, electrical_model_metadata
+    return dict(electrical=electrical_defaults(), metadata=electrical_model_metadata())

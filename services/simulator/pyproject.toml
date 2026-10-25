@@ -21,3 +21,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.setuptools.package-data]
+"cubesat_sim.power" = ["*.json"]
+"cubesat_sim.mission" = ["*.json"]

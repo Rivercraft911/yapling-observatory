@@ -69,7 +69,9 @@ class MissionWheel(MissionModel):
     @model_validator(mode="after")
     def initial_speed_limit(self):
         if abs(self.initial_speed_rpm) > self.spec.max_speed_rpm:
-            raise ValueError("Initial wheel speed must lie within the specified RPM limit")
+            raise ValueError(
+                "Initial wheel speed must lie within the specified RPM limit"
+            )
         return self
 
 
@@ -212,6 +214,13 @@ class MissionPower(MissionModel):
     @model_validator(mode="after")
     def topology(self):
         nodes = {node.node_id: node for node in self.thermal.nodes}
+        if (
+            self.battery.electrical is not None
+            and self.battery.electrical.heat_node_id not in nodes
+        ):
+            raise ValueError(
+                "Battery electrical heat destination must be an existing thermal node"
+            )
         refs = {
             self.regulator_heat_node_id,
             self.storage_loss_heat_node_id,

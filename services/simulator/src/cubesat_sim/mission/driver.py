@@ -39,6 +39,13 @@ from ..rf.link_budget import evaluate_link_budget
 from ..rf.pattern_provenance import harmonic_pattern_records
 from ..power.solar import pv_generation
 from ..power.battery import advance_battery, capacity_wh
+from ..power.battery_electrical import (
+    advance_electrical_battery,
+    electrical_energy_j,
+    electrical_state,
+    electrical_model_metadata,
+)
+from ..power.radio import transmit_power
 from ..power.loads import load_ledger
 from ..power.models import ComponentLoad
 from ..thermal.models import NodeForcing
@@ -130,10 +137,26 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         if config.downlink.spacecraft_antenna == "spherical_harmonic"
         else power.transmit_radiation_efficiency
     )
+    radio_transmit_power = transmit_power(
+        power.spacecraft_tx_electrical_w,
+        config.downlink.tx_power_w,
+        config.downlink.tx_feed_loss_db,
+        transmit_efficiency,
+    )
+    electrical = power.battery.electrical
+    soc = electrical.initial_soc if electrical else None
+    last_electrical = None
+    energy_capacity_j = (
+        electrical_energy_j(power.battery, 1)
+        if electrical
+        else capacity_wh(power.battery) * 3600
+    )
     temperatures = tuple(n.initial_temperature_k for n in power.thermal.nodes)
     temperatures0 = temperatures
     energy0 = energy = (
-        capacity_wh(power.battery) * 3600 * power.battery.initial_energy_fraction
+        electrical_energy_j(power.battery, soc)
+        if electrical
+        else capacity_wh(power.battery) * 3600 * power.battery.initial_energy_fraction
     )
     nodes = tuple(n.node_id for n in power.thermal.nodes)
     accumulated = {n: [0.0, 0.0, 0.0, 0.0] for n in nodes}
@@ -292,8 +315,11 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
                     attitude,
                     requested,
                     field_body,
-                    config.spacecraft.magnetic_unloading_time_constant_s
-                    if unloading_status == "active" else None,
+                    (
+                        config.spacecraft.magnetic_unloading_time_constant_s
+                        if unloading_status == "active"
+                        else None
+                    ),
                 )
                 motors = wheel_allocation.wheel_motor_torques_nm
                 control_status = "wheel_pd"
@@ -476,14 +502,57 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
                 - last_power["requested_load_w"],
                 stored_energy_j=energy,
                 stored_energy_wh=energy / 3600,
-                energy_fraction=energy / (capacity_wh(power.battery) * 3600),
+                energy_fraction=energy / energy_capacity_j,
                 sun_visibility=visibility,
-                battery_voltage_v=None,
-                battery_current_a=None,
-                battery_electrical_reason="capacity_only_energy_model",
+                battery_voltage_v=(
+                    last_electrical.voltage_v
+                    if last_electrical
+                    else (
+                        electrical_state(power.battery, soc)[
+                            "battery_open_circuit_voltage_v"
+                        ]
+                        if electrical
+                        else None
+                    )
+                ),
+                battery_current_a=(
+                    last_electrical.current_a
+                    if last_electrical
+                    else (0.0 if electrical else None)
+                ),
+                battery_electrical_reason=(
+                    electrical.model if electrical else "capacity_only_energy_model"
+                ),
+                **(
+                    dict(
+                        **electrical_state(power.battery, soc),
+                        battery_terminal_power_w=(
+                            last_electrical.terminal_power_w if last_electrical else 0.0
+                        ),
+                        battery_ohmic_heat_w=(
+                            last_electrical.ohmic_heat_w if last_electrical else 0.0
+                        ),
+                        battery_mean_resistance_ohm=(
+                            last_electrical.mean_resistance_ohm
+                            if last_electrical
+                            else electrical_state(power.battery, soc)[
+                                "battery_resistance_ohm"
+                            ]
+                        ),
+                        battery_temperature_outside_reference=(
+                            abs(
+                                temperatures[nodes.index(electrical.heat_node_id)]
+                                - 298.15
+                            )
+                            > 1
+                        ),
+                    )
+                    if electrical
+                    else {}
+                ),
                 component_electrical_w={
                     key: last_components.get(key, 0.0) for key in sorted(component_ids)
-                }
+                },
             ),
             thermal=dict(
                 node_temperature_k=dict(zip(nodes, temperatures)),
@@ -571,13 +640,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             if transmit
             else power.spacecraft_receive_w if radio_active else power.radio_idle_w
         )
-        escaped_rf = (
-            config.downlink.tx_power_w
-            * 10 ** (-config.downlink.tx_feed_loss_db / 10)
-            * transmit_efficiency
-            if transmit
-            else 0.0
-        )
+        escaped_rf = radio_transmit_power.escaped_rf_w if transmit else 0.0
         loads = next(
             profile.loads for profile in power.mode_loads if profile.mode == mode
         ) + (
@@ -649,7 +712,18 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             for panel in power.panels
         )
         potential_bus = sum(flow.bus_w for flow in potential)
-        battery = advance_battery(power.battery, energy, potential_bus, requested_w, dt)
+        battery = (
+            advance_electrical_battery(
+                power.battery,
+                soc,
+                potential_bus,
+                requested_w,
+                dt,
+                temperatures[nodes.index(electrical.heat_node_id)],
+            )
+            if electrical
+            else advance_battery(power.battery, energy, potential_bus, requested_w, dt)
+        )
         if battery.unserved_load_w > 1e-9:
             end_reason = "power_unserved"
             events.append(
@@ -683,7 +757,9 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             heat[panel.thermal_node_id] -= flow.terminal_w
         regulator = sum(flow.regulator_heat_w for flow in pv)
         heat[power.regulator_heat_node_id] += regulator
-        heat[power.storage_loss_heat_node_id] += battery.storage_loss_w
+        heat[
+            electrical.heat_node_id if electrical else power.storage_loss_heat_node_id
+        ] += battery.storage_loss_w
         for load, ledger in zip(loads, ledgers):
             heat[load.thermal_node_id] += ledger.heat_w
         heat[config.spacecraft.actuator_heat_node_id] += trial.wheel_heat_j / dt
@@ -760,6 +836,8 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         last_components = {
             load.component_id: load.electrical_w for load in loads
         } | dict(wheels=max(0.0, wheel_w), magnetorquers=mtq_w)
+        if electrical:
+            last_electrical = battery
         if tick == 0:
             append_sample()
         for d in capacity:
@@ -771,6 +849,8 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             elif capacity_available[d]:
                 capacity[d] += rate * dt
         energy = battery.stored_energy_j
+        if electrical:
+            soc = battery.soc
         attitude = replace(trial.state, time_s=(tick + 1) * dt)
         for _ in range(config.clocks.orbit_substeps):
             orbit = orbit_step(orbit, orbit_config)
@@ -834,7 +914,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         ),
         time=dict(
             elapsed_scale="SI seconds; POSIX UTC labels; no leap second dynamics",
-            **orbit_metadata(config.orbit.elements)
+            **orbit_metadata(config.orbit.elements),
         ),
         numerical_settings=config.clocks.model_dump(mode="json")
         | dict(
@@ -873,6 +953,24 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             "Power demand that cannot be served terminates at last valid shared-state prefix; postbrownout dynamics are not modeled.",
         ],
     )
+    if electrical:
+        manifest["battery_electrical"] = electrical_model_metadata() | dict(
+            configuration=electrical.model_dump(mode="json"),
+            pack_capacity_c=power.battery.cells.parallel_count
+            * power.battery.cells.cell_capacity_mah
+            * 3.6,
+            chemical_full_energy_j=energy_capacity_j,
+            initial_energy_j=energy0,
+            telemetry="SOC, remaining charge, open circuit voltage and resistance are sampled state; terminal voltage/current/power, mean resistance and ohmic heat refer to the preceding accepted dynamics interval (initial sample uses first accepted interval); positive current/power discharge",
+        )
+        manifest["warnings"] = [
+            warning.replace(
+                " No cellOCV/current/voltage/temperaturecapacity or hardware brownout dynamics.",
+                "",
+            )
+            for warning in manifest["warnings"]
+        ]
+        manifest["warnings"].extend(manifest["battery_electrical"]["limits"])
     if config.spacecraft.magnetic_unloading_enabled:
         manifest["magnetic_unloading"] = dict(
             law="desired external torque = -H_w / time_constant; minimum-norm m = B cross torque / |B|^2, with total-norm dipole saturation",
@@ -906,7 +1004,11 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         manifest["antenna_patterns"] = harmonic_patterns
         manifest["rf_transmit_radiation_efficiency"] = dict(
             value=transmit_efficiency,
-            source="downlink coefficient profile" if "downlink" in harmonic_patterns else "power input",
+            source=(
+                "downlink coefficient profile"
+                if "downlink" in harmonic_patterns
+                else "power input"
+            ),
         )
         manifest["warnings"].append(
             "Spherical harmonics represent supplied complex fields; provenance is supplied with the coefficients, not independently validated installed spacecraft performance."

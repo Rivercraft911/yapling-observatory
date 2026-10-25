@@ -2,7 +2,7 @@
 
 import math
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, model_serializer
 from ..thermal.models import ThermalNetwork
 
 
@@ -52,7 +52,33 @@ class CellConfiguration(PowerModel):
     )
 
 
+class BatteryElectricalSpec(PowerModel):
+    model: Literal["ncr18650ga_linghu2019_rint"] = "ncr18650ga_linghu2019_rint"
+    initial_soc: float = Field(default=0.5, ge=0, le=1)
+    resistance_scale: float = Field(default=1, ge=0.1, le=100)
+    cell_min_voltage_v: float = Field(default=2.5, ge=2.5, lt=4.179)
+    cell_max_voltage_v: float = Field(default=4.2, gt=2.999, le=4.2)
+    cell_max_charge_current_a: float = Field(default=1.475, ge=0, le=1.675)
+    cell_max_discharge_current_a: float = Field(default=10, ge=0, le=10)
+    charge_temperature_min_k: float = Field(default=283.15, ge=283.15, le=318.15)
+    charge_temperature_max_k: float = Field(default=318.15, ge=283.15, le=318.15)
+    discharge_temperature_min_k: float = Field(default=253.15, ge=253.15, le=333.15)
+    discharge_temperature_max_k: float = Field(default=333.15, ge=253.15, le=333.15)
+    heat_node_id: str = Field(default="battery", min_length=1)
+
+    @model_validator(mode="after")
+    def ordered_limits(self):
+        if (
+            self.cell_min_voltage_v >= self.cell_max_voltage_v
+            or self.charge_temperature_min_k > self.charge_temperature_max_k
+            or self.discharge_temperature_min_k > self.discharge_temperature_max_k
+        ):
+            raise ValueError("Battery voltage and temperature limits must be ordered")
+        return self
+
+
 class BatterySpec(PowerModel):
+    electrical: BatteryElectricalSpec | None = None
     total_capacity_wh: float | None = Field(default=None, gt=0)
     cells: CellConfiguration | None = None
     initial_energy_fraction: float = Field(default=0.5, ge=0, le=1)
@@ -61,11 +87,24 @@ class BatterySpec(PowerModel):
     max_charge_bus_w: float = Field(default=10, ge=0)
     max_discharge_bus_w: float = Field(default=30, ge=0)
 
+    @model_serializer(mode="wrap")
+    def preserve_legacy_snapshot(self, handler):
+        result = handler(self)
+        if self.electrical is None:
+            result.pop("electrical", None)
+        return result
+
     @model_validator(mode="after")
     def one_capacity_basis(self):
         if (self.total_capacity_wh is None) == (self.cells is None):
             raise ValueError(
                 "Specify exactly one of total_capacity_wh or explicit cell configuration"
+            )
+        if self.electrical is not None and (
+            self.cells is None or self.cells.cell_model != "NCR18650GA"
+        ):
+            raise ValueError(
+                "NCR18650GA electrical model requires explicit NCR18650GA cells"
             )
         estimate = (
             self.total_capacity_wh
@@ -160,6 +199,10 @@ class StudyConfig(PowerModel):
 
     @model_validator(mode="after")
     def complete_contract(self):
+        if self.battery.electrical is not None:
+            raise ValueError(
+                "The electrical battery model is available in the coupled mission; standalone CONOPS study retains its energy-only model"
+            )
         if self.stages[0].start_s != 0 or any(
             a.end_s != b.start_s for a, b in zip(self.stages, self.stages[1:])
         ):
@@ -176,6 +219,13 @@ class StudyConfig(PowerModel):
                 "Study exceeds86400s,100000 integration steps or7201 output samples"
             )
         nodes = {node.node_id: node for node in self.thermal.nodes}
+        if (
+            self.battery.electrical is not None
+            and self.battery.electrical.heat_node_id not in nodes
+        ):
+            raise ValueError(
+                "Battery electrical heat destination must be an existing thermal node"
+            )
         if len(
             {stage.stage_id for stage in (*self.stages, *self.imaging_windows)}
         ) != len(self.stages) + len(self.imaging_windows):

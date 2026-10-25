@@ -36,6 +36,7 @@ ENERGY_FIELDS = {
 BOOLEAN_SERIES = {
     "samples.visible", "samples.radio_active", "samples.uplink.valid", "samples.downlink.valid",
     "samples.gnc.wheel_saturated", "samples.gnc.magnetic_saturated",
+    "samples.power.battery_temperature_outside_reference",
 }
 TEXT_SERIES = {
     "samples.elapsed_ns", "samples.active_direction", "samples.mode", "samples.stage_id",
@@ -329,6 +330,16 @@ def _validate_samples(samples, model, summary):
         _numbers(samples, "power."+name, minimum=0, maximum=1+1e-9)
     for name in ("battery_voltage_v", "battery_current_a"):
         _numbers(samples, "power."+name, nullable=True)
+    if model.power.battery.electrical is not None:
+        _numbers(samples, "power.battery_voltage_v", minimum=1e-12)
+        _numbers(samples, "power.battery_current_a")
+        _numbers(samples, "power.battery_soc", minimum=0, maximum=1)
+        for name in ("battery_remaining_charge_ah", "battery_resistance_ohm",
+                     "battery_mean_resistance_ohm", "battery_ohmic_heat_w"):
+            _numbers(samples, "power."+name, minimum=0)
+        _numbers(samples, "power.battery_open_circuit_voltage_v", minimum=1e-12)
+        _numbers(samples, "power.battery_terminal_power_w")
+        _booleans(samples, "power.battery_temperature_outside_reference")
     for value in _column(samples, "power.battery_electrical_reason"):
         _text(value, "battery electrical-model status", 256)
     require(type(samples["power"].get("component_electrical_w")) is dict, "Component power series are required")
