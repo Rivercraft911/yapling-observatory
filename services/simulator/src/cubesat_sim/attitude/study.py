@@ -72,6 +72,7 @@ class AttitudeStudyInput:
     unloading_gain_s_inv: float = 0.0
     wheel_momentum_bias_body_nms: tuple[float, float, float] = (0.0, 0.0, 0.0)
     bdot_gain_am2_s_t: float = 0.0
+    damp_free_roll_rate: bool = False
 
     def __post_init__(self):
         if not isinstance(self.body, RigidBody) or not isinstance(
@@ -176,6 +177,7 @@ def run_attitude_study(request: AttitudeStudyInput, cancelled=None):
                 reference,
                 request.pd_gains,
                 request.body_boresight if request.free_roll else None,
+                damp_free_roll_rate=request.damp_free_roll_rate,
             )
             requested_control = control.requested_body_control_torque_nm
             if body.wheels:

@@ -6,6 +6,7 @@ import math
 import pytest
 
 from cubesat_sim.attitude.actuators import MagnetorquerSpec, WheelSpec
+from cubesat_sim.attitude.actuators import allocate_magnetic_torque
 from cubesat_sim.attitude.control import (
     AttitudeReference,
     PDConfig,
@@ -78,6 +79,51 @@ def test_free_roll_does_not_damp_boresight_spin():
     fixed = quaternion_pd(body, state, AttitudeReference((1, 0, 0, 0)), gains)
     assert free.requested_body_control_torque_nm == (0, 0, 0)
     assert fixed.requested_body_control_torque_nm[1] == pytest.approx(-0.0009)
+
+
+def test_explicit_all_axis_rate_damping_keeps_roll_angle_free_and_respects_magnetic_rank():
+    body = RigidBody(((0.002, 0, 0), (0, 0.002, 0), (0, 0, 0.002)))
+    gains = PDConfig((0.001,) * 3, (0.003,) * 3)
+    reference = AttitudeReference((1, 0, 0, 0))
+    rolled = AttitudeState(0, (math.cos(0.6), 0, math.sin(0.6), 0), (0, 0, 0))
+    command = quaternion_pd(
+        body, rolled, reference, gains, (0, 1, 0), damp_free_roll_rate=True
+    )
+    assert command.requested_body_control_torque_nm == pytest.approx(
+        (0, 0, 0), abs=1e-18
+    )
+    spin = AttitudeState(0, (1, 0, 0, 0), (0, 0.3, 0))
+    command = quaternion_pd(
+        body, spin, reference, gains, (0, 1, 0), damp_free_roll_rate=True
+    )
+    assert command.requested_body_control_torque_nm == pytest.approx(
+        (0, -0.0009, 0), abs=1e-18
+    )
+    magnetic = allocate_magnetic_torque(
+        command.requested_body_control_torque_nm, (0, 40e-6, 0), MagnetorquerSpec(0.2)
+    )
+    assert magnetic.torque_body_nm == (0, 0, 0)
+    assert magnetic.residual_torque_body_nm == pytest.approx(
+        command.requested_body_control_torque_nm
+    )
+
+
+def test_zero_roll_angle_torque_with_unequal_gains_and_arbitrary_boresight():
+    body = RigidBody(((0.002, 0, 0), (0, 0.002, 0), (0, 0, 0.002)))
+    axis = unit((1, 1, 0))
+    error_axis = unit((1, -1, 0))
+    q = (math.cos(0.2), *(math.sin(0.2) * v for v in error_axis))
+    command = quaternion_pd(
+        body,
+        AttitudeState(0, q, (0, 0, 0)),
+        AttitudeReference((1, 0, 0, 0)),
+        PDConfig((0.001, 0.002, 0.003), (0.003,) * 3),
+        axis,
+        damp_free_roll_rate=True,
+    )
+    assert dot(command.requested_body_control_torque_nm, axis) == pytest.approx(
+        0, abs=1e-18
+    )
 
 
 def test_actual_wheel_pd_acquisition_and_output_sampling_independence():

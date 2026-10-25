@@ -68,12 +68,15 @@ def quaternion_pd(
     reference: AttitudeReference,
     gains: PDConfig,
     free_roll_axis_body=None,
+    *,
+    damp_free_roll_rate=False,
 ) -> PDOutput:
     """Torque = Kp*shortest_rotation - Kd*rate_error + optional gyro/feedforward.
 
     q_error=q_B_from_I*q_I_from_R. Its rotation vector points toward the reference
     in current body axes. Canonical q/-q handling avoids quaternion unwinding.
-    For free roll the final torque is projected perpendicular to the boresight.
+    Legacy free roll projects final torque perpendicular to the boresight.
+    damp_free_roll_rate keeps zero roll-angle cost but damps all rate axes.
     """
     error = normalize_quaternion(
         multiply(
@@ -91,9 +94,9 @@ def quaternion_pd(
     rate_error = add(state.omega_body_rad_s, scale(reference_rate, -1))
     axis = unit_vector(free_roll_axis_body) if free_roll_axis_body is not None else None
     if axis is not None:
-        rotation_error, rate_error = transverse(rotation_error, axis), transverse(
-            rate_error, axis
-        )
+        rotation_error = transverse(rotation_error, axis)
+        if not damp_free_roll_rate:
+            rate_error = transverse(rate_error, axis)
     torque = tuple(
         k * e - d * w
         for k, e, d, w in zip(
@@ -103,6 +106,14 @@ def quaternion_pd(
             rate_error,
         )
     )
+    if axis is not None and damp_free_roll_rate:
+        proportional = tuple(
+            k * e for k, e in zip(gains.proportional_nm_per_rad, rotation_error)
+        )
+        torque = add(
+            transverse(proportional, axis),
+            tuple(-d * w for d, w in zip(gains.derivative_nm_s_per_rad, rate_error)),
+        )
     if gains.gyroscopic_compensation:
         angular = mechanical_invariants(body, state).angular_momentum_body_nms
         torque = add(torque, cross(state.omega_body_rad_s, angular))
@@ -113,7 +124,7 @@ def quaternion_pd(
         scale(cross(state.omega_body_rad_s, reference_rate), -1),
     )
     torque = add(torque, matvec(body.effective_inertia_kg_m2, reference_acceleration))
-    if axis is not None:
+    if axis is not None and not damp_free_roll_rate:
         torque = transverse(torque, axis)
     return PDOutput(
         torque, rotation_error, rate_error, norm(rotation_error), axis is not None

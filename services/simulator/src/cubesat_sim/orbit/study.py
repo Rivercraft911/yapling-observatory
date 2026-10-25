@@ -1,10 +1,12 @@
-"""JSON-safe standalone central-gravity study adapter; no pass replacement."""
+"""JSON-safe standalone central/J2 study adapter; no pass replacement."""
 
 from dataclasses import asdict, dataclass
 import json
 import math
 
 from .two_body import CartesianState, TwoBodyConfig, integer_steps, propagate
+from .elements import node_history
+from .gravity import EGM2008_MU_M3_S2
 
 
 @dataclass(frozen=True)
@@ -40,9 +42,12 @@ def run_orbit_study(request: OrbitStudyInput, cancelled=None):
             dict(
                 input=asdict(request),
                 result=asdict(result),
+                nodes=asdict(node_history(result.states, request.config.mu_m3_s2)),
                 limits=[
-                    "Central point-mass conservative gravity in a caller-declared inertial frame; no J2, drag, Earth orientation or operational ephemeris.",
-                    "Velocity Verlet is second-order symplectic for this separable model, with bounded energy error in resolved regular motion, not exact energy or exact phase.",
+                    "Selected central or static J2 gravity in a caller-declared inertial frame; fixed symmetry +Z; no drag, higher harmonics, Earth orientation or operational ephemeris.",
+                    "Velocity Verlet is second-order symplectic for either static position-only potential, with bounded energy error in resolved regular motion, not exact energy or phase.",
+                    "Energy uses the full selected potential. J2 conserves axial Hz but generally changes the total angular-momentum vector. Scaled axial drift divides by initial |h|, including polar cases.",
+                    "Initial elements are osculating; first-order SSO inclination is a mean-element planning reference, not a guarantee of exact osculating SSO.",
                     "Fixed physics timestep; duration and output cadence are integer multiples. The numerical radius guard is not an Earth collision model.",
                 ],
             ),
@@ -53,7 +58,7 @@ def run_orbit_study(request: OrbitStudyInput, cancelled=None):
 
 def default_orbit_study():
     """Editable circular reference; no spacecraft or operational orbit selected."""
-    mu = 3.986004418e14
+    mu = EGM2008_MU_M3_S2
     radius = 6_928_137.0
     return OrbitStudyInput(
         CartesianState(0, (radius, 0, 0), (0, math.sqrt(mu / radius), 0)),
