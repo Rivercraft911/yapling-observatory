@@ -10,19 +10,25 @@ export function createSpacecraftDisplay(root: Group) {
   const viewFromMesh = new Matrix4();
   const replacedMaterials = new Set<Material>();
 
-  root.traverse(object => {
+  root.traverse((object) => {
     if (!(object instanceof Mesh)) return;
     object.geometry.computeBoundingBox();
     const localBox = object.geometry.boundingBox;
     if (!localBox || localBox.isEmpty()) return;
-    const item = { mesh: object, center: localBox.getCenter(new Vector3()), halfSize: localBox.getSize(new Vector3()).multiplyScalar(0.5) };
+    const item = {
+      mesh: object,
+      center: localBox.getCenter(new Vector3()),
+      halfSize: localBox.getSize(new Vector3()).multiplyScalar(0.5),
+    };
     bounds.push(item);
     const originals = Array.isArray(object.material) ? object.material : [object.material];
-    if (!originals.every(material => material.name === 'Very fine cell metallization')) return;
+    if (!originals.every((material) => material.name === 'Very fine cell metallization')) return;
     // The two small dimensions are conductor thickness and width. Only these
     // named display details receive clones; the cell/glass/PCB materials stay intact.
-    const axes = [0, 1, 2].sort((a, b) => item.halfSize.getComponent(a) - item.halfSize.getComponent(b));
-    const materials = originals.map(material => {
+    const axes = [0, 1, 2].sort(
+      (a, b) => item.halfSize.getComponent(a) - item.halfSize.getComponent(b),
+    );
+    const materials = originals.map((material) => {
       replacedMaterials.add(material);
       const clone = material.clone();
       clone.transparent = true;
@@ -34,11 +40,11 @@ export function createSpacecraftDisplay(root: Group) {
     details.push({ ...item, widthAxis: axes[1], lengthAxis: axes[2], materials });
   });
   // No meshes retain these originals. GLTFLoader owns no external references.
-  replacedMaterials.forEach(material => material.dispose());
+  replacedMaterials.forEach((material) => material.dispose());
 
   function update(camera: PerspectiveCamera, viewportHeight: number, radius: number) {
     camera.updateMatrixWorld();
-    const tanY = Math.tan(camera.fov * Math.PI / 360);
+    const tanY = Math.tan((camera.fov * Math.PI) / 360);
     const tanX = tanY * camera.aspect;
     let nearest = Infinity;
     let farthest = 0;
@@ -49,11 +55,15 @@ export function createSpacecraftDisplay(root: Group) {
       const x = m[0] * center.x + m[4] * center.y + m[8] * center.z + m[12];
       const y = m[1] * center.x + m[5] * center.y + m[9] * center.z + m[13];
       const depth = -(m[2] * center.x + m[6] * center.y + m[10] * center.z + m[14]);
-      const extentX = Math.abs(m[0]) * halfSize.x + Math.abs(m[4]) * halfSize.y + Math.abs(m[8]) * halfSize.z;
-      const extentY = Math.abs(m[1]) * halfSize.x + Math.abs(m[5]) * halfSize.y + Math.abs(m[9]) * halfSize.z;
-      const extentZ = Math.abs(m[2]) * halfSize.x + Math.abs(m[6]) * halfSize.y + Math.abs(m[10]) * halfSize.z;
+      const extentX =
+        Math.abs(m[0]) * halfSize.x + Math.abs(m[4]) * halfSize.y + Math.abs(m[8]) * halfSize.z;
+      const extentY =
+        Math.abs(m[1]) * halfSize.x + Math.abs(m[5]) * halfSize.y + Math.abs(m[9]) * halfSize.z;
+      const extentZ =
+        Math.abs(m[2]) * halfSize.x + Math.abs(m[6]) * halfSize.y + Math.abs(m[10]) * halfSize.z;
       const end = depth + extentZ;
-      if (end <= 0 || Math.abs(x) - extentX > end * tanX || Math.abs(y) - extentY > end * tanY) continue;
+      if (end <= 0 || Math.abs(x) - extentX > end * tanX || Math.abs(y) - extentY > end * tanY)
+        continue;
       nearest = Math.min(nearest, depth - extentZ);
       farthest = Math.max(farthest, end);
     }
@@ -72,11 +82,18 @@ export function createSpacecraftDisplay(root: Group) {
       viewFromMesh.multiplyMatrices(camera.matrixWorldInverse, mesh.matrixWorld);
       const m = viewFromMesh.elements;
       const depth = -(m[2] * center.x + m[6] * center.y + m[10] * center.z + m[14]);
-      const w = widthAxis * 4, l = lengthAxis * 4;
+      const w = widthAxis * 4,
+        l = lengthAxis * 4;
       const length = Math.hypot(m[l], m[l + 1]);
       // Project the conductor width perpendicular to its projected long axis.
-      const projectedWidth = length > 1e-8 ? Math.abs(m[w] * m[l + 1] - m[w + 1] * m[l]) / length : Math.hypot(m[w], m[w + 1]);
-      const pixels = depth > 0 ? halfSize.getComponent(widthAxis) * 2 * projectedWidth * focalPixels / depth : 0;
+      const projectedWidth =
+        length > 1e-8
+          ? Math.abs(m[w] * m[l + 1] - m[w + 1] * m[l]) / length
+          : Math.hypot(m[w], m[w + 1]);
+      const pixels =
+        depth > 0
+          ? (halfSize.getComponent(widthAxis) * 2 * projectedWidth * focalPixels) / depth
+          : 0;
       const t = Math.max(0, Math.min(1, (pixels - 0.35) / 0.9));
       const opacity = t * t * (3 - 2 * t);
       mesh.visible = opacity > 0;

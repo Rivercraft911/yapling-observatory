@@ -10,10 +10,15 @@ export function ecefToDisplay(position: readonly number[]): Vec3 {
 }
 
 export function geodeticToEcef(latitudeDeg: number, longitudeDeg: number, heightM = 0): Vec3 {
-  const lat = latitudeDeg * RAD, lon = longitudeDeg * RAD;
+  const lat = latitudeDeg * RAD,
+    lon = longitudeDeg * RAD;
   const e2 = WGS84_F * (2 - WGS84_F);
   const n = WGS84_A_M / Math.sqrt(1 - e2 * Math.sin(lat) ** 2);
-  return [(n + heightM) * Math.cos(lat) * Math.cos(lon), (n + heightM) * Math.cos(lat) * Math.sin(lon), (n * (1 - e2) + heightM) * Math.sin(lat)];
+  return [
+    (n + heightM) * Math.cos(lat) * Math.cos(lon),
+    (n + heightM) * Math.cos(lat) * Math.sin(lon),
+    (n * (1 - e2) + heightM) * Math.sin(lat),
+  ];
 }
 
 export function textureUv(latitudeDeg: number, longitudeDeg: number): [number, number] {
@@ -21,7 +26,11 @@ export function textureUv(latitudeDeg: number, longitudeDeg: number): [number, n
 }
 
 /** Whether the open camera-to-locator segment intersects the opaque WGS84 ellipsoid. */
-export function isEarthOccluded(camera: readonly number[], point: readonly number[], tolerance = 0.00002): boolean {
+export function isEarthOccluded(
+  camera: readonly number[],
+  point: readonly number[],
+  tolerance = 0.00002,
+): boolean {
   const a = [camera[0], camera[1] / WGS84_B_OVER_A, camera[2]];
   const b = [point[0], point[1] / WGS84_B_OVER_A, point[2]];
   const d = b.map((v, i) => v - a[i]);
@@ -45,13 +54,14 @@ export function visualSunDirection(epochUtc: string, elapsedS: number): Vec3 {
   const d = jd - 2451545;
   const g = (357.529 + 0.98560028 * d) * RAD;
   const q = 280.459 + 0.98564736 * d;
-  const longitude = (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * RAD;
+  const longitude = (q + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * RAD;
   const obliquity = (23.439 - 0.00000036 * d) * RAD;
   const ra = Math.atan2(Math.cos(obliquity) * Math.sin(longitude), Math.cos(longitude));
   const dec = Math.asin(Math.sin(obliquity) * Math.sin(longitude));
   // Equivalent J2000 GMST expression in degrees, neglecting sub-arcsecond terms.
   const t = d / 36525;
-  const gmst = (280.46061837 + 360.98564736629 * d + 0.000387933 * t * t - t * t * t / 38710000) * RAD;
+  const gmst =
+    (280.46061837 + 360.98564736629 * d + 0.000387933 * t * t - (t * t * t) / 38710000) * RAD;
   const lon = ra - gmst;
   return [Math.cos(dec) * Math.cos(lon), Math.sin(dec), -Math.cos(dec) * Math.sin(lon)];
 }
