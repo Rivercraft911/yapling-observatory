@@ -1692,3 +1692,31 @@ legend > span:last-child:not(:first-child) {
 .trace-values[data-inspecting='true'] b {
   color: #fff4ee;
 }
+
+:root {
+  color-scheme: dark;
+  scrollbar-color: #665155 #171719;
+  scrollbar-width: thin;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-track {
+  background: #171719;
+}
+*::-webkit-scrollbar-thumb {
+  background: #665155;
+  border: 2px solid #171719;
+  border-radius: 5px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #95626a;
+}
+.controls,
+.trace-stack,
+.antenna-inspection {
+  scrollbar-gutter: stable;
+  scrollbar-color: #665155 #171719;
+  scrollbar-width: thin;
+}
