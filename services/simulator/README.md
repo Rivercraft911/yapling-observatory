@@ -31,6 +31,7 @@ The Python domains contain the formulas. `mission/driver.py` connects the shared
 | `rf/antennas.py`, `rf/polarization.py`                                        | Analytical vector patterns, normalized source power, horizon feed orientation and reciprocal field coupling.                                             |
 | `rf/free_space.py`, `rf/noise.py`                                             | Free-space attenuation, logarithmic power and antenna-port thermal noise density.                                                                        |
 | `rf/modem.py`, `rf/link_budget.py`                                            | Generic nominal information rate and direction-specific RF budget, metric, margin and ideal rate gate. Exact DVB framing and LoRa airtime remain absent. |
+| `rf/spherical_harmonics.py`, `rf/spherical_harmonic_models.py`, `rf/pattern_provenance.py` | Complex transverse field expansion, strict single-frequency coefficient profiles and recorded source identity. |
 | `rf/pattern_sampling.py`                                                      | Headless pattern-sphere/cut sampling and constant-work field probes using the same antenna formulas as runs.                                             |
 | `operations/schedule.py`, `operations/capacity.py`                            | Half-open alternating slots, requested sample grid and midpoint ideal-capacity integration split at slot boundaries.                                     |
 | `power/solar.py`, `power/battery.py`, `power/loads.py`                        | Projected PV generation, nominal stored-energy balance and electrical/RF/heat accounting. No IV strings, OCV or cell-aging model.                        |
@@ -44,6 +45,7 @@ The Python domains contain the formulas. `mission/driver.py` connects the shared
 
 ## API
 
+- `POST /api/antenna-lab/reference-request`: `{link, antenna_variant}` returns the exact lab request for an archived mission link.
 - `GET /api/mission/default`: provisional one-day dusk SSO scenario.
 - `POST /api/mission/orbit`: `{orbit, ltan_hours?, sso?}`. Return linked node metadata; explicit SSO requests update inclination. Ordinary element edits remain free.
 - `GET /api/mission/actuator-presets`: provisional wheel-assisted and magnetic-only spacecraft patches.
@@ -130,6 +132,23 @@ DVB-S2 QPSK/8PSK threshold templates use [ETSI EN 302 307-1 V1.4.1, section 6, T
 The optional 438 MHz LoRa template has an unresolved C/N0 threshold and an illustrative 4,800 bit/s information rate. Exact MiniF27 SKU, SX1262/LLCC68 variant, waveform settings and receiver curves remain unresolved. It returns null margin/capacity until a user supplies a labeled illustrative threshold. No sensitivity or packet-success curve is fabricated.
 
 Capacity integrates the ideal net rate only while visible, scheduled and above the selected threshold. The original circular reference evaluates midpoint geometry independently from display samples and splits every schedule boundary exactly. The shared mission integrates on its explicit dynamics clock, with slots constrained to that grid and operation/visibility transitions grid resolved. Visibility and threshold crossings remain grid-resolved. Tests refine the timestep and compare integrated capacity; a result is not a packet count or achieved throughput. The 30 s default slots alternate directions. Simultaneous availability is never inferred from two positive budgets.
+
+## Complex antenna profiles
+
+Antenna Lab accepts `vsh-1` coefficient JSON and can apply it to either mission link. The same Python evaluator supplies the 3D lobe, angular cuts, direction probe and instantaneous link gain/polarization. The original cosine patch remains an explicitly idealized option. Bundled Huygens and multipole examples establish no installed patch performance.
+
+The transverse field and accepted-power gain are
+
+```text
+F(θ, φ) = Σₗ₌₁ᴸ Σₘ₌₋ₗˡ [aₗₘ Ψₗₘ(θ, φ) + bₗₘ Xₗₘ(θ, φ)]
+Ψₗₘ = ∇ₛYₗₘ / √[l(l + 1)]
+Xₗₘ = −i r̂ × Ψₗₘ
+G(θ, φ) = 4π η |F(θ, φ)|² / Σₗₘ (|aₗₘ|² + |bₗₘ|²)
+```
+
+`Y` uses the orthonormal complex harmonics and Condon–Shortley convention in [NIST DLMF §14.30](https://dlmf.nist.gov/14.30). Colatitude θ is from nominal +Z; azimuth φ runs +X toward +Y. Complex fields use exp(+jωt). The coefficient origin is nominal; it is not a measured phase center. Mount rotation is `Rz(yaw) Ry(pitch) Rx(roll)`. Each profile is valid only at its supplied carrier. Degree is capped at 12; this bound does not establish truncation accuracy for an imported antenna. No frequency extrapolation, solver-specific phase conversion or gain-only reconstruction is performed.
+
+Radiation efficiency η is applied once in gain and also sets escaped RF power in the coupled thermal ledger. It excludes impedance mismatch. The scalar peak-gain control is not used for these profiles. Runs retain the coefficient profile, its SHA-256 identity, source declaration and mount orientation. Source status is supplied metadata, not an independent validation of uploaded data. An installed patch needs a measured or EM-solved full-sphere complex field that includes its mounting, substrate, feed and spacecraft surroundings; adding harmonics alone supplies none of those properties.
 
 ## Power and thermal study
 
