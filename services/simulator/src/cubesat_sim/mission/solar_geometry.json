@@ -1,0 +1,132 @@
+{
+  "schema": "ssi.provisional-covered-pv.v1",
+  "source_sha256": "bdf89fe69fd1a63378394387393dba70d9e1cf52295ccb0f0f14071751326af5",
+  "status": "Provisional concept geometry derived from actual meshes, not manufacturer active-cell area or adopted hardware",
+  "pose": "GLB default exported node transforms; nominal deployed concept corresponding to saved frame 1. Authored hinge animation is not evaluated.",
+  "body_frame": "+X width/service, +Y array/patch normal reference, +Z rail height; origin reference rail center, not established CM",
+  "limits": [
+    "Covered-cell footprint is not semiconductor active area, efficiency, packing factor or electrical output.",
+    "Geometry names and triple-junction appearance select no supplier part or optical/material properties.",
+    "No self-shadow, eclipse, attitude history, degradation, temperature response, wiring losses or energy model is evaluated here.",
+    "Default pose normals are appearance concepts; simulation deployment states must use their own declared transforms.",
+    "Cutaway visibility does not change this complete 18-cell geometry record."
+  ],
+  "source_glb_sha256": {
+    "dipole": "988d43abeed22273a9fcd3330daf94f24de196e6e5bbf25370276c5df6394ee7",
+    "turnstile": "d13080a250d686093f4c2a051a0acdd0da99e5f058b43dbfef5dde7a2d037c3d",
+    "v45": "90f9a90488acbe48e3e418070eab295a1de5a65140ce127ab1ed5afc3b912061",
+    "v45_outward": "bc83d1ddc8efbd42baaa29b2e15c680e879d6e3e1b5522d7a3e1cc35aa0d01e4"
+  },
+  "arrays": [
+    {
+      "id": "body_bottom",
+      "kind": "fixed",
+      "cell_count": 2,
+      "covered_cell_area_m2": 0.006035496329990725,
+      "normal_body": [
+        0.0,
+        0.0,
+        -1.0
+      ]
+    },
+    {
+      "id": "body_front",
+      "kind": "fixed",
+      "cell_count": 1,
+      "covered_cell_area_m2": 0.003017749381379066,
+      "normal_body": [
+        0.0,
+        0.9999999999999909,
+        1.343588384327495e-07
+      ]
+    },
+    {
+      "id": "body_left",
+      "kind": "fixed",
+      "cell_count": 2,
+      "covered_cell_area_m2": 0.006035496329990703,
+      "normal_body": [
+        -1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "body_rear",
+      "kind": "fixed",
+      "cell_count": 1,
+      "covered_cell_area_m2": 0.003017748061702285,
+      "normal_body": [
+        0.0,
+        -0.9999999999999541,
+        -3.029462793290626e-07
+      ]
+    },
+    {
+      "id": "body_right",
+      "kind": "fixed",
+      "cell_count": 2,
+      "covered_cell_area_m2": 0.006035496329990703,
+      "normal_body": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "body_top",
+      "kind": "fixed",
+      "cell_count": 2,
+      "covered_cell_area_m2": 0.006035496329990725,
+      "normal_body": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "id": "petal_bottom",
+      "kind": "deployable",
+      "cell_count": 2,
+      "covered_cell_area_m2": 0.006035496123928999,
+      "normal_body": [
+        0.0,
+        0.9961947244982503,
+        0.08715544091940071
+      ]
+    },
+    {
+      "id": "petal_left",
+      "kind": "deployable",
+      "cell_count": 2,
+      "covered_cell_area_m2": 0.006035496333265059,
+      "normal_body": [
+        0.13917312816576052,
+        0.9902680649180589,
+        0.0
+      ]
+    },
+    {
+      "id": "petal_right",
+      "kind": "deployable",
+      "cell_count": 2,
+      "covered_cell_area_m2": 0.006035496333265059,
+      "normal_body": [
+        -0.13917312816576052,
+        0.9902680649180589,
+        0.0
+      ]
+    },
+    {
+      "id": "petal_top",
+      "kind": "deployable",
+      "cell_count": 2,
+      "covered_cell_area_m2": 0.006035498622467326,
+      "normal_body": [
+        0.0,
+        0.9961947096270205,
+        -0.08715561089876088
+      ]
+    }
+  ]
+}

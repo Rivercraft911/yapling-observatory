@@ -11,7 +11,7 @@ import cubesat_sim
 import pytest
 
 PACKAGE = Path(cubesat_sim.__file__).parent
-DOMAINS = ("geometry", "attitude", "orbit", "rf", "operations", "power", "thermal")
+DOMAINS = ("geometry", "attitude", "orbit", "rf", "operations", "power", "thermal", "mission")
 DOMAIN_IMPORTS = {
     "geometry": {"geometry"},
     "attitude": {"attitude", "geometry"},
@@ -20,13 +20,14 @@ DOMAIN_IMPORTS = {
     "operations": {"operations"},
     "power": {"power", "thermal", "geometry"},
     "thermal": {"thermal"},
+    "mission": {"mission", "mission_models", "models", "geometry", "orbit", "attitude", "rf", "operations", "power", "thermal"},
 }
 TRANSPORT_OR_UI = {
     "fastapi", "starlette", "uvicorn", "httpx", "requests", "flask", "django",
     "matplotlib", "plotly", "bokeh", "PIL", "pygame", "tkinter", "PySide6",
     "selenium", "playwright", "webbrowser",
 }
-TRANSPORT_MODULES = {"api", "antenna_lab", "power_lab", "dynamics_lab", "jobs", "worker", "cli"}
+TRANSPORT_MODULES = {"api", "antenna_lab", "power_lab", "dynamics_lab", "mission_lab", "mission_jobs", "mission_worker", "jobs", "worker", "cli"}
 
 
 def module_name(path):
@@ -49,8 +50,8 @@ def imported_modules(path):
                 yield node.module
 
 
-def numerical_paths():
-    return sorted(path for domain in DOMAINS for path in (PACKAGE / domain).rglob("*.py"))
+def numerical_paths(include_mission=True):
+    return sorted(path for domain in DOMAINS if include_mission or domain != "mission" for path in (PACKAGE / domain).rglob("*.py"))
 
 
 @pytest.mark.parametrize("domain", DOMAINS)
@@ -139,6 +140,12 @@ assert sample_pattern(request)['model_version']
 assert probe_response(request)
 from cubesat_sim.power.study import default_study_config,run_study
 assert run_study(default_study_config())['summary']['sample_count'] > 1
+from cubesat_sim.mission.defaults import default_mission_scenario
+from cubesat_sim.mission.driver import run_mission
+from cubesat_sim.mission_models import MissionScenario
+config=default_mission_scenario().model_dump(mode='json')
+config['duration_s']=30
+assert run_mission(MissionScenario.model_validate(config))['samples']['time_s']==[0,30]
 assert not (set(sys.modules) & BLOCKED)
 '''
     env = os.environ.copy()
@@ -152,7 +159,7 @@ assert not (set(sys.modules) & BLOCKED)
 
 def test_run_source_hashes_cover_numerical_domains_and_match_source_bytes():
     from cubesat_sim.run_manifest import source_code_hashes
-    expected = {"cubesat_sim/" + path.relative_to(PACKAGE).as_posix() for path in numerical_paths()}
+    expected = {"cubesat_sim/" + path.relative_to(PACKAGE).as_posix() for path in numerical_paths(include_mission=False)}
     expected.update("cubesat_sim/" + name for name in ("__init__.py", "core.py", "models.py", "antenna_models.py", "run_manifest.py", "physics.py"))
     hashes = source_code_hashes()
     assert set(hashes) == expected

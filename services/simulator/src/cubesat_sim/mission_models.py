@@ -1,0 +1,374 @@
+"""Immutable coupled-mission inputs. Example hardware is not a flight selection."""
+
+from datetime import datetime, timezone, timedelta
+import hashlib
+import json
+import math
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from .models import Station, Link, Schedule
+from .orbit.elements import OrbitElements
+from .orbit.gravity import EGM2008_MU_M3_S2, EGM2008_REFERENCE_RADIUS_M, EGM2008_J2
+from .attitude.actuators import WheelSpec, MagnetorquerSpec
+from .attitude.dynamics import RigidBody
+from .attitude.control import PDConfig
+from .attitude.kinematics import normalize_quaternion, unit_vector
+from .power.models import (
+    PVPanel,
+    BatterySpec,
+    ComponentLoad,
+    unit_vector as validate_unit_vector,
+)
+from .thermal.models import ThermalNetwork
+from .mission.ephemeris import utc_datetime
+
+
+class MissionModel(BaseModel):
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", allow_inf_nan=False, validate_default=True
+    )
+
+
+class MissionOrbit(MissionModel):
+    elements: OrbitElements
+    force_model: Literal["central", "j2"] = "j2"
+    method: Literal["rk4", "velocity_verlet"] = "rk4"
+    mu_m3_s2: float = Field(default=EGM2008_MU_M3_S2, gt=0)
+    reference_radius_m: float = Field(default=EGM2008_REFERENCE_RADIUS_M, gt=0)
+    j2: float = Field(default=EGM2008_J2, ge=-0.1, le=0.1)
+    preset: str | None = None
+    ltan_hours_at_epoch: float | None = Field(default=None, ge=0, lt=24)
+    element_kind: Literal["osculating_initial"] = "osculating_initial"
+
+    @model_validator(mode="after")
+    def exterior_orbit(self):
+        if (
+            self.elements.semi_major_axis_m * (1 - self.elements.eccentricity)
+            <= self.reference_radius_m + 100000
+        ):
+            raise ValueError(
+                "Initial osculating perigee must exceed reference radius by100km"
+            )
+        return self
+
+
+class MissionClocks(MissionModel):
+    dynamics_step_s: float = Field(default=1, gt=0, le=10)
+    orbit_substeps: int = Field(default=1, ge=1, le=100, strict=True)
+    controller_period_s: float = Field(default=2, gt=0)
+    thermal_step_s: float = Field(default=10, gt=0, le=60)
+    output_step_s: float = Field(default=30, gt=0)
+    fidelity: str = "explicit_fixed_clocks"
+
+
+class MissionWheel(MissionModel):
+    enabled: bool = True
+    spec: WheelSpec
+
+
+class MissionMagnetorquer(MissionModel):
+    enabled: bool = True
+    spec: MagnetorquerSpec = MagnetorquerSpec(0.2)
+    full_axis_power_w: tuple[float, float, float] | None = (0.75, 0.75, 0.75)
+    power_model: Literal["quadratic_dipole_example", "unresolved"] = (
+        "quadratic_dipole_example"
+    )
+    thermal_node_id: str = "bus"
+
+    @model_validator(mode="after")
+    def valid_power(self):
+        if (self.power_model == "unresolved") != (self.full_axis_power_w is None):
+            raise ValueError(
+                "Unresolved MTQ watts must be null; example model requires explicit axis watts"
+            )
+        if self.full_axis_power_w is not None and any(
+            v < 0 or not math.isfinite(v) for v in self.full_axis_power_w
+        ):
+            raise ValueError("MTQ example axis powers must be nonnegative finite")
+        return self
+
+
+class MissionSpacecraft(MissionModel):
+    mass_kg: float = Field(default=1.5, gt=0)
+    locked_inertia_kg_m2: tuple[
+        tuple[float, float, float],
+        tuple[float, float, float],
+        tuple[float, float, float],
+    ] = ((0.002, 0, 0), (0, 0.002, 0), (0, 0, 0.002))
+    initial_q_body_from_inertial_wxyz: tuple[float, float, float, float] = (1, 0, 0, 0)
+    initial_omega_body_rad_s: tuple[float, float, float] = (0, 0, 0)
+    wheels: tuple[MissionWheel, ...] = Field(default=(), max_length=16)
+    magnetorquer: MissionMagnetorquer | None = MissionMagnetorquer()
+    controller: Literal["coast", "quaternion_pd"] = "quaternion_pd"
+    proportional_nm_per_rad: tuple[float, float, float] = (1e-5, 1e-5, 1e-5)
+    derivative_nm_s_per_rad: tuple[float, float, float] = (3e-4, 3e-4, 3e-4)
+    body_boresight: tuple[float, float, float] = (0, 1, 0)
+    free_roll: bool = True
+    roll_rate_damping: bool = True
+    bdot_gain_am2_s_t: float = Field(default=20000, ge=0)
+    actuator_heat_node_id: str = "bus"
+
+    def rigid_body(self):
+        return RigidBody(
+            self.locked_inertia_kg_m2,
+            tuple(w.spec for w in self.wheels if w.enabled),
+            (
+                self.magnetorquer.spec
+                if self.magnetorquer and self.magnetorquer.enabled
+                else None
+            ),
+        )
+
+    @model_validator(mode="after")
+    def physical_state(self):
+        self.rigid_body()
+        normalize_quaternion(self.initial_q_body_from_inertial_wxyz)
+        validate_unit_vector(self.body_boresight)
+        PDConfig(self.proportional_nm_per_rad, self.derivative_nm_s_per_rad)
+        if any(not math.isfinite(v) for v in self.initial_omega_body_rad_s):
+            raise ValueError("Finite initial rates required")
+        return self
+
+
+class MissionWindow(MissionModel):
+    window_id: str
+    start_s: float = Field(ge=0)
+    end_s: float = Field(gt=0)
+    mode: Literal["sun_pointing", "ground_tracking", "imaging", "detumble"]
+    target_latitude_deg: float | None = Field(default=None, ge=-90, le=90)
+    target_longitude_deg: float | None = Field(default=None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def interval(self):
+        if self.end_s <= self.start_s:
+            raise ValueError("Window must have positive duration")
+        if (self.target_latitude_deg is None) != (self.target_longitude_deg is None):
+            raise ValueError("Target latitude and longitude must be supplied together")
+        return self
+
+
+class MissionConops(MissionModel):
+    auto_ground_tracking: bool = True
+    default_mode: Literal["sun_pointing", "detumble"] = "sun_pointing"
+    windows: tuple[MissionWindow, ...] = Field(default=(), max_length=256)
+
+
+class MissionSurface(MissionModel):
+    surface_id: str
+    thermal_node_id: str
+    area_m2: float = Field(ge=0)
+    normal_body: tuple[float, float, float]
+
+    @model_validator(mode="after")
+    def valid_normal(self):
+        validate_unit_vector(self.normal_body)
+        return self
+
+
+class MissionModeLoads(MissionModel):
+    mode: Literal["sun_pointing", "ground_tracking", "imaging", "detumble"]
+    loads: tuple[ComponentLoad, ...] = Field(max_length=128)
+
+    @model_validator(mode="after")
+    def no_implicit_radio_actuators(self):
+        ids = [load.component_id for load in self.loads]
+        if len(set(ids)) != len(ids) or set(ids) & {"radio", "wheels", "magnetorquers"}:
+            raise ValueError(
+                "Unique mode loads required; radio and actuators are evaluated by mission"
+            )
+        return self
+
+
+class MissionPower(MissionModel):
+    panels: tuple[PVPanel, ...] = Field(max_length=128)
+    battery: BatterySpec
+    thermal: ThermalNetwork
+    surfaces: tuple[MissionSurface, ...] = Field(max_length=256)
+    mode_loads: tuple[MissionModeLoads, ...] = Field(min_length=4, max_length=4)
+    regulator_efficiency: float = Field(default=0.92, gt=0, le=1)
+    regulator_heat_node_id: str = "bus"
+    storage_loss_heat_node_id: str = "bus"
+    radio_heat_node_id: str = "radio"
+    spacecraft_tx_electrical_w: float = Field(default=10.8, ge=0)
+    spacecraft_receive_w: float = Field(default=1.5, ge=0)
+    radio_idle_w: float = Field(default=0.5, ge=0)
+    transmit_radiation_efficiency: float = Field(default=1, ge=0, le=1)
+    solar_irradiance_w_m2: float = Field(default=1361, ge=0)
+    earth_radius_m: float = Field(default=6371000, gt=0)
+    earth_albedo: float = Field(default=0.3, ge=0, le=1)
+    earth_outgoing_ir_w_m2: float = Field(default=237, ge=0)
+    earth_quadrature_rings: int = Field(default=4, ge=2, le=16, strict=True)
+    earth_quadrature_azimuths: int = Field(default=12, ge=4, le=64, strict=True)
+
+    @model_validator(mode="after")
+    def topology(self):
+        nodes = {node.node_id: node for node in self.thermal.nodes}
+        refs = {
+            self.regulator_heat_node_id,
+            self.storage_loss_heat_node_id,
+            self.radio_heat_node_id,
+            *[p.thermal_node_id for p in self.panels],
+            *[s.thermal_node_id for s in self.surfaces],
+            *[l.thermal_node_id for p in self.mode_loads for l in p.loads],
+        }
+        if not refs <= nodes.keys():
+            raise ValueError("Power/surface heat nodes must exist")
+        if {p.mode for p in self.mode_loads} != {
+            "sun_pointing",
+            "ground_tracking",
+            "imaging",
+            "detumble",
+        } or len(self.mode_loads) != 4:
+            raise ValueError("Exactly one load profile per implemented mode required")
+        if len({p.panel_id for p in self.panels}) != len(self.panels):
+            raise ValueError("PV IDs must be unique")
+        for node_id, node in nodes.items():
+            area = sum(s.area_m2 for s in self.surfaces if s.thermal_node_id == node_id)
+            if abs(area - node.radiating_area_m2) > 1e-10:
+                raise ValueError(
+                    "Exterior surface areas must equal thermal radiating area for each node"
+                )
+        for panel in self.panels:
+            if panel.self_visibility != 1:
+                raise ValueError(
+                    "Mission self-shadow fractions are unsupported; fixed unoccluded surfaces must have self_visibility=1"
+                )
+            aggregate = sum(
+                p.active_area_m2
+                for p in self.panels
+                if p.thermal_node_id == panel.thermal_node_id
+                and sum((a - b) ** 2 for a, b in zip(p.normal_body, panel.normal_body))
+                < 1e-12
+            )
+            matching = sum(
+                s.area_m2
+                for s in self.surfaces
+                if s.thermal_node_id == panel.thermal_node_id
+                and sum((a - b) ** 2 for a, b in zip(s.normal_body, panel.normal_body))
+                < 1e-12
+            )
+            if aggregate > matching + 1e-10:
+                raise ValueError(
+                    "PV footprint needs a corresponding exterior thermal surface"
+                )
+            if (
+                abs(
+                    panel.solar_absorptivity
+                    - nodes[panel.thermal_node_id].solar_absorptivity
+                )
+                > 1e-10
+            ):
+                raise ValueError("PV and thermal-node solar absorptivity must agree")
+        return self
+
+
+class MissionScenario(MissionModel):
+    schema_version: Literal["0.1.0"] = "0.1.0"
+    name: str = "Provisional terminator mission"
+    run_kind: Literal["single_pass", "targeted", "long_mission"] = "long_mission"
+    duration_s: float = Field(default=86400, gt=0, le=604800)
+    orbit: MissionOrbit
+    clocks: MissionClocks = MissionClocks()
+    station: Station = Station()
+    antenna_variant: Literal["dipole", "turnstile", "v45"] = "dipole"
+    uplink: Link
+    downlink: Link
+    schedule: Schedule = Schedule()
+    spacecraft: MissionSpacecraft = MissionSpacecraft()
+    conops: MissionConops = MissionConops()
+    power: MissionPower
+    provenance: tuple[str, ...] = ()
+
+    @property
+    def epoch_utc(self):
+        return self.orbit.elements.epoch_utc
+
+    def identity(self):
+        encoded = json.dumps(
+            self.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode()
+        digest = hashlib.sha256(encoded).hexdigest()
+        return "mission-" + digest[:16], digest
+
+    @model_validator(mode="after")
+    def clock_boundaries(self):
+        if utc_datetime(self.epoch_utc) + timedelta(seconds=self.duration_s) > datetime(
+            2030, 1, 1, tzinfo=timezone.utc
+        ):
+            raise ValueError(
+                "Mission exceeds2030 endpoint of the magnetic reference forecast"
+            )
+        if any(
+            w.enabled and w.spec.regenerative_efficiency > 0
+            for w in self.spacecraft.wheels
+        ):
+            raise ValueError("Regenerative wheel storage coupling is not implemented")
+        if self.orbit.ltan_hours_at_epoch is not None:
+            from .orbit.elements import ltan_from_raan_hours
+            from .mission.ephemeris import mean_sun_ra_deg
+
+            expected = ltan_from_raan_hours(
+                self.orbit.elements.raan_deg, mean_sun_ra_deg(self.epoch_utc)
+            )
+            error = ((self.orbit.ltan_hours_at_epoch - expected + 12) % 24) - 12
+            if abs(error) > 1e-7:
+                raise ValueError(
+                    "LTAN metadata must match authoritative RAAN and UTC epoch; resolve orbit metadata before running"
+                )
+        dt = self.clocks.dynamics_step_s
+
+        def ticks(value):
+            count = value / dt
+            if abs(count - round(count)) > 1e-8:
+                raise ValueError(
+                    "All clocks, slots, duration and window edges must be integer dynamics ticks"
+                )
+            return round(count)
+
+        if dt * math.hypot(*self.spacecraft.initial_omega_body_rad_s) > 0.1:
+            raise ValueError(
+                "Initial angular displacement exceeds0.1rad per dynamics step; choose an explicit finer dynamics timestep"
+            )
+        count = ticks(self.duration_s)
+        strides = [
+            ticks(v)
+            for v in (
+                self.clocks.controller_period_s,
+                self.clocks.thermal_step_s,
+                self.clocks.output_step_s,
+                self.schedule.slot_duration_s,
+            )
+        ]
+        if min(strides) < 1 or count > 1_000_000 or count // strides[2] > 20000:
+            raise ValueError("Mission exceeds1M dynamics ticks or20k output intervals")
+        if count % strides[2] or strides[2] % strides[1]:
+            raise ValueError(
+                "Output must divide duration and be a multiple of thermal step"
+            )
+        if self.duration_s / (dt / self.clocks.orbit_substeps) > 2_000_000:
+            raise ValueError("Orbit exceeds2M fixed substeps")
+        windows = sorted(self.conops.windows, key=lambda w: w.start_s)
+        for i, w in enumerate(windows):
+            ticks(w.start_s)
+            ticks(w.end_s)
+            if w.end_s > self.duration_s or (i and w.start_s < windows[i - 1].end_s):
+                raise ValueError("CONOPS windows must not overlap or exceed mission")
+        nodes = {n.node_id for n in self.power.thermal.nodes}
+        if self.spacecraft.actuator_heat_node_id not in nodes or (
+            self.spacecraft.magnetorquer
+            and self.spacecraft.magnetorquer.thermal_node_id not in nodes
+        ):
+            raise ValueError("Actuator heat destination must exist")
+        mtq = self.spacecraft.magnetorquer
+        if mtq and mtq.enabled and mtq.power_model == "unresolved":
+            raise ValueError(
+                "Coupled run requires explicit MTQ electrical-power model; disable MTQ or supply labeled example watts"
+            )
+        if self.power.spacecraft_tx_electrical_w + 1e-12 < self.downlink.tx_power_w:
+            raise ValueError(
+                "Onboard transmitter electrical input cannot be less than exported downlink RF"
+            )
+        return self

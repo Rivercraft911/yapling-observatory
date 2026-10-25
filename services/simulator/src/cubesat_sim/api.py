@@ -19,6 +19,8 @@ from . import __version__
 from .antenna_lab import router as antenna_lab_router
 from .power_lab import router as power_lab_router
 from .dynamics_lab import router as dynamics_lab_router
+from .mission_lab import router as mission_router
+from .mission_jobs import MissionJobManager
 from .core import MODEL_VERSION
 from .jobs import JobManager
 from .models import FrozenModel, Scenario, RadioProfile, default_scenario
@@ -139,8 +141,10 @@ def create_app():
     @asynccontextmanager
     async def lifespan(app):
         app.state.jobs = JobManager()
+        app.state.mission_jobs = MissionJobManager()
         yield
         await app.state.jobs.close()
+        await app.state.mission_jobs.close()
 
     app = FastAPI(title="CubeSat analytical link study", version=__version__, lifespan=lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
@@ -151,6 +155,7 @@ def create_app():
     app.include_router(antenna_lab_router)
     app.include_router(power_lab_router)
     app.include_router(dynamics_lab_router)
+    app.include_router(mission_router)
 
     @app.get("/api/health")
     def health():
