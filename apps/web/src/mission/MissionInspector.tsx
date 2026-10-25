@@ -264,6 +264,7 @@ export function MissionInspector({
                 key={direction}
                 direction={direction}
                 link={config[direction]}
+                antennaVariant={config.antenna_variant}
                 catalog={catalog}
                 onChange={(change) => edit((d) => change(d[direction]))}
               />

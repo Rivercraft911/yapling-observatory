@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { cloneScenario } from '../api';
-import type { Direction, Radio, RadioCatalog } from '../types';
+import { FieldModelDetails, profileEvidenceLabel } from '../antenna/FieldModelDetails';
+import type { SphericalHarmonicProfile } from '../antenna/types';
+import type { Direction, Radio, RadioCatalog, Variant } from '../types';
 export function Field({
   label,
   unit,
@@ -9,6 +11,7 @@ export function Field({
   max,
   step,
   onChange,
+  disabled = false,
 }: {
   label: string;
   unit: string;
@@ -17,6 +20,7 @@ export function Field({
   max: number;
   step: number;
   onChange: (value: number) => void;
+  disabled?: boolean;
 }) {
   const [text, setText] = useState(value == null ? '' : String(value));
   useEffect(() => setText(value == null ? '' : String(Number(value.toPrecision(10)))), [value]);
@@ -32,6 +36,7 @@ export function Field({
           min={min}
           max={max}
           step={step}
+          disabled={disabled}
           onChange={(event) => setText(event.target.value)}
           onBlur={(event) => {
             const number = event.currentTarget.valueAsNumber;
@@ -56,14 +61,14 @@ export function Select({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; disabled?: boolean }[];
 }) {
   return (
     <label className="field-row">
       <span>{label}</span>
       <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => (
-          <option key={option.value} value={option.value}>
+          <option key={option.value} value={option.value} disabled={option.disabled}>
             {option.label}
           </option>
         ))}
@@ -76,12 +81,22 @@ export function RadioControls({
   link,
   catalog,
   onChange,
+  antennaVariant = 'dipole',
 }: {
   direction: Direction;
   link: Radio;
   catalog: RadioCatalog;
   onChange: (change: (draft: Radio) => void) => void;
+  antennaVariant?: Variant;
 }) {
+  const [savedProfile, setSavedProfile] = useState<SphericalHarmonicProfile | null>(
+    link.spherical_harmonic_profile || null,
+  );
+  useEffect(() => {
+    if (link.spherical_harmonic_profile) setSavedProfile(link.spherical_harmonic_profile);
+  }, [link.spherical_harmonic_profile]);
+  const harmonic = link.spacecraft_antenna === 'spherical_harmonic';
+  const coefficientProfile = link.spherical_harmonic_profile || savedProfile;
   const preset = catalog.presets.find(
     (item) =>
       item.profile.modulation === link.profile.modulation &&
@@ -112,6 +127,8 @@ export function RadioControls({
             onChange((draft) => {
               draft.frequency_hz = selected.frequency_hz;
               draft.spacecraft_antenna = selected.spacecraft_antenna;
+              draft.spherical_harmonic_profile = null;
+              draft.antenna_orientation_deg = [0, 0, 0];
               draft.spacecraft_peak_gain_dbi = selected.spacecraft_peak_gain_dbi;
               draft.profile = cloneScenario(selected.profile);
               if (selected.ground_peak_gain_dbi != null)
@@ -122,19 +139,41 @@ export function RadioControls({
         }}
       />
       <Select
-        label="Spacecraft feed"
+        label="Pattern"
         value={link.spacecraft_antenna}
         options={[
-          { value: 'patch', label: 'Patch' },
+          { value: 'patch', label: 'Cosine patch' },
           { value: 'wire', label: 'Wire surrogate' },
+          { value: 'spherical_harmonic', label: 'Harmonics', disabled: !coefficientProfile },
         ]}
         onChange={(value) =>
           onChange((draft) => {
-            draft.spacecraft_antenna = value as 'patch' | 'wire';
+            draft.spacecraft_antenna = value as Radio['spacecraft_antenna'];
+            draft.spherical_harmonic_profile =
+              value === 'spherical_harmonic' ? coefficientProfile : null;
+            if (value === 'spherical_harmonic' && coefficientProfile)
+              draft.frequency_hz = coefficientProfile.frequency_hz;
             if (value === 'wire')
               draft.spacecraft_peak_gain_dbi = Math.min(draft.spacecraft_peak_gain_dbi, 2.15);
           })
         }
+      />
+      {harmonic && link.spherical_harmonic_profile ? (
+        <div className="antenna-radio-evidence">
+          {profileEvidenceLabel(link.spherical_harmonic_profile)} · ℓ ≤{' '}
+          {link.spherical_harmonic_profile.maximum_degree}
+        </div>
+      ) : null}
+      <FieldModelDetails
+        profile={harmonic ? link.spherical_harmonic_profile || undefined : undefined}
+        model={
+          harmonic
+            ? 'spherical_harmonic'
+            : link.spacecraft_antenna === 'patch'
+              ? 'patch'
+              : antennaVariant
+        }
+        orientationDeg={link.antenna_orientation_deg}
       />
       <Field
         label="Carrier"
@@ -143,12 +182,28 @@ export function RadioControls({
         min={1.000001}
         max={40000}
         step={0.1}
+        disabled={harmonic}
         onChange={(value) =>
           onChange((draft) => {
             draft.frequency_hz = value * 1e6;
           })
         }
       />
+      {link.spacecraft_antenna === 'patch' ? (
+        <Field
+          label="Patch peak"
+          unit="dBi"
+          value={link.spacecraft_peak_gain_dbi}
+          min={-10}
+          max={30}
+          step={0.1}
+          onChange={(value) =>
+            onChange((draft) => {
+              draft.spacecraft_peak_gain_dbi = value;
+            })
+          }
+        />
+      ) : null}
       <Field
         label="Source power"
         unit="W"

@@ -1,3 +1,5 @@
+import type { SphericalHarmonicProfile } from './antenna/types';
+
 export type Variant = 'dipole' | 'turnstile' | 'v45';
 export type Direction = 'uplink' | 'downlink';
 export type Scalar = number | null;
@@ -15,7 +17,9 @@ export interface RadioProfile {
   engineering_reserve_db: number;
 }
 export interface Radio {
-  spacecraft_antenna: 'patch' | 'wire';
+  spacecraft_antenna: 'patch' | 'wire' | 'spherical_harmonic';
+  spherical_harmonic_profile?: SphericalHarmonicProfile | null;
+  antenna_orientation_deg?: [number, number, number];
   frequency_hz: number;
   tx_power_w: number;
   tx_feed_loss_db: number;

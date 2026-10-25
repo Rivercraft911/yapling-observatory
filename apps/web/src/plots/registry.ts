@@ -9,6 +9,7 @@ export type PlotId =
   | 'range'
   | 'doppler'
   | 'polarization'
+  | 'antenna_gain'
   | 'tracking'
   | 'capacity'
   | 'body_rate'
@@ -93,6 +94,16 @@ export const plotDefinitions: PlotDefinition[] = [
     minimumSpan: 1,
     description: 'Vector power coupling, from zero to one. Undefined at a pattern null.',
     read: (s) => paired(s, 'polarization_coupling'),
+  },
+  {
+    id: 'antenna_gain',
+    title: 'Spacecraft gain',
+    unit: 'dBi',
+    description: 'Returned spacecraft gain toward the station, before polarization coupling.',
+    read: (s) => [
+      { label: 'UL receive', values: s.uplink.rx_gain_dbi },
+      { label: 'DL transmit', values: s.downlink.tx_gain_dbi },
+    ],
   },
   {
     id: 'tracking',

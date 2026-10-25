@@ -137,7 +137,7 @@ export function LobeView({
     canvas.tabIndex = 0;
     canvas.setAttribute(
       'aria-label',
-      'Analytical gain lobe and nominal spacecraft antenna in body axes. Drag to orbit, scroll to zoom, right-drag to pan.',
+      'Gain lobe and nominal spacecraft geometry in body axes. Drag to orbit, scroll to zoom, right-drag to pan.',
     );
     host.appendChild(canvas);
     const controls = new OrbitControls(camera, canvas);
@@ -355,17 +355,26 @@ export function LobeView({
         <strong>
           {mode === 'linear' ? 'Radius = G / sampled Gmax' : 'Radius = relative gain, −30 to 0 dB'}
         </strong>
-        <small>Relative gain · origin at nominal antenna mount</small>
+        <small>
+          Relative gain ·{' '}
+          {model === 'spherical_harmonic' ? 'nominal body origin' : 'nominal antenna mount'}
+        </small>
       </div>
       <div
         className="antenna-geometry-caption"
         aria-live="polite"
-        title="The lobe uses the nominal feed or radiator center as its visual origin, not a measured phase center. Radius is normalized, not metres. Pattern rotation does not articulate the spacecraft."
+        title={
+          model === 'spherical_harmonic'
+            ? 'Generic coefficient profiles use the nominal body origin. Spacecraft geometry supplies visual context; no installed antenna or measured phase center is inferred. Radius is normalized, not metres.'
+            : 'The lobe uses the nominal feed or radiator center as its visual origin, not a measured phase center. Radius is normalized, not metres. Pattern rotation does not articulate the spacecraft.'
+        }
       >
         <strong>Nominal geometry</strong>
         <span>
           {geometryStatus.state === 'ready'
-            ? `${variant} · ${geometryStatus.selectedParts} highlighted ${model === 'patch' ? 'radiator' : 'conductors'}`
+            ? model === 'spherical_harmonic'
+              ? `${variant} · context only`
+              : `${variant} · ${geometryStatus.selectedParts} highlighted ${model === 'patch' ? 'radiator' : 'conductors'}`
             : geometryStatus.state === 'loading'
               ? 'Loading physical antenna'
               : 'Physical model unavailable'}

@@ -4,19 +4,34 @@ import { api } from './api';
 import type { Assets, Direction, RunSnapshot, Variant } from './types';
 import { AngularCut } from './antenna/AngularCut';
 import { LobeView } from './antenna/LobeView';
-import type { AntennaModel, Pattern, Probe, RadiusMode } from './antenna/types';
+import {
+  downloadProfile,
+  FieldModelDetails,
+  profileEvidenceLabel,
+} from './antenna/FieldModelDetails';
+import type {
+  AntennaCatalog,
+  AntennaModel,
+  Pattern,
+  PatternRequest,
+  Probe,
+  RadiusMode,
+  SphericalHarmonicProfile,
+} from './antenna/types';
 import './antenna.css';
 
 const labels: Record<AntennaModel, string> = {
   dipole: 'Half-wave dipole',
   turnstile: 'Quadrature turnstile',
   patch: 'Cosine patch surrogate',
+  spherical_harmonic: 'Spherical harmonics',
   v45: 'Installed V / tape · unresolved',
   bent_v_up_45: 'Upward V tape · assumed current',
   bent_v_out_45: 'Outward V tape · assumed current',
 };
 const MIN_PATCH_GAIN = 10 * Math.log10(2),
   MAX_PATCH_GAIN = 20;
+const ZERO_ANGLES: [number, number, number] = [0, 0, 0];
 const value = (number: number | null | undefined, digits = 2) =>
   number == null || !Number.isFinite(number) ? '—' : number.toFixed(digits);
 
@@ -26,12 +41,18 @@ export function AntennaLab({
   inspectorTarget,
   assets,
   onFollowRunChange,
+  onUseProfile,
 }: {
   snapshot: RunSnapshot | null;
   sampleIndex: number;
   inspectorTarget?: HTMLElement | null;
   assets?: Assets;
   onFollowRunChange?: (following: boolean) => void;
+  onUseProfile?: (
+    direction: Direction,
+    profile: SphericalHarmonicProfile,
+    orientationDeg: [number, number, number],
+  ) => void;
 }) {
   const [source, setSource] = useState<'run' | AntennaModel>('run');
   const [direction, setDirection] = useState<Direction>('uplink');
@@ -44,6 +65,17 @@ export function AntennaLab({
   const [frequencyMHz, setFrequencyMHz] = useState(438);
   const [armLengthMm, setArmLengthMm] = useState(171.1144166667);
   const [patchGain, setPatchGain] = useState(6);
+  const [catalog, setCatalog] = useState<AntennaCatalog | null>(null);
+  const [selectedProfile, setSelectedProfile] = useState<SphericalHarmonicProfile | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [appliedTo, setAppliedTo] = useState<Direction | null>(null);
+  const [runReferenceResult, setRunReference] = useState<{
+    key: string;
+    value: PatternRequest;
+  } | null>(null);
+  const [referenceLoading, setReferenceLoading] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null);
   const [angles, setAngles] = useState<[number, number, number]>([0, 0, 0]);
   const [azimuth, setAzimuth] = useState(90),
     [elevation, setElevation] = useState(0),
@@ -57,15 +89,28 @@ export function AntennaLab({
   const lastProbeDispatch = useRef(0);
   const samples = snapshot?.run.result?.samples;
   const runLink = snapshot?.scenario[direction];
+  const runReferenceKey = JSON.stringify({
+    link: runLink,
+    antenna_variant: snapshot?.scenario.antenna_variant || 'dipole',
+  });
+  const runReference =
+    runReferenceResult?.key === runReferenceKey ? runReferenceResult.value : null;
   const model: AntennaModel =
     source === 'run'
-      ? runLink?.spacecraft_antenna === 'patch'
-        ? 'patch'
-        : snapshot?.scenario.antenna_variant || 'dipole'
+      ? runLink?.spacecraft_antenna === 'spherical_harmonic'
+        ? 'spherical_harmonic'
+        : runLink?.spacecraft_antenna === 'patch'
+          ? 'patch'
+          : snapshot?.scenario.antenna_variant || 'dipole'
       : source;
+  const harmonic = model === 'spherical_harmonic';
+  const harmonicProfile =
+    source === 'run' ? runLink?.spherical_harmonic_profile || null : selectedProfile;
+  const mountAngles: [number, number, number] =
+    source === 'run' ? runLink?.antenna_orientation_deg || ZERO_ANGLES : angles;
   const bentTape = model === 'bent_v_up_45' || model === 'bent_v_out_45';
   const physicalVariant: Variant =
-    model === 'patch'
+    model === 'patch' || harmonic
       ? snapshot?.scenario.antenna_variant || 'dipole'
       : bentTape
         ? 'v45'
@@ -79,27 +124,82 @@ export function AntennaLab({
         }
       : assets?.variants[physicalVariant];
   useEffect(() => {
-    if (source === 'run' && runLink?.spacecraft_antenna === 'patch')
-      setPatchGain(
-        Math.max(MIN_PATCH_GAIN, Math.min(MAX_PATCH_GAIN, runLink.spacecraft_peak_gain_dbi)),
-      );
-  }, [source, runLink?.spacecraft_antenna, runLink?.spacecraft_peak_gain_dbi]);
+    const abort = new AbortController();
+    api<AntennaCatalog>('/api/antenna-lab/catalog', { signal: abort.signal })
+      .then((result) => {
+        setCatalog(result);
+        setSelectedProfile((previous) => previous || result.examples?.[0]?.profile || null);
+      })
+      .catch((cause) => {
+        if (cause.name !== 'AbortError')
+          setImportError(cause.message || 'Reference profiles unavailable');
+      });
+    return () => abort.abort();
+  }, []);
+  useEffect(() => {
+    if (source !== 'run' || !runLink) return;
+    const abort = new AbortController();
+    let active = true;
+    setReferenceLoading(true);
+    setError('');
+    api<PatternRequest>('/api/antenna-lab/reference-request', {
+      method: 'POST',
+      body: runReferenceKey,
+      signal: abort.signal,
+    })
+      .then((result) => {
+        if (active) setRunReference({ key: runReferenceKey, value: result });
+      })
+      .catch((cause) => {
+        if (active && cause.name !== 'AbortError')
+          setError(cause.message || 'Run antenna unavailable');
+      })
+      .finally(() => {
+        if (active) setReferenceLoading(false);
+      });
+    return () => {
+      active = false;
+      abort.abort();
+      setReferenceLoading(false);
+    };
+  }, [source, runReferenceKey, retry]);
   const shape = useMemo(
-    () => ({
+    () =>
+      source === 'run'
+        ? runReference
+        : harmonic && !harmonicProfile
+          ? null
+          : {
+              model,
+              efficiency: harmonic ? 1 : efficiency,
+              frequency_hz: harmonic ? harmonicProfile!.frequency_hz : frequencyMHz * 1e6,
+              arm_length_m: armLengthMm / 1000,
+              patch_peak_gain_dbi: patchGain,
+              orientation_deg: mountAngles,
+              cut_azimuth_deg: model === 'patch' ? 90 : 0,
+              ...(harmonic ? { spherical_harmonic_profile: harmonicProfile } : {}),
+            },
+    [
+      source,
+      runReference,
       model,
+      harmonic,
+      harmonicProfile,
       efficiency,
-      frequency_hz: frequencyMHz * 1e6,
-      arm_length_m: armLengthMm / 1000,
-      patch_peak_gain_dbi: patchGain,
-      orientation_deg: angles,
-      cut_azimuth_deg: model === 'patch' ? 90 : 0,
-    }),
-    [model, efficiency, patchGain, angles, frequencyMHz, armLengthMm],
+      patchGain,
+      mountAngles,
+      frequencyMHz,
+      armLengthMm,
+    ],
   );
   const shapeKey = JSON.stringify(shape);
+  useEffect(() => setAppliedTo(null), [shapeKey]);
   const pattern = patternResult?.key === shapeKey ? patternResult.value : null;
-  const probe = probeResult?.key === shapeKey ? probeResult.value : null;
   useEffect(() => {
+    if (!shape) {
+      setLoading(false);
+      return;
+    }
     const abort = new AbortController();
     let active = true;
     setLoading(true);
@@ -141,7 +241,33 @@ export function AntennaLab({
         }
       : null;
   }, [followLos, samples, sampleIndex]);
+  const probeRequest = useMemo(
+    () =>
+      shape
+        ? {
+            ...shape,
+            probe_azimuth_deg: azimuth,
+            probe_elevation_deg: elevation,
+            linear_feed_roll_deg: feedRoll,
+            run_probe: runProbe,
+          }
+        : null,
+    [shape, azimuth, elevation, feedRoll, runProbe],
+  );
+  const probeKey = JSON.stringify({
+    request: probeRequest,
+    followed_run: runProbe
+      ? {
+          id: snapshot?.run.run_id,
+          sample_index: sampleIndex,
+          time_s: samples?.time_s[sampleIndex],
+        }
+      : null,
+    retry,
+  });
+  const probe = probeRequest && probeResult?.key === probeKey ? probeResult.value : null;
   useEffect(() => {
+    if (!probeRequest) return;
     const abort = new AbortController();
     let active = true;
     const timeout = setTimeout(
@@ -149,17 +275,11 @@ export function AntennaLab({
         lastProbeDispatch.current = performance.now();
         api<Probe>('/api/antenna-lab/probe', {
           method: 'POST',
-          body: JSON.stringify({
-            ...shape,
-            probe_azimuth_deg: azimuth,
-            probe_elevation_deg: elevation,
-            linear_feed_roll_deg: feedRoll,
-            run_probe: runProbe,
-          }),
+          body: JSON.stringify(probeRequest),
           signal: abort.signal,
         })
           .then((result) => {
-            if (active) setProbe({ key: shapeKey, value: result });
+            if (active) setProbe({ key: probeKey, value: result });
           })
           .catch((cause) => {
             if (active && cause.name !== 'AbortError')
@@ -173,7 +293,7 @@ export function AntennaLab({
       clearTimeout(timeout);
       abort.abort();
     };
-  }, [shape, azimuth, elevation, feedRoll, runProbe, retry]);
+  }, [probeRequest, probeKey]);
   useEffect(() => {
     onFollowRunChange?.(runProbe !== null);
     return () => onFollowRunChange?.(false);
@@ -185,6 +305,40 @@ export function AntennaLab({
       (previous) =>
         previous.map((entry, i) => (i === index ? next : entry)) as [number, number, number],
     );
+  const importProfile = async (file: File) => {
+    setImporting(true);
+    setImportError('');
+    try {
+      if (file.size > 256 * 1024) throw new Error('Profile JSON exceeds 256 KiB.');
+      const candidate: unknown = JSON.parse(await file.text());
+      const frequency =
+        candidate && typeof candidate === 'object' && 'frequency_hz' in candidate
+          ? candidate.frequency_hz
+          : undefined;
+      const validated = await api<Pattern>('/api/antenna-lab/pattern', {
+        method: 'POST',
+        body: JSON.stringify({
+          model: 'spherical_harmonic',
+          efficiency: 1,
+          frequency_hz: frequency,
+          spherical_harmonic_profile: candidate,
+          orientation_deg: [0, 0, 0],
+        }),
+      });
+      const profile = validated.request?.spherical_harmonic_profile;
+      if (validated.model !== 'spherical_harmonic' || !profile)
+        throw new Error('Unexpected profile response');
+      setSelectedProfile(profile);
+      setAngles([0, 0, 0]);
+      setSource('spherical_harmonic');
+      setAppliedTo(null);
+    } catch (cause) {
+      setImportError(cause instanceof Error ? cause.message : 'Profile import failed');
+    } finally {
+      setImporting(false);
+      if (importInput.current) importInput.current.value = '';
+    }
+  };
   const inspector = (
     <aside
       className={`antenna-inspection${inspectorTarget ? ' antenna-inspection-external' : ''}`}
@@ -219,6 +373,108 @@ export function AntennaLab({
             </select>
           ) : null}
         </div>
+        {harmonic && source !== 'run' && catalog?.examples?.length ? (
+          <label className="antenna-field antenna-reference-select">
+            Reference
+            <select
+              aria-label="Harmonic reference profile"
+              value={
+                catalog.examples.find((item) => item.profile === selectedProfile)?.id || 'imported'
+              }
+              onChange={(event) => {
+                const selected = catalog.examples.find((item) => item.id === event.target.value);
+                if (selected) setSelectedProfile(selected.profile);
+              }}
+            >
+              {!catalog.examples.some((item) => item.profile === selectedProfile) ? (
+                <option value="imported">Imported profile</option>
+              ) : null}
+              {catalog.examples.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <div className="antenna-profile-actions">
+          <input
+            ref={importInput}
+            className="antenna-file-input"
+            type="file"
+            accept="application/json,.json"
+            aria-label="Import antenna coefficient JSON"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              if (file) void importProfile(file);
+            }}
+          />
+          <button type="button" disabled={importing} onClick={() => importInput.current?.click()}>
+            {importing ? 'Validating…' : 'Import JSON'}
+          </button>
+          {harmonic && harmonicProfile ? (
+            <button type="button" onClick={() => downloadProfile(harmonicProfile)}>
+              Download JSON
+            </button>
+          ) : null}
+        </div>
+        {importError ? (
+          <small className="antenna-import-error" role="alert">
+            {importError}
+          </small>
+        ) : null}
+        {harmonic && harmonicProfile ? (
+          <>
+            <div className="antenna-profile-summary">
+              {source === 'run' ? (
+                <strong>
+                  {catalog?.examples?.find(
+                    (item) =>
+                      item.profile.name === harmonicProfile.name &&
+                      item.profile.revision === harmonicProfile.revision,
+                  )?.label || harmonicProfile.name}
+                </strong>
+              ) : null}
+              <span>
+                {profileEvidenceLabel(harmonicProfile)} · ℓ ≤ {harmonicProfile.maximum_degree}
+              </span>
+              <span>
+                {harmonicProfile.frequency_hz / 1e6} MHz · η ={' '}
+                {harmonicProfile.radiation_efficiency}
+              </span>
+            </div>
+            {onUseProfile ? (
+              <div className="antenna-use-profile">
+                {(['uplink', 'downlink'] as Direction[]).map((target) => (
+                  <button
+                    type="button"
+                    key={target}
+                    disabled={!pattern || loading || importing}
+                    title="Set the editable mission antenna and carrier. Run to compute the change."
+                    onClick={() => {
+                      onUseProfile(target, harmonicProfile, [...mountAngles]);
+                      setAppliedTo(target);
+                    }}
+                  >
+                    Use for {target === 'uplink' ? 'UL' : 'DL'}
+                  </button>
+                ))}
+                {appliedTo ? (
+                  <small>{appliedTo === 'uplink' ? 'UL' : 'DL'} draft set · run required</small>
+                ) : null}
+              </div>
+            ) : null}
+            <FieldModelDetails
+              profile={harmonicProfile}
+              orientationDeg={mountAngles}
+              definition={pattern?.definition}
+            />
+          </>
+        ) : harmonic ? (
+          <small className="antenna-geometry-note">
+            Select a reference or import coefficient JSON.
+          </small>
+        ) : null}
         {bentTape && (
           <>
             <NumberField
@@ -262,7 +518,7 @@ export function AntennaLab({
             disabled={model === 'v45'}
             onChange={(event) => setLobeVisible(event.target.checked)}
           />
-          Analytical lobe
+          Gain lobe
         </label>
         <NumberField
           label="Lobe opacity"
@@ -273,18 +529,24 @@ export function AntennaLab({
           step={5}
           onChange={(next) => setLobeOpacity(next / 100)}
         />
-        <button
-          className="antenna-focus-button"
-          disabled={!geometryVisible}
-          onClick={() => setFocusRequest((previous) => previous + 1)}
-        >
-          Focus antenna
-        </button>
+        {!harmonic ? (
+          <button
+            className="antenna-focus-button"
+            disabled={!geometryVisible}
+            onClick={() => setFocusRequest((previous) => previous + 1)}
+          >
+            Focus antenna
+          </button>
+        ) : null}
         <small
           className="antenna-geometry-note"
-          title="The reference lobe is anchored at the nominal feed or radiator center. This is a display datum, not a measured phase center. Pattern rotation is independent."
+          title={
+            harmonic
+              ? 'Generic coefficient profiles use the nominal body origin. Spacecraft geometry supplies visual context; no installation or phase center is inferred.'
+              : 'The reference lobe is anchored at the nominal feed or radiator center. This is a display datum, not a measured phase center. Pattern rotation is independent.'
+          }
         >
-          Highlighted hardware · pattern origin
+          {harmonic ? 'Body origin · geometry context' : 'Highlighted hardware · pattern origin'}
         </small>
       </fieldset>
       <fieldset>
@@ -300,23 +562,27 @@ export function AntennaLab({
             <option value="db">Relative dB · −30…0</option>
           </select>
         </label>
-        <NumberField
-          label="Efficiency"
-          value={efficiency * 100}
-          unit="%"
-          min={0}
-          max={100}
-          step={1}
-          onChange={(next) => setEfficiency(next / 100)}
-        />
+        {!harmonic ? (
+          <NumberField
+            label="Efficiency"
+            value={(source === 'run' ? (runReference?.efficiency ?? 1) : efficiency) * 100}
+            unit="%"
+            min={0}
+            max={100}
+            step={1}
+            disabled={source === 'run'}
+            onChange={(next) => setEfficiency(next / 100)}
+          />
+        ) : null}
         {model === 'patch' ? (
           <NumberField
             label="Patch peak at η = 1"
-            value={patchGain}
+            value={source === 'run' ? (runLink?.spacecraft_peak_gain_dbi ?? patchGain) : patchGain}
             unit="dBi"
             min={MIN_PATCH_GAIN}
             max={MAX_PATCH_GAIN}
             step={0.1}
+            disabled={source === 'run'}
             onChange={setPatchGain}
           />
         ) : null}
@@ -347,7 +613,7 @@ export function AntennaLab({
         </label>
         <NumberField
           label="Azimuth"
-          value={runProbe ? (probe?.azimuth_deg ?? azimuth) : azimuth}
+          value={runProbe ? (probe?.azimuth_deg ?? null) : azimuth}
           unit="deg"
           min={-180}
           max={180}
@@ -357,7 +623,7 @@ export function AntennaLab({
         />
         <NumberField
           label="Elevation"
-          value={runProbe ? (probe?.elevation_deg ?? elevation) : elevation}
+          value={runProbe ? (probe?.elevation_deg ?? null) : elevation}
           unit="deg"
           min={-90}
           max={90}
@@ -390,7 +656,7 @@ export function AntennaLab({
           <span>Reference coupling</span>
           <b>{value(probe?.linear_coupling, 3)}</b>
         </div>
-        {probe?.linear_coupling == null ? (
+        {probe && probe.linear_coupling == null ? (
           <small className="antenna-null">
             Polarization undefined at a field null or unresolved pattern.
           </small>
@@ -404,35 +670,45 @@ export function AntennaLab({
         ) : null}
       </fieldset>
       <details className="antenna-orientation">
-        <summary>Reference mount rotation</summary>
+        <summary>{source === 'run' ? 'Run mount rotation' : 'Reference mount rotation'}</summary>
         <NumberField
           label="Roll · X"
-          value={angles[0]}
+          value={mountAngles[0]}
           unit="deg"
           min={-180}
           max={180}
           step={1}
+          disabled={source === 'run'}
           onChange={(next) => angleChange(0, next)}
         />
         <NumberField
           label="Pitch · Y"
-          value={angles[1]}
+          value={mountAngles[1]}
           unit="deg"
           min={-180}
           max={180}
           step={1}
+          disabled={source === 'run'}
           onChange={(next) => angleChange(1, next)}
         />
         <NumberField
           label="Yaw · Z"
-          value={angles[2]}
+          value={mountAngles[2]}
           unit="deg"
           min={-180}
           max={180}
           step={1}
+          disabled={source === 'run'}
           onChange={(next) => angleChange(2, next)}
         />
-        <small>Rz(yaw) Ry(pitch) Rx(roll). Lab controls do not edit the run.</small>
+        <small>
+          Rz(yaw) Ry(pitch) Rx(roll), native to body.{' '}
+          {source === 'run'
+            ? 'Uses the completed run mount.'
+            : harmonic
+              ? 'Use for UL/DL copies the mount to mission inputs.'
+              : 'Lab controls do not edit the run.'}
+        </small>
       </details>
     </aside>
   );
@@ -443,17 +719,21 @@ export function AntennaLab({
     >
       <header className="antenna-toolbar">
         <div>
-          <span className="eyebrow">ANTENNA LAB / FREE-SPACE ANALYTICAL</span>
+          <span className="eyebrow">ANTENNA LAB / VECTOR FIELD</span>
           <h1>{pattern?.definition.label || labels[model]}</h1>
         </div>
-        <span className="antenna-toolbar-note">Nominal hardware + analytical reference</span>
+        <span className="antenna-toolbar-note">
+          {harmonic && harmonicProfile
+            ? profileEvidenceLabel(harmonicProfile)
+            : 'Nominal hardware + analytical reference'}
+        </span>
       </header>
       <div className="antenna-main">
         <LobeView
           pattern={pattern}
           probe={probe}
           mode={radiusMode}
-          loading={loading}
+          loading={loading || referenceLoading}
           variant={physicalVariant}
           asset={physicalAsset}
           model={model}
@@ -477,15 +757,19 @@ export function AntennaLab({
       <footer className="antenna-evidence">
         <span>
           {pattern?.definition.axes || 'Core vector pattern'} ·{' '}
-          {pattern?.status === 'unresolved' ? 'UNRESOLVED' : 'ANALYTICAL REFERENCE'}
+          {pattern?.status?.replace('_', ' ').toUpperCase() || 'REFERENCE'}
         </span>
         <details>
-          <summary>Model, vector field &amp; limits</summary>
+          <summary>{harmonic ? 'Probe & sampling' : 'Field model'}</summary>
+          {!harmonic && pattern?.definition.formula ? (
+            <pre className="antenna-formula">{pattern.definition.formula}</pre>
+          ) : null}
           <p>{pattern?.definition.limits}</p>
           <p>
             Body azimuth +X toward +Y; elevation above XY. Display and camera use these same axes.
-            The run option selects its antenna family; efficiency and mount controls are independent
-            reference inputs.
+            {source === 'run'
+              ? 'Uses the archived antenna, frequency, efficiency and mount.'
+              : 'Reference inputs are independent until copied to a mission.'}
           </p>
           <p>
             {pattern?.field_convention}. Sphere mean is a finite-grid power check, expected{' '}
@@ -529,7 +813,7 @@ function NumberField({
   onChange,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   unit: string;
   min: number;
   max: number;
@@ -544,7 +828,8 @@ function NumberField({
         <input
           type="number"
           aria-label={label}
-          value={Number(current.toFixed(3))}
+          value={current == null ? '' : Number(current.toFixed(3))}
+          placeholder="—"
           min={min}
           max={max}
           step={step}

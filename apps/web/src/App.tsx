@@ -325,6 +325,14 @@ export default function App() {
                     inspectorTarget={antennaInspector}
                     assets={assets}
                     onFollowRunChange={setAntennaFollowsRun}
+                    onUseProfile={(direction, profile, orientation) =>
+                      mission.edit((draft) => {
+                        draft[direction].spacecraft_antenna = 'spherical_harmonic';
+                        draft[direction].spherical_harmonic_profile = profile;
+                        draft[direction].antenna_orientation_deg = orientation;
+                        draft[direction].frequency_hz = profile.frequency_hz;
+                      })
+                    }
                   />
                 ) : spacecraftSection === 'gnc' ? (
                   <DynamicsLab

@@ -125,7 +125,7 @@ export class NominalPreview {
   private select(model: AntennaModel) {
     this.restoreSelection();
     this.root?.traverse((object) => {
-      if (!(object instanceof Mesh)) return;
+      if (!(object instanceof Mesh) || model === 'spherical_harmonic') return;
       const selected =
         model === 'patch'
           ? /^Fixed[_ ]S-band[_ ]patch/.test(object.name)
@@ -147,7 +147,7 @@ export class NominalPreview {
     this.group.updateMatrixWorld(true);
     this.origin.set(0, 0, 0);
     const feed = this.root?.getObjectByName('ANTENNA_FEED_REFERENCE');
-    if (model !== 'patch' && feed) {
+    if (model !== 'patch' && model !== 'spherical_harmonic' && feed) {
       feed.getWorldPosition(this.origin);
       this.originReference = 'nominal feed';
     } else if (this.selection.length) {
