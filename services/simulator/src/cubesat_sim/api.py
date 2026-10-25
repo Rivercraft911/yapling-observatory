@@ -18,6 +18,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from . import __version__
 from .antenna_lab import router as antenna_lab_router
 from .power_lab import router as power_lab_router
+from .dynamics_lab import router as dynamics_lab_router
 from .core import MODEL_VERSION
 from .jobs import JobManager
 from .models import FrozenModel, Scenario, RadioProfile, default_scenario
@@ -149,6 +150,7 @@ def create_app():
     app.add_middleware(RequestBodyLimit)
     app.include_router(antenna_lab_router)
     app.include_router(power_lab_router)
+    app.include_router(dynamics_lab_router)
 
     @app.get("/api/health")
     def health():

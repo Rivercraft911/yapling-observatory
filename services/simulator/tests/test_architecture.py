@@ -26,7 +26,7 @@ TRANSPORT_OR_UI = {
     "matplotlib", "plotly", "bokeh", "PIL", "pygame", "tkinter", "PySide6",
     "selenium", "playwright", "webbrowser",
 }
-TRANSPORT_MODULES = {"api", "antenna_lab", "power_lab", "jobs", "worker", "cli"}
+TRANSPORT_MODULES = {"api", "antenna_lab", "power_lab", "dynamics_lab", "jobs", "worker", "cli"}
 
 
 def module_name(path):
