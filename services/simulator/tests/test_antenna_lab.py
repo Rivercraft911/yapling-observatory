@@ -79,7 +79,7 @@ def test_run_probe_uses_declared_hamilton_body_rotation_and_validates_inputs():
 
 def test_lab_routes_are_bounded_and_probe_does_not_sample_sphere(monkeypatch):
     with TestClient(create_app()) as client:
-        assert set(client.get("/api/antenna-lab/catalog").json()["models"]) == {"dipole", "turnstile", "patch", "v45"}
+        assert set(client.get("/api/antenna-lab/catalog").json()["models"]) == {"dipole", "turnstile", "patch", "v45", "bent_v_up_45", "bent_v_out_45"}
         def should_not_sample(*_args, **_kwargs):
             raise AssertionError("Probe must not resample the sphere")
         monkeypatch.setattr("cubesat_sim.antenna_lab.sample_pattern", should_not_sample)

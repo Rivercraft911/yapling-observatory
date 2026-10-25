@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 from .models import FrozenModel
 from .geometry.vectors import norm, add, scale
+from .rf.free_space import C_M_S
 
 
 class RunProbe(FrozenModel):
@@ -24,8 +25,10 @@ class RunProbe(FrozenModel):
 
 
 class PatternRequest(FrozenModel):
-    model: Literal["dipole", "turnstile", "patch", "v45"] = "dipole"
+    model: Literal["dipole", "turnstile", "patch", "v45", "bent_v_up_45", "bent_v_out_45"] = "dipole"
     efficiency: float = Field(default=1, ge=0, le=1)
+    frequency_hz: float = Field(default=438e6, ge=1e6, le=10e9)
+    arm_length_m: float = Field(default=C_M_S/(4*438e6), ge=1e-4, le=10)
     patch_peak_gain_dbi: float = Field(default=6, ge=10*math.log10(2), le=20)
     orientation_deg: tuple[float, float, float] = (0, 0, 0)
     probe_azimuth_deg: float = Field(default=90, ge=-180, le=180)
@@ -41,4 +44,6 @@ class PatternRequest(FrozenModel):
     def bounded_orientation(self):
         if any(abs(v) > 360 for v in self.orientation_deg):
             raise ValueError("Orientation angles must lie within ±360 degrees")
+        if self.model in ("bent_v_up_45", "bent_v_out_45") and self.arm_length_m > C_M_S/(2*self.frequency_hz):
+            raise ValueError("Bent-wire numerical scope requires arm length <= wavelength/2")
         return self

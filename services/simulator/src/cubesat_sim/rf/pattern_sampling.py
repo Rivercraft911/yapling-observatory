@@ -3,6 +3,7 @@
 Dimensionless field F has |F|² = gain, not electric-field units V/m.
 """
 from __future__ import annotations
+from functools import lru_cache
 import math
 from ..antenna_models import PatternRequest
 from ..models import content_hash
@@ -11,6 +12,8 @@ from ..geometry.vectors import add, scale, norm, unit, matvec, matmul, transpose
 from .antennas import AntennaResponse, half_wave_dipole, short_dipole_turnstile, cosine_patch
 from .polarization import polarization_coupling
 from .free_space import power_db
+from .beamwidth import half_power_span
+from .bent_wire import BentWire, MODEL_VERSION as BENT_WIRE_VERSION, UPWARD_45_ARMS, OUTWARD_45_ARMS
 MODEL_VERSION = "antenna-lab-core-patterns-0.1.0"
 IDENTITY = ((1, 0, 0), (0, 1, 0), (0, 0, 1))
 MODELS = {
@@ -22,7 +25,19 @@ MODELS = {
                   limits="One-sided cosine-power lobe with projected linear polarization. No patch dimensions, resonance, substrate, matching or installed-field prediction."),
     "v45": dict(label="45° V / tape", axes="Installed pattern unresolved", function=None,
                 limits="The rendered tape shape supplies no current, feed or installed vector pattern. An EM solution or measurement is required."),
+    "bent_v_up_45": dict(label="Upward V · assumed current", axes="Arms ±45° from +Z in XZ; one balanced feed",
+                         function="BentWire.response",
+                         limits="Free-space thin filaments with prescribed sinusoidal arm current. No solved currents, finite tape width, separated roots, matching or spacecraft interaction. Not an installed pattern."),
+    "bent_v_out_45": dict(label="Outward V · assumed current", axes="Arms ±45° from rear −Y in XY; one balanced feed",
+                          function="BentWire.response",
+                          limits="Free-space thin filaments with prescribed sinusoidal arm current. No solved currents, finite tape width, separated roots, matching or spacecraft interaction. Not an installed pattern."),
 }
+BENT_MODELS = {"bent_v_up_45": UPWARD_45_ARMS, "bent_v_out_45": OUTWARD_45_ARMS}
+
+
+@lru_cache(maxsize=64)
+def _bent_model(model, frequency_hz, arm_length_m, efficiency):
+    return BentWire(frequency_hz, arm_length_m, *BENT_MODELS[model], efficiency=efficiency)
 
 
 def orientation_matrix(angles):
@@ -46,6 +61,8 @@ def pattern_response(request: PatternRequest, look_body, matrix=None):
         response = half_wave_dipole((1, 0, 0), look_nominal, request.efficiency)
     elif request.model == "turnstile":
         response = short_dipole_turnstile((1, 0, 0), (0, 0, 1), look_nominal, request.efficiency)
+    elif request.model in BENT_MODELS:
+        response = _bent_model(request.model, request.frequency_hz, request.arm_length_m, request.efficiency).response(look_nominal)
     else:
         original = cosine_patch((0, 1, 0), (1, 0, 0), look_nominal, request.patch_peak_gain_dbi)
         response = AntennaResponse(original.gain_linear*request.efficiency, original.polarization if request.efficiency > 0 else None)
@@ -91,13 +108,14 @@ def probe_response(request: PatternRequest, matrix=None):
 
 def sample_pattern(request: PatternRequest):
     matrix = orientation_matrix(request.orientation_deg)
-    base = dict(model=request.model, model_version=MODEL_VERSION, request=request.model_dump(mode="json"),
-                identity=content_hash(request.model_dump(mode="json") | {"model_version": MODEL_VERSION}),
+    version = BENT_WIRE_VERSION if request.model in BENT_MODELS else MODEL_VERSION
+    base = dict(model=request.model, model_version=version, request=request.model_dump(mode="json"),
+                identity=content_hash(request.model_dump(mode="json") | {"model_version": version}),
                 definition=MODELS[request.model], frame="Body +X,+Y,+Z; azimuth +X toward +Y; elevation above XY",
                 orientation="R_body_from_nominal = Rz(yaw) Ry(pitch) Rx(roll), right-hand degrees",
                 field_convention="exp(+jωt); dimensionless gain-normalized F, |F|² = gain; not V/m",
-                source=dict(path="services/simulator/src/cubesat_sim/rf/antennas.py", function=MODELS[request.model]["function"],
-                            evidence="analytical implementation; not EM, installed or measured"),
+                source=dict(path="services/simulator/src/cubesat_sim/rf/" + ("bent_wire.py" if request.model in BENT_MODELS else "antennas.py"), function=MODELS[request.model]["function"],
+                            evidence="prescribed-current analytical approximation; not solved, installed or measured" if request.model in BENT_MODELS else "analytical implementation; not EM, installed or measured"),
                 probe=probe_response(request, matrix))
     if request.model == "v45":
         return base | dict(status="unresolved", grid=None, cuts=None, peak_gain_linear=None,
@@ -125,6 +143,11 @@ def sample_pattern(request: PatternRequest):
                                       else direction_from_angles(request.cut_azimuth_deg, a), matrix).gain_linear for a in angles]
         cuts[name] = dict(angle_deg=angles, gain_linear=cut_gains, gain_dbi=[power_db(g) for g in cut_gains],
                           fixed_angle_deg=request.cut_elevation_deg if name == "azimuth" else request.cut_azimuth_deg)
+        if request.model == "patch":
+            def evaluate(angle):
+                look = direction_from_angles(angle, request.cut_elevation_deg) if name == "azimuth" else direction_from_angles(request.cut_azimuth_deg, angle)
+                return pattern_response(request, look, matrix).gain_linear
+            cuts[name]["half_power"] = half_power_span(angles, cut_gains, periodic=name == "azimuth", evaluate=evaluate)
     peak = max(gains)
     return base | dict(status="analytical", grid=dict(polar_steps=request.polar_steps, azimuth_steps=request.azimuth_steps,
                         directions_body=directions, gain_linear=gains, gain_dbi=[power_db(g) for g in gains],
