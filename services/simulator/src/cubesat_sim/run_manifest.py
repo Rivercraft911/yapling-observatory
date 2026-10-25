@@ -66,7 +66,7 @@ def runtime_versions():
 def source_code_hashes():
     package = Path(__file__).parent
     paths = {package/name for name in ("__init__.py", "core.py", "models.py", "antenna_models.py", "run_manifest.py", "physics.py")}
-    for domain in ("geometry", "attitude", "orbit", "rf", "operations"):
+    for domain in ("geometry", "attitude", "orbit", "rf", "operations", "power", "thermal"):
         paths.update((package/domain).rglob("*.py"))
     result = {}
     for path in sorted(paths):

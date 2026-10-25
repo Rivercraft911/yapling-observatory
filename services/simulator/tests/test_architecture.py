@@ -11,20 +11,22 @@ import cubesat_sim
 import pytest
 
 PACKAGE = Path(cubesat_sim.__file__).parent
-DOMAINS = ("geometry", "attitude", "orbit", "rf", "operations")
+DOMAINS = ("geometry", "attitude", "orbit", "rf", "operations", "power", "thermal")
 DOMAIN_IMPORTS = {
     "geometry": {"geometry"},
     "attitude": {"attitude", "geometry"},
     "orbit": {"orbit", "geometry", "attitude", "models"},
     "rf": {"rf", "geometry", "models", "antenna_models"},
     "operations": {"operations"},
+    "power": {"power", "thermal", "geometry"},
+    "thermal": {"thermal"},
 }
 TRANSPORT_OR_UI = {
     "fastapi", "starlette", "uvicorn", "httpx", "requests", "flask", "django",
     "matplotlib", "plotly", "bokeh", "PIL", "pygame", "tkinter", "PySide6",
     "selenium", "playwright", "webbrowser",
 }
-TRANSPORT_MODULES = {"api", "antenna_lab", "jobs", "worker", "cli"}
+TRANSPORT_MODULES = {"api", "antenna_lab", "power_lab", "jobs", "worker", "cli"}
 
 
 def module_name(path):
@@ -135,6 +137,8 @@ assert result['summary']['sample_count'] == 6
 request = PatternRequest(polar_steps=12, azimuth_steps=24)
 assert sample_pattern(request)['model_version']
 assert probe_response(request)
+from cubesat_sim.power.study import default_study_config,run_study
+assert run_study(default_study_config())['summary']['sample_count'] > 1
 assert not (set(sys.modules) & BLOCKED)
 '''
     env = os.environ.copy()
