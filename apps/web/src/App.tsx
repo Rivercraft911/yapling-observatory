@@ -16,6 +16,11 @@ import { closestIndex, formatValue } from './plots/TracePlot';
 import { PlotDock } from './plots/PlotDock';
 import { SpacecraftInspector } from './spacecraft/SpacecraftInspector';
 import { advanceDisplayTime } from './graphics/displayInterpolation';
+import type { PowerSession } from './systems/powerTypes';
+import './systems/systems.css';
+const PowerLab = lazy(() =>
+  import('./systems/PowerLab').then((module) => ({ default: module.PowerLab })),
+);
 
 const EarthView = lazy(() =>
   import('./EarthView').then((module) => ({ default: module.EarthView })),
@@ -43,6 +48,11 @@ export default function App() {
   const [antennaFollowsRun, setAntennaFollowsRun] = useState(false);
   const [previewVariant, setPreviewVariant] = useState<Variant | null>(null);
   const [cutaway, setCutaway] = useState(false);
+  const [spacecraftSection, setSpacecraftSection] = useState<'geometry' | 'power' | 'thermal'>(
+    'geometry',
+  );
+  const [powerSession, setPowerSession] = useState<PowerSession>({ config: null, result: null });
+  const [systemsInspector, setSystemsInspector] = useState<HTMLDivElement | null>(null);
   const [starTrackerVisible, setStarTrackerVisible] = useState(true);
   const [followAttitude, setFollowAttitude] = useState(false);
   const [scenario, setScenario] = useState<Scenario | null>(null);
@@ -314,7 +324,10 @@ export default function App() {
       }
     : assets.variants[modelVariant];
   const showTimeline =
-    view === 'earth' || (view === 'spacecraft' ? followAttitude : antennaFollowsRun);
+    view === 'earth' ||
+    (view === 'spacecraft'
+      ? spacecraftSection === 'geometry' && followAttitude
+      : antennaFollowsRun);
   const status = busy
     ? submitting
       ? 'Submitting'
@@ -340,12 +353,16 @@ export default function App() {
           {view === 'earth'
             ? 'ANALYTICAL EXAMPLE'
             : view === 'spacecraft'
-              ? 'MODEL PREVIEW'
+              ? spacecraftSection === 'geometry'
+                ? 'MODEL PREVIEW'
+                : 'PRESCRIBED STUDY'
               : 'ANTENNA REFERENCE'}
-          <span className={`run-state ${busy ? 'working' : ''}`}>
-            {busy && <span className="spinner" />}
-            {status}
-          </span>
+          {view === 'earth' && (
+            <span className={`run-state ${busy ? 'working' : ''}`}>
+              {busy && <span className="spinner" />}
+              {status}
+            </span>
+          )}
         </div>
       </header>
       {error && (
@@ -422,6 +439,17 @@ export default function App() {
                     inspectorTarget={antennaInspector}
                     assets={assets}
                     onFollowRunChange={setAntennaFollowsRun}
+                  />
+                ) : spacecraftSection !== 'geometry' ? (
+                  <PowerLab
+                    session={powerSession}
+                    onSession={setPowerSession}
+                    inspectorTarget={systemsInspector}
+                    asset={modelAsset}
+                    variant={modelVariant}
+                    cutaway={cutaway}
+                    starTrackerVisible={starTrackerVisible}
+                    section={spacecraftSection}
                   />
                 ) : (
                   <Workbench
@@ -590,7 +618,9 @@ export default function App() {
           <footer className="instrument-footer">
             <span>
               {view === 'spacecraft'
-                ? `${cutaway ? 'LAYOUT STUDY' : 'MODEL'} ${modelAsset?.revision || '—'}`
+                ? spacecraftSection === 'geometry'
+                  ? `${cutaway ? 'LAYOUT STUDY' : 'MODEL'} ${modelAsset?.revision || '—'}`
+                  : `${spacecraftSection.toUpperCase()} · ${powerSession.result?.manifest.model_version || 'NOT RUN'}`
                 : view === 'antenna'
                   ? 'ANTENNA REFERENCE'
                   : snapshot
@@ -603,9 +633,11 @@ export default function App() {
                 ? 'Ideal threshold capacity · no packet dynamics'
                 : view === 'antenna'
                   ? 'Analytical patterns · nominal geometry'
-                  : cutaway
-                    ? 'Visual layout study'
-                    : 'Concept geometry'}
+                  : spacecraftSection !== 'geometry'
+                    ? 'Prescribed CONOPS · provisional thermal inputs'
+                    : cutaway
+                      ? 'Visual layout study'
+                      : 'Concept geometry'}
             </span>
           </footer>
         </div>
@@ -632,25 +664,46 @@ export default function App() {
           }
         >
           {view === 'spacecraft' ? (
-            <SpacecraftInspector
-              variant={modelVariant}
-              asset={modelAsset}
-              cutaway={cutaway}
-              onCutaway={setCutaway}
-              cutawayAvailable={cutawayAsset?.available === true}
-              starTrackerVisible={starTrackerVisible}
-              onStarTrackerVisible={setStarTrackerVisible}
-              onVariant={setPreviewVariant}
-              followAttitude={followAttitude}
-              onFollowAttitude={setFollowAttitude}
-              hasRun={!!samples}
-              onApply={() => {
-                update((draft) => {
-                  draft.antenna_variant = modelVariant;
-                });
-                setView('earth');
-              }}
-            />
+            <>
+              <nav className="spacecraft-sections" aria-label="Spacecraft sections">
+                {(['geometry', 'power', 'thermal'] as const).map((section) => (
+                  <button
+                    key={section}
+                    aria-pressed={spacecraftSection === section}
+                    onClick={() => setSpacecraftSection(section)}
+                  >
+                    {section === 'geometry'
+                      ? 'Geometry'
+                      : section === 'power'
+                        ? 'Power & avionics'
+                        : 'Thermal'}
+                  </button>
+                ))}
+              </nav>
+              {spacecraftSection !== 'geometry' ? (
+                <div ref={setSystemsInspector} />
+              ) : (
+                <SpacecraftInspector
+                  variant={modelVariant}
+                  asset={modelAsset}
+                  cutaway={cutaway}
+                  onCutaway={setCutaway}
+                  cutawayAvailable={cutawayAsset?.available === true}
+                  starTrackerVisible={starTrackerVisible}
+                  onStarTrackerVisible={setStarTrackerVisible}
+                  onVariant={setPreviewVariant}
+                  followAttitude={followAttitude}
+                  onFollowAttitude={setFollowAttitude}
+                  hasRun={!!samples}
+                  onApply={() => {
+                    update((draft) => {
+                      draft.antenna_variant = modelVariant;
+                    });
+                    setView('earth');
+                  }}
+                />
+              )}
+            </>
           ) : view === 'antenna' ? (
             <div className="antenna-inspector-host" ref={setAntennaInspector} />
           ) : (

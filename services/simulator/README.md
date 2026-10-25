@@ -1,6 +1,6 @@
 # Simulator service 0.1.0
 
-This first runnable slice computes an **illustrative analytical circular pass**, prescribed attitude, vector antenna coupling, independent uplink/downlink budgets, and integrated **ideal threshold capacity**. It does not predict mission performance or implement packet delivery, synchronization, receiver lock, acquisition, retries, energy or queues.
+This first runnable slice computes an **illustrative analytical circular pass**, prescribed attitude, vector antenna coupling, independent uplink/downlink budgets, and integrated **ideal threshold capacity**. It does not predict mission performance or implement packet delivery, synchronization, receiver lock, acquisition, retries or queues. Separate power and thermal studies use prescribed phases; their results do not change this pass.
 
 Run from the repository after the root setup creates `.venv` and installs this package:
 
@@ -27,6 +27,9 @@ The Python domains contain the formulas. `core.py` connects them and builds the 
 | `rf/modem.py`, `rf/link_budget.py` | Generic nominal information rate and direction-specific RF budget, metric, margin and ideal rate gate. Exact DVB framing and LoRa airtime remain absent. |
 | `rf/pattern_sampling.py` | Headless pattern-sphere/cut sampling and constant-work field probes using the same antenna formulas as runs. |
 | `operations/schedule.py`, `operations/capacity.py` | Half-open alternating slots, requested sample grid and midpoint ideal-capacity integration split at slot boundaries. |
+| `power/solar.py`, `power/battery.py`, `power/loads.py` | Projected PV generation, nominal stored-energy balance and electrical/RF/heat accounting. No IV strings, OCV or cell-aging model. |
+| `thermal/network.py`, `thermal/models.py` | Lumped conduction, radiation and implicit thermal integration with explicit material/contact inputs. |
+| `power/study.py`, `power/models.py` | Prescribed CONOPS, manual imaging/eclipse windows, coupled power/thermal bookkeeping and run provenance. |
 | `models.py`, `antenna_models.py` | Immutable validated input contracts and evidence records. `RadioProfile.net_rate_bps()` delegates to `rf/modem.py`. |
 | `run_manifest.py` | Model/input provenance, runtime versions, constants, validity limits and numerical-source SHA-256 identities. |
 | `api.py`, `antenna_lab.py`, `jobs.py`, `worker.py` | HTTP adapters and cancellable job lifecycle. Pattern endpoints contain no pattern equations. |
@@ -35,6 +38,10 @@ The Python domains contain the formulas. `core.py` connects them and builds the 
 
 ## API
 
+- `GET /api/power-lab/default`: complete provisional power/thermal inputs.
+- `GET /api/power-lab/stage-templates`: validated provisional loads and illumination for Sun pointing, ground tracking, imaging and detumble.
+- `POST /api/power-lab/study`: direct `StudyConfig`; returns manifest, columnar samples, stage energy totals, thermal extrema and energy-closure diagnostics. The interactive route limits work to 100,000 node steps.
+- `POST /api/power-lab/capacity`: validated battery specification; returns nominal pack energy in Wh.
 - `GET /api/health`: service/model versions and local limits.
 - `GET /api/scenarios/default`: `{scenario_id, scenario_hash, scenario}` with complete editable inputs and provenance.
 - `GET /api/radio-profiles`: editable QPSK 1/2, 8PSK 2/3 and unresolved LoRa templates. Either direction can independently use either waveform.
@@ -102,6 +109,14 @@ DVB-S2 QPSK/8PSK threshold templates use [ETSI EN 302 307-1 V1.4.1, section 6, T
 The optional 438 MHz LoRa template has an unresolved C/N0 threshold and an illustrative 4,800 bit/s information rate. Exact MiniF27 SKU, SX1262/LLCC68 variant, waveform settings and receiver curves remain unresolved. It returns null margin/capacity until a user supplies a labeled illustrative threshold. No sensitivity or packet-success curve is fabricated.
 
 Capacity integrates the ideal net rate only while visible, scheduled and above the selected threshold. Midpoint geometry is evaluated independently from display samples and every schedule boundary is split exactly. Visibility and threshold crossings remain grid-resolved. Tests refine the timestep and compare integrated capacity; a result is not a packet count or achieved throughput. The 30 s default slots alternate directions. Simultaneous availability is never inferred from two positive budgets.
+
+## Power and thermal study
+
+`power.study.run_study(StudyConfig.model_validate(data))` runs headlessly. Its separate clock uses prescribed phase boundaries, body-frame Sun directions and optional eclipse/imaging windows. PV extraction, regulator losses, storage losses, escaped RF, component heat, radiation and stored thermal/electrical energy share one first-law ledger. Unused array power remains at the array; it does not become invented regulator heat. Insufficient power produces explicit unserved-load values with proportional bookkeeping, not a claim that a radio operates at partial power.
+
+The selected cell is NCR18650GA. The editable 2S2P example uses minimum charge capacity 3,350 mAh and nominal voltage 3.6 V from [Panasonic’s product table](https://industry.panasonic.eu/pd-130926/batteries/secondary-batteries/lithium-ion-batteries-for-europe/cylindrical-type/ncr-18650ga). Their product gives 48.24 Wh as nominal arithmetic, not guaranteed usable pack energy. The model has no voltage history, cell-resistance heat, temperature protection or aging calculation. Thermal capacities, conductances, areas, initial temperatures and loads remain explicit provisional inputs. The model cannot yet support a flight-temperature claim.
+
+The external energy balance follows [NASA SmallSat Thermal Control, section 7.1, equation 1](https://www.nasa.gov/smallsat-institute/sst-soa/thermal-control/); projected PV follows [NASA Power Subsystems, section 3.2.1](https://www.nasa.gov/smallsat-institute/sst-soa/power-subsystems/). The implicit thermal solver is checked against analytical equilibrium, conservative pair exchange, energy closure and step refinement. Radiating area covers exterior surfaces; separately supplied Earth IR/albedo irradiance already includes the geometry at those surfaces. Internal radiation exchange coefficients require their own justified geometry.
 
 ## Evidence and checks
 

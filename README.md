@@ -21,7 +21,9 @@ The spacecraft view includes an optional cutaway with a removable tracker. Space
 
 The current pass is a constructed circular example with prescribed tracking or tumble. RF uses analytical vector patterns and ideal threshold capacity. DVB-S2 supports QPSK and 8PSK. UHF LoRa is separate, with an unresolved receiver threshold. The antenna lab includes two bent-wire V references with prescribed current and patch half-power cuts. The rendered hardware has no validated installed radiation pattern.
 
-Real orbit forecasts, physical attitude control, hardware receiver behavior, power and thermal histories remain planned. Bundled station and radio values are examples with inspectable provenance. Earth imagery and shader lighting do not affect the calculations.
+Spacecraft’s Power and Thermal sections run a separate prescribed CONOPS study. Edit phase loads, solar efficiency, the NCR18650GA pack, eclipse windows and thermal properties; inspect energy, temperatures and heat flows. Areas, material properties and loads are provisional inputs. The battery tracks nominal stored energy, without a voltage or aging model.
+
+Real orbit forecasts, integrated physical control and hardware receiver behavior remain planned. The standalone power study does not yet use the Earth view’s orbit or attitude. Bundled values retain inspectable provenance. Earth imagery and shader lighting do not affect the calculations.
 
 ## Repository
 
@@ -32,6 +34,7 @@ Real orbit forecasts, physical attitude control, hardware receiver behavior, pow
 | `apps/web/src/graphics/` | Shared display and material handling |
 | `apps/web/src/antenna/` | Antenna inspection graphics |
 | `apps/web/src/plots/` | Selection and display of returned traces |
+| `apps/web/src/systems/` | Spacecraft study controls and returned power/thermal plots |
 | `scripts/` | Local setup and process lifecycle |
 | `private/` | Ignored mission notes, studies, source CAD and renders |
 
