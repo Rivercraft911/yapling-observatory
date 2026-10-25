@@ -1,7 +1,10 @@
 """Mission HTTP adapter. Numerical state/equations live in named pure domains."""
 
 from dataclasses import replace
+import json
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
 from pydantic import Field
 from .mission_models import MissionModel, MissionScenario, MissionOrbit
 from .mission.defaults import (
@@ -11,6 +14,7 @@ from .mission.defaults import (
     orbit_metadata,
 )
 from .mission.ephemeris import mean_sun_ra_deg
+from .mission_archive import ArchiveError, export_request, import_archive
 from .orbit.elements import first_order_sso_inclination_deg
 from .orbit.gravity import GravityPotential
 
@@ -108,3 +112,31 @@ async def cancel_run(run_id: str, request: Request):
 @router.get("/actuator-presets")
 def presets():
     return actuator_presets()
+
+
+@router.post("/archive/export")
+async def save_archive(request: Request):
+    data = await request.body()
+    try:
+        archive = await run_in_threadpool(export_request, data)
+    except ArchiveError as error:
+        raise HTTPException(422, str(error)) from error
+    return Response(
+        archive,
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="ssi-mission.json"'},
+    )
+
+
+@router.post("/archive/import")
+async def open_archive(request: Request):
+    data = await request.body()
+    try:
+        result = await run_in_threadpool(import_archive, data)
+        # Serialize the complete history in the same bounded background lane.
+        response = await run_in_threadpool(
+            lambda: json.dumps(result, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        )
+    except ArchiveError as error:
+        raise HTTPException(422, str(error)) from error
+    return Response(response, media_type="application/json")

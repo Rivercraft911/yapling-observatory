@@ -21,6 +21,7 @@ from .power_lab import router as power_lab_router
 from .dynamics_lab import router as dynamics_lab_router
 from .mission_lab import router as mission_router
 from .mission_jobs import MissionJobManager
+from .mission_archive import ARCHIVE_PATHS, MAX_ARCHIVE_BYTES
 from .core import MODEL_VERSION
 from .jobs import JobManager
 from .models import FrozenModel, Scenario, RadioProfile, default_scenario
@@ -115,9 +116,17 @@ class RequestBodyLimit:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
+        path = scope.get("path", "")
+        archive_route = (
+            scope.get("method") == "POST"
+            and path in ARCHIVE_PATHS
+            and scope.get("raw_path", path.encode("ascii", errors="replace")) == path.encode("ascii")
+        )
+        limit = MAX_ARCHIVE_BYTES if archive_route else self.max_bytes
+        detail = "Archive body exceeds 64 MiB local limit" if archive_route else "Request body exceeds 512 KiB local limit"
         length = next((value for key,value in scope.get("headers", ()) if key.lower() == b"content-length"), None)
-        if length is not None and (not length.isdigit() or int(length) > self.max_bytes):
-            return await JSONResponse({"detail":"Request body exceeds 512 KiB local limit"}, status_code=413)(scope, receive, send)
+        if length is not None and (not length.isdigit() or len(length) > 20 or int(length) > limit):
+            return await JSONResponse({"detail": detail}, status_code=413)(scope, receive, send)
         messages = deque()
         total = 0
         while True:
@@ -127,8 +136,8 @@ class RequestBodyLimit:
             if message["type"] != "http.request":
                 return await JSONResponse({"detail":"Invalid request body"}, status_code=400)(scope, receive, send)
             total += len(message.get("body", b""))
-            if total > self.max_bytes:
-                return await JSONResponse({"detail":"Request body exceeds 512 KiB local limit"}, status_code=413)(scope, receive, send)
+            if total > limit:
+                return await JSONResponse({"detail": detail}, status_code=413)(scope, receive, send)
             messages.append(message)
             if not message.get("more_body", False):
                 break
