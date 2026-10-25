@@ -293,8 +293,8 @@ def test_study_default_reproducibility_conservation_and_distinct_nodes():
         "radio",
         "camera",
     }
-    assert result["summary"]["requested_load_j"] == pytest.approx(600 * 3 + 600 * 13.3)
-    assert result["summary"]["escaped_rf_j"] == pytest.approx(600 * 3)
+    assert result["summary"]["requested_load_j"] == pytest.approx(600 * 3 + 600 * 12.5)
+    assert result["summary"]["escaped_rf_j"] == pytest.approx(600 * 4 * 10 ** (-1 / 10))
     for values in result["samples"]["node_temperature_k"].values():
         assert all(t > 0 for t in values)
     assert config.panels[0].normal_body == (0, 1, 0)

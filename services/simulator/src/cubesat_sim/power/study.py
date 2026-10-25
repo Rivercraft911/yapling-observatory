@@ -10,6 +10,8 @@ from .models import StudyConfig, Stage
 from .solar import pv_generation
 from .battery import advance_battery, capacity_wh, nominal_pack_voltage_v
 from .loads import load_ledger, resolved_stage, solar_visibility
+from .profiles import PLANNING_TRANSMITTER
+from .radio import transmit_power
 from ..thermal.models import NodeForcing
 from ..thermal.network import advance_thermal, thermal_rates
 
@@ -54,6 +56,11 @@ def default_study_config() -> StudyConfig:
         ],
     ]
 
+    tx = PLANNING_TRANSMITTER
+    transmitter = transmit_power(
+        tx.electrical_w, tx.pa_output_w, tx.feed_loss_db, tx.radiation_efficiency
+    )
+
     def loads(transmit=False):
         return [
             dict(component_id="obc", thermal_node_id="obc", electrical_w=2),
@@ -61,8 +68,8 @@ def default_study_config() -> StudyConfig:
             dict(
                 component_id="radio",
                 thermal_node_id="radio",
-                electrical_w=10.8 if transmit else 0.5,
-                escaped_rf_w=3 if transmit else 0,
+                electrical_w=tx.electrical_w if transmit else 0.5,
+                escaped_rf_w=transmitter.escaped_rf_w if transmit else 0,
             ),
             dict(component_id="camera", thermal_node_id="camera", electrical_w=0),
         ]
@@ -147,7 +154,8 @@ def default_study_config() -> StudyConfig:
                 "NCR18650GA cell identity:user-specified. Panasonic current product table checked2026-10-25:3350mAh minimum,3450mAh typical,3.6V nominal. https://industry.panasonic.eu/pd-130926/batteries/secondary-batteries/lithium-ion-batteries-for-europe/cylindrical-type/ncr-18650ga",
                 "2S2P is user-proposed.48.24Wh is nominal-voltage x minimum charge-capacity arithmetic,not guaranteed usable energy.",
                 "PV29% is user-proposed. Area.03m2,normals,60deg ground-phase incidence,thermal capacities,optical properties,contacts,EPS efficiencies/power limits,initial state and loads are provisional examples,not flight or model-metadata values.",
-                "Transmit10.8W electrical/3W escapedRF is the retained user example. RF must cross the vehicle boundary; feeder/antenna loss is otherwise heat.",
+                tx.source
+                + " Standalone study deposits transmitter/feed/antenna heat at the radio node and counts only radiation crossing the vehicle boundary as escaped RF.",
                 "Storage-chain losses are assigned to bus,not fabricated cellI2R/entropic heat. Battery-node temperature is a lumped conduction prediction with missing cell-loss/temperature-dependent capacity physics.",
                 "Albedo/EarthIR entries are prescribed incident irradiances at surfaces,not Earth OLR. No atmosphere,cloud shader,orbit ephemeris or geographic illumination is sampled.",
             ],

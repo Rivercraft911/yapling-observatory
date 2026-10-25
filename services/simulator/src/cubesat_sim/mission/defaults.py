@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from ..models import default_scenario
 from ..power.study import default_study_config, stage_templates
+from ..power.profiles import PLANNING_TRANSMITTER
 from ..orbit.elements import (
     OrbitElements,
     first_order_sso_inclination_deg,
@@ -130,12 +131,14 @@ def default_mission_scenario():
                 ],
             )
         )
+    tx = PLANNING_TRANSMITTER
     epoch = "2026-10-25T00:00:00Z"
     return MissionScenario.model_validate(
         dict(
             orbit=orbit_preset(epoch),
             uplink=legacy.uplink.model_dump(mode="json"),
-            downlink=legacy.downlink.model_dump(mode="json"),
+            downlink=legacy.downlink.model_dump(mode="json")
+            | dict(tx_power_w=tx.pa_output_w, tx_feed_loss_db=tx.feed_loss_db),
             spacecraft=dict(
                 **actuator_presets()["wheels_and_magnetic"],
                 initial_q_body_from_inertial_wxyz=boresight_reference(
@@ -148,12 +151,15 @@ def default_mission_scenario():
                 thermal=thermal,
                 surfaces=surfaces,
                 mode_loads=profiles,
+                spacecraft_tx_electrical_w=tx.electrical_w,
+                transmit_radiation_efficiency=tx.radiation_efficiency,
             ),
             provenance=[
                 example.provenance[0],
                 example.provenance[1],
                 "PV29% is userproposed and relative to coveredfootprint here. Thermalcapacities,externaloptics,contacts,EPS efficiency/powerlimits,uncoveredbusarea .04m2, initialconditions andmodeprofiles are provisional examples,not flightproperties.",
-                "OnboardTX electricalinput10.8W is a retained example. EscapedRF is downlink.tx_power_w times explicitfeedtransmission times transmit_radiation_efficiency; vehiclefeeding/antenna loss isheat. GrounduplinkTXwatts do not heat spacecraft.",
+                tx.source
+                + " Ground-uplink transmitter watts do not heat the spacecraft.",
                 "Storagechain loss is assigned tobus,not fabricatedcellI2R/entropic heat. Batterytemperature is a lumpedconduction prediction with no cell-loss or temperature-dependent capacity physics.",
                 "Sun,hard spherical eclipse,anduniformEarth albedo/IR use the shared propagatedorbit/attitude. No cloudshader,geographicweather or selfshadow. Exterior bodycellfronts only; deployablepetal fronts+backs use the same provisional nodeoptics.",
                 *[
@@ -162,6 +168,8 @@ def default_mission_scenario():
                     if e.path.startswith(
                         ("uplink", "downlink", "station", "schedule", "antenna_variant")
                     )
+                    and e.path
+                    not in {"downlink.tx_power_w", "downlink.tx_feed_loss_db"}
                 ],
                 "Provisional18cell covered-footprint geometry from conceptv03, source recordSHA256 bdf89fe69fd1a63378394387393dba70d9e1cf52295ccb0f0f14071751326af5. This is not manufacturer active area.29% is an assumed efficiency relative to COVERED footprint; no hidden packing factor.",
                 "All array faces are modeled at fixed exported5/8deg cant. No selfshadow, deployment dynamics, rearPVgeneration or temperature-dependent efficiency.",
