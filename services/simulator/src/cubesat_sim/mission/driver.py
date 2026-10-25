@@ -35,6 +35,7 @@ from ..attitude.kinematics import rotate, conjugate, boresight_reference
 from ..geometry.vectors import add, cross, dot, scale, norm
 from ..operations.schedule import active_direction
 from ..rf.link_budget import evaluate_link_budget
+from ..rf.pattern_provenance import harmonic_pattern_records
 from ..power.solar import pv_generation
 from ..power.battery import advance_battery, capacity_wh
 from ..power.loads import load_ledger
@@ -119,6 +120,11 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
     )
     mechanics0 = mechanical_invariants(body, attitude)
     power = config.power
+    transmit_efficiency = (
+        config.downlink.spherical_harmonic_profile.radiation_efficiency
+        if config.downlink.spacecraft_antenna == "spherical_harmonic"
+        else power.transmit_radiation_efficiency
+    )
     temperatures = tuple(n.initial_temperature_k for n in power.thermal.nodes)
     temperatures0 = temperatures
     energy0 = energy = (
@@ -522,7 +528,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         escaped_rf = (
             config.downlink.tx_power_w
             * 10 ** (-config.downlink.tx_feed_loss_db / 10)
-            * power.transmit_radiation_efficiency
+            * transmit_efficiency
             if transmit
             else 0.0
         )
@@ -821,6 +827,16 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             "Power demand that cannot be served terminates at last valid shared-state prefix; postbrownout dynamics are not modeled.",
         ],
     )
+    harmonic_patterns = harmonic_pattern_records(config)
+    if harmonic_patterns:
+        manifest["antenna_patterns"] = harmonic_patterns
+        manifest["rf_transmit_radiation_efficiency"] = dict(
+            value=transmit_efficiency,
+            source="downlink coefficient profile" if "downlink" in harmonic_patterns else "power input",
+        )
+        manifest["warnings"].append(
+            "Spherical harmonics represent supplied complex fields; provenance is supplied with the coefficients, not independently validated installed spacecraft performance."
+        )
     if _source_hashes() != source_hashes_at_start:
         raise RuntimeError(
             "Numerical source files changed during mission; retry after implementation is stable"

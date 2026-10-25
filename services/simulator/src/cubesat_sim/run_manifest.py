@@ -10,6 +10,7 @@ from .geometry.frames import WGS84_A_M, WGS84_F
 from .orbit.circular_pass import EARTH_MU_M3_S2, EARTH_OMEGA_RAD_S
 from .rf.free_space import C_M_S
 from .rf.noise import K_B_J_K
+from .rf.pattern_provenance import harmonic_pattern_records
 MODEL_VERSION = "analytic-circular-vector-rf-0.1.0"
 WARNINGS = [
     "Illustrative analytical pass, not a forecast from launch elements or a TLE.",
@@ -121,5 +122,10 @@ def build_run_metadata(scenario, times, samples, capacity_available, cumulative)
                              {"url":"https://earth-info.nga.mil/index.php?action=wgs84&dir=wgs84","locator":"Defining Parameters table, checked 2026-10-25","scope":"WGS84 constants, not frame realization"},
                              {"url":"https://physics.nist.gov/cuu/Constants/","locator":"SI exact c and k, checked 2026-10-25","scope":"physical constants"}],
                     input_provenance=input_provenance(scenario))
+    harmonic_patterns = harmonic_pattern_records(scenario)
+    if harmonic_patterns:
+        manifest["antenna_patterns"] = harmonic_patterns
+        manifest["rf_reference_planes"]["gains"] = "Selected analytical or supplied complex harmonic profiles; harmonic radiation efficiency is included once. No GLB-derived RF."
+        manifest["warnings"][3] = "Coefficient profile provenance is supplied, not independently validated. Reference patterns and rendered hardware establish no installed spacecraft antenna performance."
     manifest["source_code_hashes"] = source_code_hashes()
     return manifest, summary

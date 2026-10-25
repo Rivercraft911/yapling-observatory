@@ -5,6 +5,7 @@ test_core. These fixtures detect changes to complete previously computed runs.
 """
 import hashlib
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,16 @@ def sha256_json(value):
 @pytest.mark.parametrize("name", BASELINE["scenarios"])
 def test_complete_run_matches_pre_extraction_history(name):
     result = run_scenario(Scenario.model_validate(BASELINE["scenarios"][name]))
+    # Project only added inactive profile/mount metadata back to the archived schema.
+    manifest = result["manifest"]
+    for direction in ("uplink", "downlink"):
+        link = manifest["scenario"][direction]
+        assert link.pop("spherical_harmonic_profile") is None
+        assert link.pop("antenna_orientation_deg") == [0, 0, 0]
+    digest = content_hash(manifest["scenario"])
+    manifest["scenario_hash"], manifest["scenario_id"] = digest, "scenario_"+digest[:16]
+    manifest["input_provenance"] = [record for record in manifest["input_provenance"]
+                                    if record["path"].split(".")[-1] not in {"spherical_harmonic_profile", "antenna_orientation_deg"}]
     for path in BASELINE["comparison_exclusions"]:
         group, field = path.split(".")
         result[group].pop(field, None)
@@ -38,6 +49,7 @@ def test_full_pattern_and_probe_match_pre_extraction_history(name):
     # Added lab inputs do not change these older models. Project only their
     # serialization additions; retain every legacy field/cut/probe value hash.
     assert pattern["model_version"] == "antenna-lab-core-patterns-0.1.0"
+    assert pattern["request"].pop("spherical_harmonic_profile") is None
     assert pattern["request"].pop("frequency_hz") == 438e6
     assert pattern["request"].pop("arm_length_m") == pytest.approx(299792458/(4*438e6))
     pattern["identity"] = content_hash(pattern["request"] | {"model_version": pattern["model_version"]})
@@ -50,14 +62,27 @@ def test_full_pattern_and_probe_match_pre_extraction_history(name):
     assert sha256_json(probe_response(request)) == BASELINE["probe_sha256"][name]
 
 
-def test_scenario_schema_unchanged_and_lab_schema_changes_are_additive():
+def test_legacy_schema_is_preserved_after_projecting_explicit_extensions():
     schemas = json.loads((FIXTURES / "schemas-before-extraction.json").read_text())
-    assert Scenario.model_json_schema() == schemas["scenario"]
+    scenario = Scenario.model_json_schema()
+    link_properties = scenario["$defs"]["Link"]["properties"]
+    assert link_properties.pop("spherical_harmonic_profile")["default"] is None
+    assert link_properties.pop("antenna_orientation_deg")["default"] == [0, 0, 0]
+    assert link_properties["spacecraft_antenna"]["enum"].pop() == "spherical_harmonic"
+    for name in ("SphericalHarmonicProfile", "HarmonicCoefficient", "HarmonicProvenance"):
+        scenario["$defs"].pop(name)
+    assert scenario == schemas["scenario"]
     pattern = PatternRequest.model_json_schema()
     properties = pattern["properties"]
-    assert properties.pop("frequency_hz") == dict(default=438e6, minimum=1e6, maximum=10e9, title="Frequency Hz", type="number")
+    assert properties.pop("frequency_hz") == dict(default=438e6, minimum=1e6, maximum=40e9, title="Frequency Hz", type="number")
     length = properties.pop("arm_length_m")
     assert length == dict(default=299792458/(4*438e6), minimum=1e-4, maximum=10, title="Arm Length M", type="number")
-    assert properties["model"]["enum"][-2:] == ["bent_v_up_45", "bent_v_out_45"]
-    properties["model"]["enum"] = properties["model"]["enum"][:-2]
+    gain = properties["patch_peak_gain_dbi"]
+    assert gain["minimum"] == -10 and gain["maximum"] == 30
+    gain["minimum"], gain["maximum"] = 10*math.log10(2), 20
+    assert properties.pop("spherical_harmonic_profile")["default"] is None
+    for name in ("SphericalHarmonicProfile", "HarmonicCoefficient", "HarmonicProvenance"):
+        pattern["$defs"].pop(name)
+    assert properties["model"]["enum"][-3:] == ["bent_v_up_45", "bent_v_out_45", "spherical_harmonic"]
+    properties["model"]["enum"] = properties["model"]["enum"][:-3]
     assert pattern == schemas["pattern"]

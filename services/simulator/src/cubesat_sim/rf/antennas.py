@@ -1,7 +1,8 @@
 """Free-space vector antenna surrogates with one total source-power budget."""
 from dataclasses import dataclass
 import math
-from ..geometry.vectors import dot, norm, unit, transverse
+from ..geometry.frames import rotation
+from ..geometry.vectors import dot, norm, unit, transverse, matmul
 HALF_WAVE_DIRECTIVITY = 1.640922376984585
 HALF_WAVE_PEAK_DBI = 10*math.log10(HALF_WAVE_DIRECTIVITY)
 
@@ -58,3 +59,9 @@ def cosine_patch(boresight, polarization_axis, look, peak_gain_dbi):
     peak = 10**(peak_gain_dbi/10)
     exponent = max(0, peak/2-1)
     return normalized_response(transverse(unit(polarization_axis), unit(look)), peak*c**exponent)
+
+
+def antenna_orientation_matrix(angles):
+    """R_body_from_native = Rz(yaw) Ry(pitch) Rx(roll), active right-hand."""
+    roll, pitch, yaw = map(math.radians, angles)
+    return matmul(rotation((0, 0, 1), yaw), matmul(rotation((0, 1, 0), pitch), rotation((1, 0, 0), roll)))

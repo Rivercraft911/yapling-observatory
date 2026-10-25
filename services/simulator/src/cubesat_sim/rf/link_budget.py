@@ -1,8 +1,9 @@
 """Direction-specific antenna-port link budget, metric, margin and ideal gate."""
 import math
-from ..geometry.vectors import scale
+from ..geometry.vectors import scale, dot, matvec, transpose
 from .antennas import (AntennaResponse, HALF_WAVE_DIRECTIVITY, HALF_WAVE_PEAK_DBI,
-                       half_wave_dipole, short_dipole_turnstile, cosine_patch)
+                       half_wave_dipole, short_dipole_turnstile, cosine_patch, antenna_orientation_matrix)
+from .spherical_harmonics import spherical_harmonic_response
 from .polarization import horizontal_feed, polarization_coupling
 from .free_space import C_M_S, fspl_db, power_db
 from .noise import noise_density_dbw_hz
@@ -11,6 +12,18 @@ from .modem import net_rate_bps
 
 def spacecraft_response(scenario, link, state):
     look = scale(state["k"], -1)  # antenna look from spacecraft toward station.
+    if link.spacecraft_antenna == "spherical_harmonic":
+        body_axes = (state["x"], state["y"], state["z"])
+        look_body = tuple(dot(axis, look) for axis in body_axes)
+        response = spherical_harmonic_response(link.spherical_harmonic_profile, link.frequency_hz, look_body,
+                                               antenna_orientation_matrix(link.antenna_orientation_deg))
+        return AntennaResponse(response.gain_linear,
+                               matvec(transpose(body_axes), response.polarization) if response.polarization is not None else None)
+    if any(link.antenna_orientation_deg):
+        mount = antenna_orientation_matrix(link.antenna_orientation_deg)
+        inertial_from_body = transpose((state["x"], state["y"], state["z"]))
+        state = state | {name: matvec(inertial_from_body, column)
+                         for name, column in zip(("x", "y", "z"), transpose(mount))}
     if link.spacecraft_antenna == "patch":
         return cosine_patch(state["y"], state["x"], look, link.spacecraft_peak_gain_dbi)
     if scenario.antenna_variant == "v45":

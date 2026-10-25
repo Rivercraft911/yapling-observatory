@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .rf.antennas import HALF_WAVE_PEAK_DBI
+from .rf.spherical_harmonic_models import SphericalHarmonicProfile
 from .rf.modem import net_rate_bps as profile_net_rate_bps
 
 SCHEMA_VERSION = "0.1.0"
@@ -113,7 +114,9 @@ class RadioProfile(FrozenModel):
 
 
 class Link(FrozenModel):
-    spacecraft_antenna: Literal["patch", "wire"] = "patch"
+    spacecraft_antenna: Literal["patch", "wire", "spherical_harmonic"] = "patch"
+    spherical_harmonic_profile: SphericalHarmonicProfile | None = None
+    antenna_orientation_deg: tuple[float, float, float] = (0, 0, 0)
     frequency_hz: float = Field(gt=1e6, le=40e9)
     tx_power_w: float = Field(ge=1e-9, le=1000)
     tx_feed_loss_db: float = Field(default=1, ge=0, le=50)
@@ -126,6 +129,14 @@ class Link(FrozenModel):
 
     @model_validator(mode="after")
     def wire_gain_bound(self):
+        if any(abs(v) > 360 for v in self.antenna_orientation_deg):
+            raise ValueError("Antenna orientation angles must lie within ±360 degrees")
+        if self.spacecraft_antenna == "spherical_harmonic":
+            if self.spherical_harmonic_profile is None:
+                raise ValueError("Spherical-harmonic antenna requires its coefficient profile")
+            self.spherical_harmonic_profile.check_frequency(self.frequency_hz)
+        elif self.spherical_harmonic_profile is not None:
+            raise ValueError("A coefficient profile requires spherical_harmonic antenna selection")
         if self.spacecraft_antenna == "wire" and self.spacecraft_peak_gain_dbi > HALF_WAVE_PEAK_DBI:
             raise ValueError(f"Wire peak gain is a half-wave efficiency reference and must not exceed {HALF_WAVE_PEAK_DBI:.12f} dBi")
         return self
