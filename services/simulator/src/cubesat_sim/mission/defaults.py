@@ -166,7 +166,7 @@ def default_mission_scenario():
                 "Provisional18cell covered-footprint geometry from conceptv03, source recordSHA256 bdf89fe69fd1a63378394387393dba70d9e1cf52295ccb0f0f14071751326af5. This is not manufacturer active area.29% is an assumed efficiency relative to COVERED footprint; no hidden packing factor.",
                 "All array faces are modeled at fixed exported5/8deg cant. No selfshadow, deployment dynamics, rearPVgeneration or temperature-dependent efficiency.",
                 "Initial mass1.5kg and locked diagonal inertia.002kgm2 remain independent provisional inputs. Removing actuators does not subtract guessed mass/inertia.",
-                "Bundled wheel-assisted PD uses three provisional example wheels plus an enabled total-norm0.2Am2 MTQ. No magnetic unloading is implemented; MTQ is used when no wheels areenabled or duringdetumble. Quadratic MTQ electrical coefficient is0.75W atfullnorm,not selectedcoil/drive evidence.",
+                "Bundled wheel-assisted PD uses three provisional example wheels plus an enabled total-norm0.2Am2 MTQ. Magnetic wheel unloading is optional and disabled by default; when enabled with wheel PD, its zero aggregate absolute-rotor-momentum reference is projected perpendicular to B and compensated by the wheels. This does not guarantee individual desaturation or pointing. Quadratic MTQ electrical coefficient is0.75W atfullnorm,not selectedcoil/drive evidence.",
                 "Earth optical albedo.3 and outgoingIR237W/m2 are uniform global example constants, not local weather. Thermal surface optics/capacities/contacts remain provisional.",
             ],
         )

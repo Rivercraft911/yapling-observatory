@@ -64,6 +64,13 @@ class MissionClocks(MissionModel):
 class MissionWheel(MissionModel):
     enabled: bool = True
     spec: WheelSpec
+    initial_speed_rpm: float = 0.0
+
+    @model_validator(mode="after")
+    def initial_speed_limit(self):
+        if abs(self.initial_speed_rpm) > self.spec.max_speed_rpm:
+            raise ValueError("Initial wheel speed must lie within the specified RPM limit")
+        return self
 
 
 class MissionMagnetorquer(MissionModel):
@@ -106,6 +113,8 @@ class MissionSpacecraft(MissionModel):
     free_roll: bool = True
     roll_rate_damping: bool = True
     bdot_gain_am2_s_t: float = Field(default=20000, ge=0)
+    magnetic_unloading_enabled: bool = False
+    magnetic_unloading_time_constant_s: float = Field(default=600, ge=1, le=1e7)
     actuator_heat_node_id: str = "bus"
 
     def rigid_body(self):

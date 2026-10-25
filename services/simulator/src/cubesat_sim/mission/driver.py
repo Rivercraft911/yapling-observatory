@@ -25,10 +25,11 @@ from ..attitude.control import (
     AttitudeReference,
     minimum_rotation_reference,
     quaternion_pd,
+    allocate_wheel_pd_control,
+    wheel_momentum_body,
 )
 from ..attitude.actuators import (
     allocate_magnetic_torque,
-    allocate_wheel_net_torques,
     bdot_dipole,
 )
 from ..attitude.kinematics import rotate, conjugate, boresight_reference
@@ -116,7 +117,11 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         body,
         q_body_from_inertial_wxyz=config.spacecraft.initial_q_body_from_inertial_wxyz,
         omega_body_rad_s=config.spacecraft.initial_omega_body_rad_s,
-        wheel_relative_speed_rad_s=(0.0,) * len(body.wheels),
+        wheel_relative_speed_rad_s=tuple(
+            w.initial_speed_rpm * 2 * math.pi / 60
+            for w in config.spacecraft.wheels
+            if w.enabled
+        ),
     )
     mechanics0 = mechanical_invariants(body, attitude)
     power = config.power
@@ -146,6 +151,9 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
     allocation_residual = (0.0, 0.0, 0.0)
     mtq_saturated = False
     control_status = "coast"
+    unloading_status = "disabled"
+    unloading_requested = unloading_allocated = (0.0, 0.0, 0.0)
+    unloading_command_time_s = None
     capacity = {d: 0.0 for d in ("uplink", "downlink")}
     capacity_available = {d: True for d in capacity}
     samples = {}
@@ -215,6 +223,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
 
     def update_control(geo, sun, mode, target, field):
         nonlocal forcing, requested, allocation_residual, field_previous, field_previous_time, mtq_saturated, control_status
+        nonlocal unloading_status, unloading_requested, unloading_allocated, unloading_command_time_s
         field_body = rotate(attitude.q_body_from_inertial_wxyz, field)
         motors = (0.0,) * len(body.wheels)
         dipole = (0.0, 0.0, 0.0)
@@ -222,6 +231,20 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         allocation_residual = (0.0, 0.0, 0.0)
         mtq_saturated = False
         control_status = "coast"
+        unloading_requested = unloading_allocated = (0.0, 0.0, 0.0)
+        unloading_command_time_s = None
+        if not config.spacecraft.magnetic_unloading_enabled:
+            unloading_status = "disabled"
+        elif config.spacecraft.controller != "quaternion_pd" or mode == "detumble":
+            unloading_status = "controller_inactive"
+        elif (
+            not body.wheels
+            or body.magnetorquer is None
+            or body.magnetorquer.max_dipole_am2 == 0
+        ):
+            unloading_status = "hardware_unavailable"
+        else:
+            unloading_status = "active"
         if mode == "detumble" and body.magnetorquer is not None:
             rate = (
                 scale(
@@ -264,15 +287,27 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             )
             requested = output.requested_body_control_torque_nm
             if body.wheels:
-                net = allocate_wheel_net_torques(body.wheels, requested)
-                relative = mechanical_invariants(
-                    body, attitude
-                ).wheel_relative_speed_rad_s
-                motors = tuple(
-                    t + w.viscous_friction_nm_s * s
-                    for t, w, s in zip(net, body.wheels, relative)
+                wheel_allocation = allocate_wheel_pd_control(
+                    body,
+                    attitude,
+                    requested,
+                    field_body,
+                    config.spacecraft.magnetic_unloading_time_constant_s
+                    if unloading_status == "active" else None,
                 )
+                motors = wheel_allocation.wheel_motor_torques_nm
                 control_status = "wheel_pd"
+                if wheel_allocation.unloading is not None:
+                    allocation = wheel_allocation.unloading
+                    dipole = allocation.dipole_body_am2
+                    mtq_saturated = allocation.dipole_saturated
+                    unloading_requested = allocation.requested_torque_body_nm
+                    unloading_allocated = allocation.torque_body_nm
+                    unloading_command_time_s = orbit.time_s
+                    if allocation.field_has_authority:
+                        control_status = "wheel_pd_magnetic_unloading"
+                    else:
+                        unloading_status = "field_unavailable"
             elif body.magnetorquer is not None:
                 allocation = allocate_magnetic_torque(
                     requested, field_body, body.magnetorquer
@@ -408,6 +443,17 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
                     body, attitude
                 ).wheel_relative_speed_rad_s,
                 wheel_absolute_axial_momentum_nms=attitude.wheel_absolute_axial_momentum_nms,
+                wheel_momentum_body_nms=wheel_momentum_body(body, attitude),
+                wheel_momentum_norm_nms=norm(wheel_momentum_body(body, attitude)),
+                unloading_requested_torque_body_nm=unloading_requested,
+                unloading_allocated_torque_body_nm=unloading_allocated,
+                unloading_achieved_torque_body_nm=(
+                    report.magnetic_torque_body_nm
+                    if unloading_status == "active"
+                    else (0.0, 0.0, 0.0)
+                ),
+                unloading_command_time_s=unloading_command_time_s,
+                unloading_status=unloading_status,
                 wheel_speed_utilization=tuple(
                     abs(speed) / wheel.max_relative_speed_rad_s
                     for speed, wheel in zip(
@@ -827,6 +873,34 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             "Power demand that cannot be served terminates at last valid shared-state prefix; postbrownout dynamics are not modeled.",
         ],
     )
+    if config.spacecraft.magnetic_unloading_enabled:
+        manifest["magnetic_unloading"] = dict(
+            law="desired external torque = -H_w / time_constant; minimum-norm m = B cross torque / |B|^2, with total-norm dipole saturation",
+            time_constant_s=config.spacecraft.magnetic_unloading_time_constant_s,
+            controller_hold_s=config.clocks.controller_period_s,
+            ideal_static_field_rest_update_multiplier=(
+                1
+                - config.clocks.controller_period_s
+                / config.spacecraft.magnetic_unloading_time_constant_s
+            ),
+            target="H_w = sum(axis_i * h_i), absolute rotor axial h_i = J_i*(relative_speed_i + axis_i dot body_rate); zero aggregate vector target",
+            compensation="Wheel allocation uses actual allocated magnetic torque at controller update; finite wheel span/torque/speed/power and subsequent field motion retain actual residual",
+            command_hold="PD, unloading dipole and compensated wheel motor commands held until controller update or operation event; sampled achieved unload torque is zero while unloading inactive",
+            telemetry="unloading requested/allocated vectors refer to unloading_command_time_s; achieved is at the sample state; power samples retain preceding-interval averages",
+            limits="Truth-state reference only. Instantaneously field-parallel momentum and redundant-wheel nullspace are uncontrolled; no general individual-wheel desaturation or tracking guarantee.",
+            source=dict(
+                url="https://www.hanspeterschaub.info/PapersPrivate/Hogan2015a.pdf",
+                locator="Hogan & Schaub (2015), JGCD 38(10), equations (2), (3), (17), (21)-(26)",
+                scope="absolute wheel momentum, projected magnetic torque and achieved-torque wheel compensation; not the paper's complete nonlinear controller/stability guarantee",
+            ),
+        )
+        if (
+            config.spacecraft.magnetic_unloading_time_constant_s
+            < config.clocks.controller_period_s
+        ):
+            manifest["warnings"].append(
+                "Unloading time constant is shorter than the controller hold. In the ideal rest/static-field unsaturated scalar limit, each update multiplies available wheel momentum by 1-Tc/T: T<Tc alternates sign, T=Tc/2 has no decay, and T<Tc/2 is unstable. This is a sampled-reference limit, not a universal mission stability result."
+            )
     harmonic_patterns = harmonic_pattern_records(config)
     if harmonic_patterns:
         manifest["antenna_patterns"] = harmonic_patterns

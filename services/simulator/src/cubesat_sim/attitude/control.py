@@ -9,6 +9,7 @@ import math
 
 from ..geometry.vectors import add, cross, matvec, norm, scale, transverse
 from .dynamics import AttitudeState, RigidBody, mechanical_invariants
+from .actuators import MagneticOutput, allocate_wheel_net_torques, unloading_dipole
 from .kinematics import (
     boresight_reference,
     conjugate,
@@ -140,3 +141,71 @@ def minimum_rotation_reference(
             state.q_body_from_inertial_wxyz, body_boresight, target_direction_inertial
         )
     )
+
+
+@dataclass(frozen=True)
+class WheelControlAllocation:
+    wheel_motor_torques_nm: tuple[float, ...]
+    wheel_momentum_body_nms: tuple[float, float, float]
+    unloading: MagneticOutput | None
+
+
+def wheel_momentum_body(body: RigidBody, state: AttitudeState):
+    """Sum stored ABSOLUTE rotor axial momenta in body axes, H_w = Σ a_i h_i.
+
+    h_i = J_i(Ω_relative,i + a_i·ω). This is not per-wheel RPM management;
+    redundant-wheel momentum in the axis matrix's nullspace remains invisible.
+    Hogan & Schaub (2015), JGCD 38(10), equations (2), (3), (17).
+    """
+    if len(body.wheels) != len(state.wheel_absolute_axial_momentum_nms):
+        raise ValueError("State wheel count differs from rigid-body configuration")
+    momentum = (0.0, 0.0, 0.0)
+    for wheel, h in zip(body.wheels, state.wheel_absolute_axial_momentum_nms):
+        momentum = add(momentum, scale(wheel.axis_body, h))
+    return momentum
+
+
+def allocate_wheel_pd_control(
+    body: RigidBody,
+    state: AttitudeState,
+    requested_body_control_torque_nm,
+    magnetic_field_body_t,
+    unloading_time_constant_s: float | None = None,
+) -> WheelControlAllocation:
+    """Wheel control plus optional field-projected magnetic unloading.
+
+    Desired external unload torque is -H_w/T. Use the achieved, dipole-limited
+    magnetic torque in wheel allocation: τ_body = τ_mag - Σ a_i hdot_i.
+    Cancellation holds at allocation time when wheel span and drive limits
+    permit it. Held commands, subsequent field motion and drive clipping leave
+    a physical residual; wheel_output and the dynamics retain those limits.
+    """
+    if unloading_time_constant_s is not None and (
+        not math.isfinite(unloading_time_constant_s) or unloading_time_constant_s <= 0
+    ):
+        raise ValueError("Unloading time constant must be positive and finite")
+    momentum = wheel_momentum_body(body, state)
+    unloading = None
+    magnetic = (0.0, 0.0, 0.0)
+    if (
+        unloading_time_constant_s is not None
+        and body.wheels
+        and body.magnetorquer
+        and body.magnetorquer.max_dipole_am2 > 0
+    ):
+        unloading = unloading_dipole(
+            momentum,
+            magnetic_field_body_t,
+            1 / unloading_time_constant_s,
+            body.magnetorquer,
+        )
+        magnetic = unloading.torque_body_nm
+    net = allocate_wheel_net_torques(
+        body.wheels, requested_body_control_torque_nm, magnetic
+    )
+    relative = mechanical_invariants(body, state).wheel_relative_speed_rad_s
+    motors = tuple(
+        t + w.viscous_friction_nm_s * speed
+        for t, w, speed in zip(net, body.wheels, relative)
+    )
+    return WheelControlAllocation(motors, momentum, unloading)
