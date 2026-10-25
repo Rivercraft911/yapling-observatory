@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import ts from 'typescript';
 import { MissionRequests, canAdvanceMissionRun } from './missionRequests.ts';
 import {
   MAX_MISSION_ARCHIVE_BYTES,
@@ -206,4 +208,102 @@ console.log(
 );
 console.log(
   'Archive transport passed: exact raw run/archive text, negative zero, dirty-draft independence, cache-independent imported saves, bounded and cancelled reads.',
+);
+
+// Replay the actual hook's initial effect with React refresh/Strict Mode cleanup/setup ordering.
+const hookSource = await readFile(new URL('./useMission.ts', import.meta.url), 'utf8');
+const hookAst = ts.createSourceFile('useMission.ts', hookSource, ts.ScriptTarget.Latest, true);
+let initialEffect;
+const visit = (node) => {
+  if (
+    !initialEffect &&
+    ts.isCallExpression(node) &&
+    node.expression.getText(hookAst) === 'useEffect'
+  )
+    initialEffect = node.arguments[0].getText(hookAst);
+  ts.forEachChild(node, visit);
+};
+visit(hookAst);
+assert(initialEffect);
+const makeEffect = new Function(
+  'requests',
+  'configRef',
+  'runContext',
+  'importingRef',
+  'reload',
+  `return (${initialEffect});`,
+);
+{
+  const requests = new MissionRequests();
+  const configRef = { current: null },
+    runContext = { current: null },
+    importingRef = { current: false };
+  let loads = 0;
+  const effect = makeEffect(requests, configRef, runContext, importingRef, () => {
+    loads++;
+  });
+  let release = effect();
+  assert.equal(loads, 1);
+  const snapshot = {
+    duration_s: 7200,
+    battery: { electrical: { initial_soc: 0.5 } },
+    heat_capacity_j_k: 300,
+  };
+  configRef.current = structuredClone(snapshot);
+  configRef.current.heat_capacity_j_k = 350;
+  configRef.current.battery.electrical.initial_soc = 0.4;
+  const pending = ['run', 'orbit', 'import', 'export', 'cancel'].map((kind) =>
+    requests.begin(kind),
+  );
+  runContext.current = { request: pending[0], runId: 'owned-worker' };
+  release();
+  assert(pending.every((request) => !request.current()));
+  release = effect();
+  assert(pending.every((request) => request.current() && !request.signal.aborted));
+  await Promise.resolve();
+  assert(pending.every((request) => request.current() && !request.signal.aborted));
+  assert.equal(loads, 1);
+  assert.equal(configRef.current.duration_s, 7200);
+  assert.equal(configRef.current.heat_capacity_j_k, 350);
+  assert.equal(configRef.current.battery.electrical.initial_soc, 0.4);
+  assert.equal(snapshot.heat_capacity_j_k, 300);
+  assert.equal(runContext.current.runId, 'owned-worker');
+  const poll = requests.begin('poll');
+  requests.cancel('poll');
+  const resumedPoll = requests.begin('poll');
+  assert(poll.signal.aborted && !poll.current());
+  assert(resumedPoll.current() && pending[0].current());
+  release();
+  assert(pending.every((request) => !request.current()));
+  assert.equal(resumedPoll.current(), false);
+  await Promise.resolve();
+  assert(pending.every((request) => request.signal.aborted));
+  assert(resumedPoll.signal.aborted);
+  const afterUnmount = requests.begin('defaults');
+  assert(afterUnmount.signal.aborted && !afterUnmount.current());
+}
+for (const pendingKind of ['run', 'import']) {
+  const requests = new MissionRequests();
+  const configRef = { current: null },
+    runContext = { current: null },
+    importingRef = { current: false };
+  let loads = 0;
+  const effect = makeEffect(requests, configRef, runContext, importingRef, () => {
+    loads++;
+  });
+  let release = effect();
+  const pending = requests.begin(pendingKind);
+  if (pendingKind === 'run') runContext.current = { request: pending, runId: null };
+  else importingRef.current = true;
+  release();
+  release = effect();
+  await Promise.resolve();
+  assert.equal(loads, 1);
+  assert(pending.current() && !pending.signal.aborted);
+  release();
+  await Promise.resolve();
+  assert(pending.signal.aborted && !pending.current());
+}
+console.log(
+  'Mission effect lifecycle passed: refresh preserves dirty draft, completed snapshot and active request context; polls restart independently; actual unmount immediately invalidates replies and aborts all transports by the next microtask.',
 );

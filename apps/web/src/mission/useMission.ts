@@ -92,8 +92,9 @@ export function useMission() {
     }
   }, [commitConfig, invalidateInputs, isBusy, requests]);
   useEffect(() => {
-    void reload();
-    return () => requests.cancelAll();
+    const release = requests.attach();
+    if (!configRef.current && !runContext.current && !importingRef.current) void reload();
+    return release;
   }, [reload, requests]);
 
   const edit = useCallback(

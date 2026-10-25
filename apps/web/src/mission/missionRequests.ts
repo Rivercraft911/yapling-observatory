@@ -14,14 +14,31 @@ export interface MissionRequest {
 
 export class MissionRequests {
   private active = new Map<MissionRequestKind, AbortController>();
+  private attached = true;
+  private attachment = 0;
+
+  attach() {
+    this.attached = true;
+    const attachment = ++this.attachment;
+    return () => {
+      if (attachment !== this.attachment) return;
+      this.attached = false;
+      // Immediate effect reattachment preserves requests; real unmounts invalidate replies now.
+      queueMicrotask(() => {
+        if (!this.attached && attachment === this.attachment) this.cancelAll();
+      });
+    };
+  }
 
   begin(kind: MissionRequestKind): MissionRequest {
     this.cancel(kind);
     const controller = new AbortController();
     this.active.set(kind, controller);
+    if (!this.attached) controller.abort();
     return {
       signal: controller.signal,
-      current: () => this.active.get(kind) === controller && !controller.signal.aborted,
+      current: () =>
+        this.attached && this.active.get(kind) === controller && !controller.signal.aborted,
     };
   }
 
