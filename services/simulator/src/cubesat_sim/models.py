@@ -9,7 +9,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .physics import HALF_WAVE_PEAK_DBI
+from .rf.antennas import HALF_WAVE_PEAK_DBI
+from .rf.modem import net_rate_bps as profile_net_rate_bps
 
 SCHEMA_VERSION = "0.1.0"
 ETSI_URL = "https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf"
@@ -108,9 +109,7 @@ class RadioProfile(FrozenModel):
         return self
 
     def net_rate_bps(self) -> float:
-        if self.waveform == "lora":
-            return float(self.information_rate_bps) * self.net_efficiency
-        return float(self.symbol_rate_sps) * (2 if self.modulation == "QPSK" else 3) * self.code_rate * self.net_efficiency
+        return profile_net_rate_bps(self)
 
 
 class Link(FrozenModel):

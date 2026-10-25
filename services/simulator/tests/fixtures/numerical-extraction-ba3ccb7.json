@@ -1,0 +1,509 @@
+{
+  "baseline_revision": "ba3ccb7eb13e0aadc07f18fb2584830e555bcd92",
+  "baseline_source_hashes": {
+    "core.py": "2fe196adba46b71ee79f3785cad0bbcb7cc667b50f6d26992ee8dacf2e027439",
+    "physics.py": "95f96f2f37382c31732f2bd6241c8db78e08375febc33296eae50c350fea7a10",
+    "models.py": "ca8bddd3f4c06c77f48a12980759a20a84f9102659655e040bc8af4cc4fcc7ad",
+    "antenna_lab.py": "7ddf9e25b5b1941978f9de88fab518ede0bf8e7fb8ca0d6c0a569eca7af7d8eb"
+  },
+  "comparison_exclusions": [
+    "manifest.versions",
+    "manifest.result_hash",
+    "manifest.source_code_hashes"
+  ],
+  "pattern_comparison_exclusions": [
+    "source.path"
+  ],
+  "scenarios": {
+    "default": {
+      "schema_version": "0.1.0",
+      "name": "Illustrative Stanford circular pass",
+      "epoch_utc": "2026-10-25T00:00:00Z",
+      "duration_s": 1200.0,
+      "step_s": 1.0,
+      "station": {
+        "latitude_deg": 37.4275,
+        "longitude_deg": -122.1697,
+        "height_m": 30.0,
+        "minimum_elevation_deg": 10.0
+      },
+      "orbit": {
+        "altitude_m": 550000.0,
+        "ground_track_heading_deg": 0.0
+      },
+      "attitude": {
+        "mode": "tracking",
+        "pointing_error_deg": 0.0,
+        "spin_rate_deg_s": 6.0,
+        "spin_axis_body": [
+          1.0,
+          0.4,
+          0.7
+        ]
+      },
+      "antenna_variant": "dipole",
+      "schedule": {
+        "slot_duration_s": 30.0,
+        "first_direction": "uplink"
+      },
+      "uplink": {
+        "spacecraft_antenna": "patch",
+        "frequency_hz": 2400000000.0,
+        "tx_power_w": 5.0,
+        "tx_feed_loss_db": 1.0,
+        "ground_peak_gain_dbi": 31.0,
+        "spacecraft_peak_gain_dbi": 6.0,
+        "rx_system_noise_temperature_k": 800.0,
+        "extra_path_loss_db": 0.0,
+        "ground_feed_roll_deg": 0.0,
+        "profile": {
+          "waveform": "dvb_s2",
+          "modulation": "QPSK",
+          "symbol_rate_sps": 1000000.0,
+          "code_rate": 0.5,
+          "net_efficiency": 0.9,
+          "information_rate_bps": null,
+          "threshold_metric": "esn0",
+          "threshold_db": 1.0,
+          "threshold_status": "ideal_awgn",
+          "engineering_reserve_db": 0.0
+        }
+      },
+      "downlink": {
+        "spacecraft_antenna": "patch",
+        "frequency_hz": 2400000000.0,
+        "tx_power_w": 2.0,
+        "tx_feed_loss_db": 1.0,
+        "ground_peak_gain_dbi": 31.0,
+        "spacecraft_peak_gain_dbi": 6.0,
+        "rx_system_noise_temperature_k": 150.0,
+        "extra_path_loss_db": 0.0,
+        "ground_feed_roll_deg": 0.0,
+        "profile": {
+          "waveform": "dvb_s2",
+          "modulation": "QPSK",
+          "symbol_rate_sps": 1000000.0,
+          "code_rate": 0.5,
+          "net_efficiency": 0.9,
+          "information_rate_bps": null,
+          "threshold_metric": "esn0",
+          "threshold_db": 1.0,
+          "threshold_status": "ideal_awgn",
+          "engineering_reserve_db": 0.0
+        }
+      },
+      "provenance": [
+        {
+          "path": "station",
+          "status": "illustrative",
+          "source": "Approximate Stanford campus location, not a surveyed antenna reference point",
+          "conditions": "User reports Durand roof; these approximate campus coordinates and 30 m ellipsoidal height are demonstration assumptions, not Durand measurements."
+        },
+        {
+          "path": "orbit",
+          "status": "illustrative",
+          "source": "User's 550 km circular planning case; an overhead-like plane is constructed for demonstration",
+          "conditions": "No launch orbit, TLE, inclination, RAAN or flight ephemeris has been supplied."
+        },
+        {
+          "path": "uplink.ground_peak_gain_dbi",
+          "status": "illustrative",
+          "source": "Editable 31 dBi example for the user-reported 1.9 m S-band dish",
+          "conditions": "Pattern, feed efficiency, antenna reference point and measurements unresolved."
+        },
+        {
+          "path": "uplink.profile.threshold_db",
+          "status": "primary_reference",
+          "source": "https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf",
+          "conditions": "EN 302 307-1 V1.4.1 section 6, Table 13, p. 36: ideal simulated QPSK 1/2, 1 dB Es/N0. Not a receiver acquisition or measured decoder curve."
+        },
+        {
+          "path": "downlink.profile.threshold_db",
+          "status": "primary_reference",
+          "source": "https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf",
+          "conditions": "EN 302 307-1 V1.4.1 section 6, Table 13, p. 36: ideal simulated QPSK 1/2 threshold 1 dB, AWGN, normal FECFRAME, perfect synchronization. No hardware/acquisition claim."
+        },
+        {
+          "path": "downlink.ground_peak_gain_dbi",
+          "status": "illustrative",
+          "source": "Editable 31 dBi example near aperture estimate for reported 1.9 m dish",
+          "conditions": "User reports dish diameter; efficiency/feed/pattern/receiver measurements unavailable. This gain is independently editable and does not update with frequency."
+        },
+        {
+          "path": "",
+          "status": "illustrative",
+          "source": "Bundled analytical example, version 0.1.0",
+          "conditions": "All remaining inputs, including power, noise, feed loss, net efficiency, schedules and kinematic attitude, are editable demonstration assumptions. No mission hardware is selected."
+        }
+      ]
+    },
+    "turnstile": {
+      "schema_version": "0.1.0",
+      "name": "Illustrative Stanford circular pass",
+      "epoch_utc": "2026-10-25T00:00:00Z",
+      "duration_s": 1200.0,
+      "step_s": 1.0,
+      "station": {
+        "latitude_deg": 37.4275,
+        "longitude_deg": -122.1697,
+        "height_m": 30.0,
+        "minimum_elevation_deg": 10.0
+      },
+      "orbit": {
+        "altitude_m": 550000.0,
+        "ground_track_heading_deg": 0.0
+      },
+      "attitude": {
+        "mode": "tracking",
+        "pointing_error_deg": 0.0,
+        "spin_rate_deg_s": 6.0,
+        "spin_axis_body": [
+          1.0,
+          0.4,
+          0.7
+        ]
+      },
+      "antenna_variant": "turnstile",
+      "schedule": {
+        "slot_duration_s": 30.0,
+        "first_direction": "uplink"
+      },
+      "uplink": {
+        "spacecraft_antenna": "wire",
+        "frequency_hz": 2400000000.0,
+        "tx_power_w": 5.0,
+        "tx_feed_loss_db": 1.0,
+        "ground_peak_gain_dbi": 31.0,
+        "spacecraft_peak_gain_dbi": 2.15,
+        "rx_system_noise_temperature_k": 800.0,
+        "extra_path_loss_db": 0.0,
+        "ground_feed_roll_deg": 0.0,
+        "profile": {
+          "waveform": "dvb_s2",
+          "modulation": "QPSK",
+          "symbol_rate_sps": 1000000.0,
+          "code_rate": 0.5,
+          "net_efficiency": 0.9,
+          "information_rate_bps": null,
+          "threshold_metric": "esn0",
+          "threshold_db": 1.0,
+          "threshold_status": "ideal_awgn",
+          "engineering_reserve_db": 0.0
+        }
+      },
+      "downlink": {
+        "spacecraft_antenna": "wire",
+        "frequency_hz": 2400000000.0,
+        "tx_power_w": 2.0,
+        "tx_feed_loss_db": 1.0,
+        "ground_peak_gain_dbi": 31.0,
+        "spacecraft_peak_gain_dbi": 2.15,
+        "rx_system_noise_temperature_k": 150.0,
+        "extra_path_loss_db": 0.0,
+        "ground_feed_roll_deg": 0.0,
+        "profile": {
+          "waveform": "dvb_s2",
+          "modulation": "QPSK",
+          "symbol_rate_sps": 1000000.0,
+          "code_rate": 0.5,
+          "net_efficiency": 0.9,
+          "information_rate_bps": null,
+          "threshold_metric": "esn0",
+          "threshold_db": 1.0,
+          "threshold_status": "ideal_awgn",
+          "engineering_reserve_db": 0.0
+        }
+      },
+      "provenance": [
+        {
+          "path": "station",
+          "status": "illustrative",
+          "source": "Approximate Stanford campus location, not a surveyed antenna reference point",
+          "conditions": "User reports Durand roof; these approximate campus coordinates and 30 m ellipsoidal height are demonstration assumptions, not Durand measurements."
+        },
+        {
+          "path": "orbit",
+          "status": "illustrative",
+          "source": "User's 550 km circular planning case; an overhead-like plane is constructed for demonstration",
+          "conditions": "No launch orbit, TLE, inclination, RAAN or flight ephemeris has been supplied."
+        },
+        {
+          "path": "uplink.ground_peak_gain_dbi",
+          "status": "illustrative",
+          "source": "Editable 31 dBi example for the user-reported 1.9 m S-band dish",
+          "conditions": "Pattern, feed efficiency, antenna reference point and measurements unresolved."
+        },
+        {
+          "path": "uplink.profile.threshold_db",
+          "status": "primary_reference",
+          "source": "https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf",
+          "conditions": "EN 302 307-1 V1.4.1 section 6, Table 13, p. 36: ideal simulated QPSK 1/2, 1 dB Es/N0. Not a receiver acquisition or measured decoder curve."
+        },
+        {
+          "path": "downlink.profile.threshold_db",
+          "status": "primary_reference",
+          "source": "https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf",
+          "conditions": "EN 302 307-1 V1.4.1 section 6, Table 13, p. 36: ideal simulated QPSK 1/2 threshold 1 dB, AWGN, normal FECFRAME, perfect synchronization. No hardware/acquisition claim."
+        },
+        {
+          "path": "downlink.ground_peak_gain_dbi",
+          "status": "illustrative",
+          "source": "Editable 31 dBi example near aperture estimate for reported 1.9 m dish",
+          "conditions": "User reports dish diameter; efficiency/feed/pattern/receiver measurements unavailable. This gain is independently editable and does not update with frequency."
+        },
+        {
+          "path": "",
+          "status": "illustrative",
+          "source": "Bundled analytical example, version 0.1.0",
+          "conditions": "All remaining inputs, including power, noise, feed loss, net efficiency, schedules and kinematic attitude, are editable demonstration assumptions. No mission hardware is selected."
+        }
+      ]
+    },
+    "tumble": {
+      "schema_version": "0.1.0",
+      "name": "Illustrative Stanford circular pass",
+      "epoch_utc": "2026-10-25T00:00:00Z",
+      "duration_s": 1200.0,
+      "step_s": 1.0,
+      "station": {
+        "latitude_deg": 37.4275,
+        "longitude_deg": -122.1697,
+        "height_m": 30.0,
+        "minimum_elevation_deg": 10.0
+      },
+      "orbit": {
+        "altitude_m": 550000.0,
+        "ground_track_heading_deg": 0.0
+      },
+      "attitude": {
+        "mode": "tumble",
+        "pointing_error_deg": 17,
+        "spin_rate_deg_s": 6.0,
+        "spin_axis_body": [
+          1.0,
+          0.4,
+          0.7
+        ]
+      },
+      "antenna_variant": "dipole",
+      "schedule": {
+        "slot_duration_s": 30.0,
+        "first_direction": "uplink"
+      },
+      "uplink": {
+        "spacecraft_antenna": "patch",
+        "frequency_hz": 2400000000.0,
+        "tx_power_w": 5.0,
+        "tx_feed_loss_db": 1.0,
+        "ground_peak_gain_dbi": 31.0,
+        "spacecraft_peak_gain_dbi": 6.0,
+        "rx_system_noise_temperature_k": 800.0,
+        "extra_path_loss_db": 0.0,
+        "ground_feed_roll_deg": 0.0,
+        "profile": {
+          "waveform": "dvb_s2",
+          "modulation": "QPSK",
+          "symbol_rate_sps": 1000000.0,
+          "code_rate": 0.5,
+          "net_efficiency": 0.9,
+          "information_rate_bps": null,
+          "threshold_metric": "esn0",
+          "threshold_db": 1.0,
+          "threshold_status": "ideal_awgn",
+          "engineering_reserve_db": 0.0
+        }
+      },
+      "downlink": {
+        "spacecraft_antenna": "patch",
+        "frequency_hz": 2400000000.0,
+        "tx_power_w": 2.0,
+        "tx_feed_loss_db": 1.0,
+        "ground_peak_gain_dbi": 31.0,
+        "spacecraft_peak_gain_dbi": 6.0,
+        "rx_system_noise_temperature_k": 150.0,
+        "extra_path_loss_db": 0.0,
+        "ground_feed_roll_deg": 0.0,
+        "profile": {
+          "waveform": "dvb_s2",
+          "modulation": "QPSK",
+          "symbol_rate_sps": 1000000.0,
+          "code_rate": 0.5,
+          "net_efficiency": 0.9,
+          "information_rate_bps": null,
+          "threshold_metric": "esn0",
+          "threshold_db": 1.0,
+          "threshold_status": "ideal_awgn",
+          "engineering_reserve_db": 0.0
+        }
+      },
+      "provenance": [
+        {
+          "path": "station",
+          "status": "illustrative",
+          "source": "Approximate Stanford campus location, not a surveyed antenna reference point",
+          "conditions": "User reports Durand roof; these approximate campus coordinates and 30 m ellipsoidal height are demonstration assumptions, not Durand measurements."
+        },
+        {
+          "path": "orbit",
+          "status": "illustrative",
+          "source": "User's 550 km circular planning case; an overhead-like plane is constructed for demonstration",
+          "conditions": "No launch orbit, TLE, inclination, RAAN or flight ephemeris has been supplied."
+        },
+        {
+          "path": "uplink.ground_peak_gain_dbi",
+          "status": "illustrative",
+          "source": "Editable 31 dBi example for the user-reported 1.9 m S-band dish",
+          "conditions": "Pattern, feed efficiency, antenna reference point and measurements unresolved."
+        },
+        {
+          "path": "uplink.profile.threshold_db",
+          "status": "primary_reference",
+          "source": "https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf",
+          "conditions": "EN 302 307-1 V1.4.1 section 6, Table 13, p. 36: ideal simulated QPSK 1/2, 1 dB Es/N0. Not a receiver acquisition or measured decoder curve."
+        },
+        {
+          "path": "downlink.profile.threshold_db",
+          "status": "primary_reference",
+          "source": "https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf",
+          "conditions": "EN 302 307-1 V1.4.1 section 6, Table 13, p. 36: ideal simulated QPSK 1/2 threshold 1 dB, AWGN, normal FECFRAME, perfect synchronization. No hardware/acquisition claim."
+        },
+        {
+          "path": "downlink.ground_peak_gain_dbi",
+          "status": "illustrative",
+          "source": "Editable 31 dBi example near aperture estimate for reported 1.9 m dish",
+          "conditions": "User reports dish diameter; efficiency/feed/pattern/receiver measurements unavailable. This gain is independently editable and does not update with frequency."
+        },
+        {
+          "path": "",
+          "status": "illustrative",
+          "source": "Bundled analytical example, version 0.1.0",
+          "conditions": "All remaining inputs, including power, noise, feed loss, net efficiency, schedules and kinematic attitude, are editable demonstration assumptions. No mission hardware is selected."
+        }
+      ]
+    }
+  },
+  "run_sha256": {
+    "default": "64eb0d2ca4f686e0a10fc4709941ec717aebd85396cc629fe750f0721a0a0f14",
+    "turnstile": "e3e79ebeca3565f59844c43f4135f027639146608ce1f1a1800756ad82a1de15",
+    "tumble": "de616534dd8364f1a376c17363c2f4e3af17e2c2f3d5d87b4776e759e942e07a"
+  },
+  "pattern_requests": {
+    "dipole": {
+      "model": "dipole",
+      "efficiency": 0.73,
+      "patch_peak_gain_dbi": 6.0,
+      "orientation_deg": [
+        17.0,
+        -28.0,
+        42.0
+      ],
+      "probe_azimuth_deg": 69.0,
+      "probe_elevation_deg": 31.0,
+      "linear_feed_roll_deg": 27.3,
+      "polar_steps": 12,
+      "azimuth_steps": 24,
+      "run_probe": null
+    },
+    "turnstile": {
+      "model": "turnstile",
+      "efficiency": 0.73,
+      "patch_peak_gain_dbi": 6.0,
+      "orientation_deg": [
+        17.0,
+        -28.0,
+        42.0
+      ],
+      "probe_azimuth_deg": 69.0,
+      "probe_elevation_deg": 31.0,
+      "linear_feed_roll_deg": 27.3,
+      "polar_steps": 12,
+      "azimuth_steps": 24,
+      "run_probe": null
+    },
+    "patch": {
+      "model": "patch",
+      "efficiency": 0.73,
+      "patch_peak_gain_dbi": 6.0,
+      "orientation_deg": [
+        17.0,
+        -28.0,
+        42.0
+      ],
+      "probe_azimuth_deg": 69.0,
+      "probe_elevation_deg": 31.0,
+      "linear_feed_roll_deg": 27.3,
+      "polar_steps": 12,
+      "azimuth_steps": 24,
+      "run_probe": null
+    },
+    "v45": {
+      "model": "v45",
+      "efficiency": 0.73,
+      "patch_peak_gain_dbi": 6.0,
+      "orientation_deg": [
+        17.0,
+        -28.0,
+        42.0
+      ],
+      "probe_azimuth_deg": 69.0,
+      "probe_elevation_deg": 31.0,
+      "linear_feed_roll_deg": 27.3,
+      "polar_steps": 12,
+      "azimuth_steps": 24,
+      "run_probe": null
+    },
+    "run_probe": {
+      "model": "turnstile",
+      "patch_peak_gain_dbi": 6.0,
+      "orientation_deg": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "probe_azimuth_deg": 90.0,
+      "probe_elevation_deg": 0.0,
+      "linear_feed_roll_deg": 0.0,
+      "polar_steps": 12,
+      "azimuth_steps": 24,
+      "run_probe": {
+        "spacecraft_position_m": [
+          -3800476.5092951143,
+          -5707180.782663366,
+          991739.9392295307
+        ],
+        "station_position_m": [
+          -2843485.4283982893,
+          -4199155.507829011,
+          3855195.507978565
+        ],
+        "q_body_from_inertial_wxyz": [
+          0.21347763084955074,
+          -0.2865528708125253,
+          -0.8233170459414437,
+          -0.4409804930132599
+        ]
+      }
+    }
+  },
+  "pattern_sha256": {
+    "dipole": "e15f5d919e9bb305b443a8ce2433109d54012d2238220346038c901aa6548bd7",
+    "turnstile": "198c60f498b215ec00ac9a4a3c86fdd42d3d0059faeb4a81b907a219dcb3401d",
+    "patch": "7db60a0cbec03b5359afc1e1a28147392e64cb435719b551dde12eb7ae4d9ab1",
+    "v45": "26c042ec8880a597f7f505043c9272a3fed75337b3ca9da2ae180c3f2fab000d",
+    "run_probe": "c2c9dc1c62836acf868e7ade32f0e75fac4ab0c4ef6e9ecd7a49f641ea0d04e6"
+  },
+  "probe_sha256": {
+    "dipole": "0ccffdda95abc5d8ae82f78cf3f4a9f6e88895f2d8c69dea2a794ab20b963228",
+    "turnstile": "71815e3a89055af0f5dca0b362520af43263b1ff45cf61b634c211a05e36ca67",
+    "patch": "91c8cf2f7d5571fc0b31e1cf8c3cfb43d3144b25195dcd1299daca612a3ac736",
+    "v45": "96304aa3e078c06200cbccd24411c7d0efc43ca926c867c47e58d694c131c121",
+    "run_probe": "6a4fa581c028452325171b2db206f28528787fd5502ada08286a797ee0d99ab6"
+  },
+  "baseline_runtime_versions": {
+    "python": "3.13.2",
+    "application": "0.1.0",
+    "fastapi": "0.162.0",
+    "pydantic": "2.14.1",
+    "uvicorn": "0.54.0"
+  }
+}

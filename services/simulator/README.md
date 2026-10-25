@@ -13,6 +13,26 @@ Run from the repository after the root setup creates `.venv` and installs this p
 
 The service binds `127.0.0.1:8765` through `serve`. The application import for the repository launcher is `cubesat_sim.api:app`. Numerical functions are usable directly as `run_scenario(Scenario.model_validate(data))`; they import no browser or plotting library. `requirements-tested.txt` records the tested environment. Run manifests also retain actual Python/application/FastAPI/Pydantic/uvicorn versions.
 
+## Numerical model map
+
+The Python domains contain the formulas. `core.py` connects them and builds the columnar run; API routes and browser views consume that result.
+
+| Module | Responsibility and current limit |
+| --- | --- |
+| `geometry/vectors.py`, `geometry/frames.py` | Vector/matrix operations, Hamilton quaternion conversion, WGS84 geodetic/ENU transforms and right-hand rotations. |
+| `orbit/circular_pass.py` | Synthetic point-mass circular pass, constant Earth rotation, endpoint velocities and line-of-sight geometry. No TLE or general propagator. |
+| `attitude/prescribed.py` | Kinematic station tracking, prescribed body-axis spin and pointing offset. No actuator, torque or controller solve. |
+| `rf/antennas.py`, `rf/polarization.py` | Analytical vector patterns, normalized source power, horizon feed orientation and reciprocal field coupling. |
+| `rf/free_space.py`, `rf/noise.py` | Free-space attenuation, logarithmic power and antenna-port thermal noise density. |
+| `rf/modem.py`, `rf/link_budget.py` | Generic nominal information rate and direction-specific RF budget, metric, margin and ideal rate gate. Exact DVB framing and LoRa airtime remain absent. |
+| `rf/pattern_sampling.py` | Headless pattern-sphere/cut sampling and constant-work field probes using the same antenna formulas as runs. |
+| `operations/schedule.py`, `operations/capacity.py` | Half-open alternating slots, requested sample grid and midpoint ideal-capacity integration split at slot boundaries. |
+| `models.py`, `antenna_models.py` | Immutable validated input contracts and evidence records. `RadioProfile.net_rate_bps()` delegates to `rf/modem.py`. |
+| `run_manifest.py` | Model/input provenance, runtime versions, constants, validity limits and numerical-source SHA-256 identities. |
+| `api.py`, `antenna_lab.py`, `jobs.py`, `worker.py` | HTTP adapters and cancellable job lifecycle. Pattern endpoints contain no pattern equations. |
+
+`physics.py` temporarily reexports the numerical functions for existing studies; it contains no second implementation. `core.CircularPass`, `core.evaluate_link` and the existing antenna-lab imports also remain compatible. Numerical domains cannot depend on HTTP, worker lifecycle or browser/plotting packages. AST dependency tests and a headless subprocess import guard enforce this direction.
+
 ## API
 
 - `GET /api/health`: service/model versions and local limits.
@@ -85,7 +105,7 @@ Capacity integrates the ideal net rate only while visible, scheduled and above t
 
 ## Evidence and checks
 
-Each Scenario is frozen and content-addressed from canonical JSON. A change creates a different scenario hash; each Run archives that exact Scenario, runtime/model versions, numerical settings, constants, source locators, warnings and effective-input provenance. Changed bundled values are tagged as unverified user inputs. Results are independent of camera state and contain a deterministic content hash. No random inputs are used.
+Each Scenario is frozen and content-addressed from canonical JSON. A change creates a different scenario hash; each Run archives that exact Scenario, runtime/model versions, numerical settings, constants, source locators, warnings and effective-input provenance. `manifest.source_code_hashes` records relative package paths and SHA-256 values for the numerical domains, validated input contracts and run orchestration. An unavailable source file is explicit null; private absolute paths are never included. Changed bundled values are tagged as unverified user inputs. Results are independent of camera state and contain a deterministic content hash. No random inputs are used.
 
 Primary references checked for this implementation:
 
@@ -95,3 +115,5 @@ Primary references checked for this implementation:
 - ETSI Table 13 above: ideal threshold conditions only.
 
 The meaningful automated cases cover Friis/noise hand calculations; WGS84 equator/pole and ENU; physical H-feed alignment; 90° quaternion rotation; half-wave axial null and integrated power; turnstile total power and varying polarization; linear/circular limits and global rotation invariance; circular-orbit energy/range-rate and Earth rotation; frozen identities; explicit unresolved results; exact direction-slot integration and timestep refinement; real subprocess completion/cancellation/timeout cleanup; API validation; and allowlisted, hash-checked asset delivery. Installed hardware correlation remains future work.
+
+The extraction regression fixture records baseline revision `ba3ccb7eb13e0aadc07f18fb2584830e555bcd92`, original source hashes, exact inputs and complete-output fingerprints for the default, turnstile-wire and prescribed-tumble histories, plus five pattern/probe cases. Run comparison excludes only runtime versions, the derived result identity and the newly added source identities. Pattern comparison excludes its corrected source-file locator. Scenario and pattern-request JSON Schemas are preserved. These exact-result guards supplement the independent physical reference and convergence tests; they do not establish hardware validity.
