@@ -29,7 +29,11 @@ The one-day reference completes with explicit 1 s dynamics, 2 s controller, 10 s
 
 RF uses analytical patterns or single-frequency vector spherical-harmonic profiles, shared by Antenna Lab and mission budgets. Coefficient JSON retains source, efficiency and mount. Bundled harmonic examples are not installed patch predictions. Capacity remains an ideal threshold estimate. DVB-S2 supports QPSK and 8PSK. UHF LoRa has an unresolved receiver threshold. Antenna Lab includes two bent-wire V references and patch half-power cuts; rendered hardware has no validated installed pattern. Acquisition, packet delivery, mount servos and historical weather effects remain unimplemented.
 
-Spacecraft’s Power, Thermal and GNC labs also support independent studies with their own inputs. Hardware controls edit the shared mission. The NCR18650GA battery tracks nominal energy; terminal voltage, cell current and aging remain unresolved. Static clouds supply appearance only. Numerical Sun directions drive mission lighting; shaders never feed calculations.
+Spacecraft’s Hardware, Power, Thermal and GNC controls edit the same satellite used on Earth. Set mode loads, radio power, solar efficiency, battery configuration and thermal contacts there, then choose **Run on Earth**. Unrun edits leave the displayed history intact. Independent studies remain under a secondary menu.
+
+The NCR18650GA battery defaults to nominal energy accounting. Select its optional 25°C electrical reference to compute terminal voltage, current, remaining charge and resistive heat. Published exact-cell OCV and resistance data support this steady-current approximation; it has no transient relaxation, temperature-dependent calibration or aging model. Current and temperature limits constrain operation. Thermal materials and contacts remain provisional.
+
+Static NASA clouds supply appearance only. Native-resolution tiles refine close views across the globe; distant views use the global map. The imagery is a historical composite, not simulated weather. Numerical Sun directions drive mission lighting; shaders never feed calculations.
 
 ## Repository
 
@@ -54,6 +58,7 @@ npm --prefix apps/web run build
 node --experimental-strip-types apps/web/src/earth/geodesy.test.mjs
 node --experimental-strip-types apps/web/src/earth/follow-frames.test.mjs
 node apps/web/src/earth/regional-lod.test.mjs
+node apps/web/src/earth/cloud-tiles.test.mjs
 node --experimental-strip-types apps/web/src/earth/follow-link.test.mjs
 node --experimental-strip-types apps/web/src/earth/earth-depth.test.mjs
 node --experimental-strip-types apps/web/src/graphics/display-interpolation.test.mjs
@@ -61,6 +66,8 @@ node --experimental-strip-types apps/web/src/graphics/frame-size.test.mjs
 node --experimental-strip-types apps/web/src/spacecraft/preview-visibility.test.mjs
 node --experimental-strip-types apps/web/src/graphics/thermal-overlay.test.mjs
 node --experimental-strip-types apps/web/src/mission/mission-requests.test.mjs
+node apps/web/src/mission/shared-spacecraft.test.mjs
+node --experimental-strip-types apps/web/src/plots/battery-plots.test.mjs
 ```
 
 Tests cover physical reference cases, numerical regressions and dependency boundaries. The GitHub workflow is configured to run the same checks. Use `npm --prefix apps/web run format` after frontend edits.
