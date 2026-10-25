@@ -3,6 +3,7 @@ import { Field, Select, RadioControls } from '../controls/RadioControls';
 import type { RadioCatalog } from '../types';
 import { OrbitalElementsFields } from '../systems/OrbitalElementsFields';
 import { MissionHardware } from './MissionHardware';
+import { MissionArchiveControls } from './MissionArchiveControls';
 import { MissionPowerControls } from './MissionPowerControls';
 import { modeNames, type MissionMode } from './missionTypes';
 import type { MissionSession } from './useMission';
@@ -30,6 +31,7 @@ export function MissionInspector({
   if (!config)
     return (
       <div className="offline-note">
+        <MissionArchiveControls mission={mission} />
         {mission.loading ? 'Loading mission' : 'Mission unavailable'}
         {!mission.loading && <button onClick={mission.reload}>Reconnect</button>}
       </div>
@@ -42,7 +44,7 @@ export function MissionInspector({
         <button
           className="text-button"
           onClick={mission.reload}
-          disabled={mission.busy}
+          disabled={mission.busy || mission.importing}
           title="Load the current starting mission"
         >
           Reset
@@ -50,6 +52,7 @@ export function MissionInspector({
         <button className="text-button" onClick={onInspect}>
           Inputs ↗
         </button>
+        <MissionArchiveControls mission={mission} />
       </div>
       <nav className="spacecraft-sections" aria-label="Mission controls">
         {(['orbit', 'link', 'gnc', 'power', 'conops'] as const).map((tab) => (
@@ -437,7 +440,9 @@ export function MissionInspector({
         )}
         <button
           className={`primary ${mission.busy ? 'cancel' : ''}`}
-          disabled={mission.submitting || mission.orbitPending}
+          disabled={
+            mission.submitting || mission.orbitPending || mission.importing || mission.loading
+          }
           onClick={mission.busy ? () => void mission.cancel() : onRun}
         >
           {mission.busy ? 'Cancel run' : 'Run mission'} <span>{mission.busy ? '■' : '↗'}</span>

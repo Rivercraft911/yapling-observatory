@@ -145,13 +145,14 @@ export default function App() {
     [times],
   );
   useEffect(() => {
-    if (!snapshot?.run.result || completeId.current === snapshot.run.run_id) return;
-    completeId.current = snapshot.run.run_id;
+    const presentationId = mission.snapshot?.presentation_id || snapshot?.run.run_id;
+    if (!snapshot?.run.result || !presentationId || completeId.current === presentationId) return;
+    completeId.current = presentationId;
     displayTime.current = times[0] ?? 0;
     setIndex(0);
-    setPlaying(autoplayNext.current);
+    setPlaying(!mission.snapshot?.imported && autoplayNext.current);
     autoplayNext.current = false;
-  }, [snapshot, times]);
+  }, [snapshot, times, mission.snapshot?.presentation_id, mission.snapshot?.imported]);
   useEffect(() => {
     if (!playing || times.length < 2) return;
     let animation = 0,
@@ -209,14 +210,22 @@ export default function App() {
     (view === 'spacecraft'
       ? (spacecraftSection === 'geometry' || spacecraftSection === 'hardware') && followAttitude
       : antennaFollowsRun);
-  const status = busy
-    ? submitting
-      ? 'Submitting'
-      : run?.status || 'Running'
-    : snapshot?.run.result?.summary.end_reason &&
-        snapshot.run.result.summary.end_reason !== 'requested_duration'
-      ? 'Stopped'
-      : run?.status || 'Ready';
+  const stopped =
+    !!snapshot?.run.result?.summary.end_reason &&
+    snapshot.run.result.summary.end_reason !== 'requested_duration';
+  const status = mission.importing
+    ? 'Opening'
+    : busy
+      ? submitting
+        ? 'Submitting'
+        : run?.status || 'Running'
+      : mission.snapshot?.imported
+        ? stopped
+          ? 'Imported · stopped'
+          : 'Imported'
+        : stopped
+          ? 'Stopped'
+          : run?.status || 'Ready';
   const currentDirection = samples?.active_direction[index];
   const radioIdle = samples?.radio_active?.[index] === false;
   const visible = samples?.visible[index];
@@ -552,7 +561,7 @@ export default function App() {
                 : view === 'antenna'
                   ? 'ANTENNA REFERENCE'
                   : snapshot
-                    ? `RUN ${displayedId} · ${times.length} SAMPLES · Δt ${snapshot.scenario.step_s} s`
+                    ? `${mission.snapshot?.imported ? 'IMPORTED RUN' : 'RUN'} ${displayedId} · ${times.length} SAMPLES · Δt ${snapshot.scenario.step_s} s`
                     : 'NO COMPUTED HISTORY'}
               {view === 'earth' && dirty ? ' · UNRUN EDITS' : ''}
             </span>
@@ -695,6 +704,9 @@ export default function App() {
                       {
                         run_id: snapshot.run.run_id,
                         scenario_hash: snapshot.run.scenario_hash,
+                        ...(mission.snapshot?.imported
+                          ? { import: mission.snapshot.imported }
+                          : {}),
                         ...snapshot.run.result?.manifest,
                       },
                       null,

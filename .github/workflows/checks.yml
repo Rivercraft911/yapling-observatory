@@ -29,3 +29,4 @@ jobs:
       - run: node --experimental-strip-types apps/web/src/graphics/frame-size.test.mjs
       - run: node --experimental-strip-types apps/web/src/spacecraft/preview-visibility.test.mjs
       - run: node --experimental-strip-types apps/web/src/graphics/thermal-overlay.test.mjs
+      - run: node --experimental-strip-types apps/web/src/mission/mission-requests.test.mjs

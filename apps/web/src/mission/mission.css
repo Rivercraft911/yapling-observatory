@@ -1,6 +1,45 @@
 .mission-controls-body {
   min-width: 0;
 }
+.mission-file-menu {
+  position: relative;
+  flex: none;
+  font-size: 10px;
+  color: var(--muted);
+}
+.mission-file-menu > summary {
+  cursor: pointer;
+  padding: 4px 0 4px 7px;
+  list-style: none;
+}
+.mission-file-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.mission-file-options {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  top: 25px;
+  width: 132px;
+  padding: 4px;
+  border: 1px solid var(--rule);
+  background: #211e21;
+  display: grid;
+  gap: 3px;
+}
+.mission-file-options button {
+  text-align: left;
+  font-size: 10px;
+  padding: 7px;
+  border-color: transparent;
+  background: transparent;
+}
+.mission-file-options button:hover:enabled {
+  background: #33262e;
+}
+.mission-archive-input {
+  display: none;
+}
 .mission-run-kinds,
 .mission-presets {
   display: flex;

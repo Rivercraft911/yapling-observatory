@@ -121,6 +121,21 @@ export interface MissionRun extends Omit<Run, 'result'> {
 export interface MissionSnapshot {
   run: MissionRun;
   scenario: MissionConfig;
+  presentation_id?: string;
+  imported?: MissionArchiveMetadata & { filename: string; opened_at: string };
+  raw_run_json?: string;
+  original_archive_json?: string;
+}
+export interface MissionArchiveMetadata {
+  format: 'ssi-coupled-mission';
+  version: 1;
+  sha256: string;
+  validation: 'structural_and_integrity_only';
+  source_identity: 'retained_not_recomputed';
+}
+export interface MissionArchiveImport {
+  snapshot: Pick<MissionSnapshot, 'run' | 'scenario'>;
+  import_metadata: MissionArchiveMetadata;
 }
 export const modeNames: Record<MissionMode, string> = {
   sun_pointing: 'Sun pointing',
