@@ -24,6 +24,9 @@ export type PlotId =
   | 'charge'
   | 'battery_voltage'
   | 'battery_current'
+  | 'battery_soc'
+  | 'battery_remaining_charge'
+  | 'battery_heat'
   | 'actuator_power'
   | 'temperatures'
   | 'bus_heat';
@@ -38,6 +41,12 @@ export interface PlotDefinition {
 }
 const scale = (values: Scalar[] | undefined, divisor: number) =>
   (values || []).map((value) => (value == null ? null : value / divisor));
+const electricalTrace = (values: Scalar[] | undefined, label: string) => [
+  {
+    label: values?.some((value) => value != null) ? label : 'Unavailable',
+    values: values || [],
+  },
+];
 const paired = (samples: Samples, key: keyof Samples['uplink'], divisor = 1) =>
   ['uplink', 'downlink'].map((direction) => ({
     label: direction === 'uplink' ? 'UL' : 'DL',
@@ -226,14 +235,15 @@ export const plotDefinitions: PlotDefinition[] = [
     id: 'energy',
     title: 'Stored energy',
     unit: 'Wh',
-    description: 'Computed chemical-energy storage, capacity model.',
+    description: 'Stored energy from the configured battery model.',
     read: (s) => [{ label: 'Battery', values: s.power?.stored_energy_wh || [] }],
   },
   {
     id: 'charge',
     title: 'Remaining energy',
     unit: '%',
-    description: 'Stored energy fraction. This is not a charge-based electrochemical SOC model.',
+    description:
+      'Stored energy fraction. Electrical-reference runs use integrated OCV energy; charge SOC is available separately.',
     read: (s) => [
       { label: 'Battery', values: (s.power?.energy_fraction || []).map((v) => v * 100) },
     ],
@@ -242,15 +252,44 @@ export const plotDefinitions: PlotDefinition[] = [
     id: 'battery_voltage',
     title: 'Battery voltage',
     unit: 'V',
-    description: 'Unresolved until a terminal-voltage model is configured.',
-    read: (s) => [{ label: 'Unresolved', values: s.power?.battery_voltage_v || [] }],
+    description:
+      'Battery terminal voltage averaged over the preceding accepted dynamics interval. Requires the electrical reference model.',
+    read: (s) => electricalTrace(s.power?.battery_voltage_v, 'Terminal'),
   },
   {
     id: 'battery_current',
     title: 'Battery current',
     unit: 'A',
-    description: 'Unresolved until a terminal-voltage/current model is configured.',
-    read: (s) => [{ label: 'Unresolved', values: s.power?.battery_current_a || [] }],
+    description:
+      'Battery terminal current over the preceding accepted dynamics interval. Positive discharges; requires the electrical reference model.',
+    read: (s) => electricalTrace(s.power?.battery_current_a, 'Discharge +'),
+  },
+  {
+    id: 'battery_soc',
+    title: 'Battery charge SOC',
+    unit: '%',
+    description:
+      'Charge state returned by the electrical reference model, independent of remaining energy fraction.',
+    read: (s) =>
+      electricalTrace(
+        s.power?.battery_soc?.map((value) => value * 100),
+        'Charge SOC',
+      ),
+  },
+  {
+    id: 'battery_remaining_charge',
+    title: 'Battery remaining charge',
+    unit: 'Ah',
+    description: 'Remaining pack charge returned by the electrical reference model.',
+    read: (s) => electricalTrace(s.power?.battery_remaining_charge_ah, 'Remaining'),
+  },
+  {
+    id: 'battery_heat',
+    title: 'Battery ohmic heat',
+    unit: 'W',
+    description:
+      'Modeled resistive battery heat over the preceding accepted dynamics interval. Requires the electrical reference model.',
+    read: (s) => electricalTrace(s.power?.battery_ohmic_heat_w, 'Ohmic heat'),
   },
   {
     id: 'actuator_power',

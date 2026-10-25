@@ -34,6 +34,20 @@ export interface ThermalNode {
   infrared_emissivity: number;
   space_view_factor: number;
 }
+export interface BatteryElectricalConfig {
+  model: 'ncr18650ga_linghu2019_rint';
+  initial_soc: number;
+  resistance_scale: number;
+  cell_min_voltage_v: number;
+  cell_max_voltage_v: number;
+  cell_max_charge_current_a: number;
+  cell_max_discharge_current_a: number;
+  charge_temperature_min_k: number;
+  charge_temperature_max_k: number;
+  discharge_temperature_min_k: number;
+  discharge_temperature_max_k: number;
+  heat_node_id: string;
+}
 export interface PowerConfig {
   schema_version: string;
   name: string;
@@ -42,6 +56,7 @@ export interface PowerConfig {
   solar_irradiance_w_m2: number;
   panels: PowerPanel[];
   battery: {
+    electrical?: BatteryElectricalConfig | null;
     total_capacity_wh: number | null;
     cells: {
       cell_capacity_mah: number;

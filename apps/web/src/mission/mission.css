@@ -99,3 +99,56 @@
   border: 0;
   margin-left: auto;
 }
+.mission-mode-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 10px 0;
+}
+.mission-mode-selector button {
+  flex: 1;
+  padding: 5px 4px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.mission-mode-selector [aria-pressed='true'] {
+  color: var(--text);
+  border-color: var(--accent);
+  background: #8c24322b;
+}
+.mission-study-menu {
+  margin: 10px 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+.mission-study-menu > summary {
+  cursor: pointer;
+}
+.mission-radio-ledger {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.mission-radio-ledger > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.mission-radio-ledger strong {
+  color: var(--text);
+  font-family: var(--mono);
+  font-weight: 400;
+}
+
+.mission-model-metadata {
+  font-size: 9px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+.spacecraft-sections[aria-label='Spacecraft sections'] button {
+  padding: 7px 5px;
+  font-size: 10px;
+}

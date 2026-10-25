@@ -1737,3 +1737,12 @@ legend > span:last-child:not(:first-child) {
   background: #7197ad;
   opacity: 0.7;
 }
+
+.battery-reference-badge {
+  color: #c4aa8a;
+  font: 10px var(--mono);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

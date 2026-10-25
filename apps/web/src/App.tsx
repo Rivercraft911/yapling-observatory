@@ -12,6 +12,10 @@ import type { PowerSession } from './systems/powerTypes';
 import { useMission } from './mission/useMission';
 import { MissionInspector } from './mission/MissionInspector';
 import { MissionHardware } from './mission/MissionHardware';
+import { MissionPowerControls } from './mission/MissionPowerControls';
+import { MissionThermalControls } from './mission/MissionThermalControls';
+import { MissionArchiveControls } from './mission/MissionArchiveControls';
+import { Field } from './controls/RadioControls';
 import { missionDisplaySnapshot } from './mission/displaySnapshot';
 import './systems/systems.css';
 const DynamicsLab = lazy(() =>
@@ -45,6 +49,9 @@ export default function App() {
   const [spacecraftSection, setSpacecraftSection] = useState<
     'geometry' | 'hardware' | 'power' | 'thermal' | 'gnc'
   >('geometry');
+  const [independentStudy, setIndependentStudy] = useState<'gnc' | 'power' | 'thermal' | null>(
+    null,
+  );
   const [dynamicsSession, setDynamicsSession] = useState<DynamicsSession>({
     config: null,
     result: null,
@@ -85,14 +92,14 @@ export default function App() {
     time = times[index] ?? 0;
   const renderModules = useMemo(() => {
     const values = { ...moduleVisibility };
-    if (spacecraftSection === 'hardware' && scenario) {
+    if (!independentStudy && spacecraftSection !== 'geometry' && scenario) {
       for (const axis of ['X', 'Y', 'Z'])
         values[`SSI_TORQUER_${axis}`] = !!scenario.spacecraft.magnetorquer?.enabled;
       for (const axis of ['X', 'Y', 'Z'])
         values[`SSI_WHEEL_${axis}_OPTIONAL`] = scenario.spacecraft.wheels.some((w) => w.enabled);
     }
     return values;
-  }, [moduleVisibility, spacecraftSection, scenario]);
+  }, [moduleVisibility, spacecraftSection, independentStudy, scenario]);
   useEffect(() => {
     const host = workspaceRef.current;
     if (!host) return;
@@ -205,11 +212,25 @@ export default function App() {
         available: false,
       }
     : assets.variants[modelVariant];
+  const followsMission = spacecraftSection !== 'geometry' || followAttitude;
+  const missionTemperatures = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(samples?.thermal?.node_temperature_k || {}).map(([node, values]) => [
+          node,
+          values[index],
+        ]),
+      ),
+    [samples, index],
+  );
+  const startMission = () => {
+    setPlaying(false);
+    autoplayNext.current = true;
+    void mission.start();
+  };
   const showTimeline =
     view === 'earth' ||
-    (view === 'spacecraft'
-      ? (spacecraftSection === 'geometry' || spacecraftSection === 'hardware') && followAttitude
-      : antennaFollowsRun);
+    (view === 'spacecraft' ? !independentStudy && followsMission : antennaFollowsRun);
   const stopped =
     !!snapshot?.run.result?.summary.end_reason &&
     snapshot.run.result.summary.end_reason !== 'requested_duration';
@@ -247,13 +268,13 @@ export default function App() {
           {view === 'earth'
             ? 'COUPLED MISSION'
             : view === 'spacecraft'
-              ? spacecraftSection === 'geometry' || spacecraftSection === 'hardware'
-                ? 'MODEL PREVIEW'
-                : spacecraftSection === 'gnc'
-                  ? 'DYNAMICS STUDY'
-                  : 'PRESCRIBED STUDY'
+              ? independentStudy
+                ? 'INDEPENDENT STUDY'
+                : spacecraftSection === 'geometry'
+                  ? 'MODEL PREVIEW'
+                  : 'COUPLED MISSION'
               : 'ANTENNA REFERENCE'}
-          {view === 'earth' && (
+          {(view === 'earth' || (view === 'spacecraft' && !independentStudy)) && (
             <span className={`run-state ${busy ? 'working' : ''}`}>
               {busy && <span className="spinner" />}
               {status}
@@ -344,7 +365,7 @@ export default function App() {
                       })
                     }
                   />
-                ) : spacecraftSection === 'gnc' ? (
+                ) : independentStudy === 'gnc' ? (
                   <DynamicsLab
                     session={dynamicsSession}
                     onSession={setDynamicsSession}
@@ -355,23 +376,23 @@ export default function App() {
                     starTrackerVisible={starTrackerVisible}
                     moduleVisibility={renderModules}
                   />
-                ) : spacecraftSection !== 'geometry' && spacecraftSection !== 'hardware' ? (
+                ) : independentStudy ? (
                   <PowerLab
                     session={powerSession}
                     onSession={setPowerSession}
                     inspectorTarget={systemsInspector}
                     asset={
-                      spacecraftSection === 'thermal' && cutawayAsset?.available
+                      independentStudy === 'thermal' && cutawayAsset?.available
                         ? cutawayAsset
                         : modelAsset
                     }
                     variant={modelVariant}
                     cutaway={
-                      spacecraftSection === 'thermal' && cutawayAsset?.available ? true : cutaway
+                      independentStudy === 'thermal' && cutawayAsset?.available ? true : cutaway
                     }
                     starTrackerVisible={starTrackerVisible}
                     moduleVisibility={renderModules}
-                    section={spacecraftSection}
+                    section={independentStudy}
                   />
                 ) : (
                   <Workbench
@@ -381,13 +402,18 @@ export default function App() {
                     starTrackerVisible={starTrackerVisible}
                     moduleVisibility={renderModules}
                     onAvailableModules={setAvailableModules}
-                    quaternion={
-                      followAttitude ? samples?.q_body_from_inertial_wxyz[index] : undefined
+                    thermalTemperaturesK={
+                      spacecraftSection === 'thermal' && samples?.thermal
+                        ? missionTemperatures
+                        : undefined
                     }
-                    displayTime={followAttitude ? displayTime : undefined}
-                    quaternionTimes={followAttitude ? times : undefined}
+                    quaternion={
+                      followsMission ? samples?.q_body_from_inertial_wxyz[index] : undefined
+                    }
+                    displayTime={followsMission ? displayTime : undefined}
+                    quaternionTimes={followsMission ? times : undefined}
                     quaternionHistory={
-                      followAttitude ? samples?.q_body_from_inertial_wxyz : undefined
+                      followsMission ? samples?.q_body_from_inertial_wxyz : undefined
                     }
                   />
                 )}
@@ -553,30 +579,36 @@ export default function App() {
           <footer className="instrument-footer">
             <span>
               {view === 'spacecraft'
-                ? spacecraftSection === 'geometry' || spacecraftSection === 'hardware'
-                  ? `${cutaway ? 'LAYOUT STUDY' : 'MODEL'} ${modelAsset?.revision || '—'}`
-                  : spacecraftSection === 'gnc'
+                ? independentStudy
+                  ? independentStudy === 'gnc'
                     ? 'GNC · INDEPENDENT DYNAMICS STUDY'
-                    : `${spacecraftSection.toUpperCase()} · ${powerSession.result?.manifest.model_version || 'NOT RUN'}`
+                    : `${independentStudy.toUpperCase()} · INDEPENDENT STUDY · ${powerSession.result?.manifest.model_version || 'NOT RUN'}`
+                  : spacecraftSection === 'geometry'
+                    ? `${cutaway ? 'LAYOUT STUDY' : 'MODEL'} ${modelAsset?.revision || '—'}`
+                    : `${mission.snapshot?.imported ? 'IMPORTED RUN' : 'MISSION RUN'} ${displayedId || '—'} · ${times.length} SAMPLES`
                 : view === 'antenna'
                   ? 'ANTENNA REFERENCE'
                   : snapshot
                     ? `${mission.snapshot?.imported ? 'IMPORTED RUN' : 'RUN'} ${displayedId} · ${times.length} SAMPLES · Δt ${snapshot.scenario.step_s} s`
                     : 'NO COMPUTED HISTORY'}
-              {view === 'earth' && dirty ? ' · UNRUN EDITS' : ''}
+              {(view === 'earth' || (view === 'spacecraft' && !independentStudy)) && dirty
+                ? ' · UNRUN EDITS'
+                : ''}
             </span>
             <span>
               {view === 'earth'
                 ? 'Ideal threshold capacity · no packet dynamics'
                 : view === 'antenna'
                   ? 'Analytical patterns · nominal geometry'
-                  : spacecraftSection === 'gnc'
+                  : independentStudy === 'gnc'
                     ? 'Supplied target and magnetic field · illustrative actuators'
-                    : spacecraftSection !== 'geometry' && spacecraftSection !== 'hardware'
+                    : independentStudy
                       ? 'Prescribed CONOPS · provisional thermal inputs'
-                      : cutaway
-                        ? 'Visual layout study'
-                        : 'Concept geometry'}
+                      : spacecraftSection !== 'geometry'
+                        ? 'Shared orbit, attitude, CONOPS, power and thermal history'
+                        : cutaway
+                          ? 'Visual layout study'
+                          : 'Concept geometry'}
             </span>
           </footer>
         </div>
@@ -604,12 +636,20 @@ export default function App() {
         >
           {view === 'spacecraft' ? (
             <>
+              <div className="controls-title">
+                <span className="eyebrow">MISSION SPACECRAFT</span>
+                <button className="text-button" onClick={() => setInspector(true)}>
+                  Inputs ↗
+                </button>
+                <MissionArchiveControls mission={mission} />
+              </div>
               <nav className="spacecraft-sections" aria-label="Spacecraft sections">
                 {(['geometry', 'hardware', 'power', 'thermal', 'gnc'] as const).map((section) => (
                   <button
                     key={section}
-                    aria-pressed={spacecraftSection === section}
+                    aria-pressed={!independentStudy && spacecraftSection === section}
                     onClick={() => {
+                      setIndependentStudy(null);
                       setSpacecraftSection(section);
                       if (section === 'hardware' && cutawayAsset?.available) setCutaway(true);
                     }}
@@ -619,17 +659,92 @@ export default function App() {
                       : section === 'hardware'
                         ? 'Hardware'
                         : section === 'power'
-                          ? 'Power & avionics'
+                          ? 'Power'
                           : section === 'thermal'
                             ? 'Thermal'
                             : 'GNC'}
                   </button>
                 ))}
               </nav>
-              {spacecraftSection === 'hardware' && scenario ? (
-                <MissionHardware config={scenario} edit={mission.edit} />
-              ) : spacecraftSection !== 'geometry' && spacecraftSection !== 'hardware' ? (
+              <details className="mission-study-menu" open={!!independentStudy}>
+                <summary>Independent studies</summary>
+                <div className="mission-mode-selector" aria-label="Independent study">
+                  {(['power', 'thermal', 'gnc'] as const).map((study) => (
+                    <button
+                      key={study}
+                      aria-pressed={independentStudy === study}
+                      onClick={() => setIndependentStudy(study)}
+                    >
+                      {study === 'gnc' ? 'GNC' : study[0].toUpperCase() + study.slice(1)}
+                    </button>
+                  ))}
+                  {independentStudy && (
+                    <button onClick={() => setIndependentStudy(null)}>Mission ↩</button>
+                  )}
+                </div>
+              </details>
+              {independentStudy ? (
                 <div ref={setSystemsInspector} />
+              ) : spacecraftSection !== 'geometry' ? (
+                scenario ? (
+                  <>
+                    <div className="study-scope">
+                      Shared mission · configure here, watch on Earth
+                    </div>
+                    {spacecraftSection === 'power' ? (
+                      <MissionPowerControls config={scenario} edit={mission.edit} />
+                    ) : spacecraftSection === 'thermal' ? (
+                      <MissionThermalControls config={scenario} edit={mission.edit} />
+                    ) : (
+                      <MissionHardware config={scenario} edit={mission.edit} />
+                    )}
+                    <div className="mission-run-actions">
+                      <Field
+                        label="Mission duration"
+                        unit="h"
+                        value={scenario.duration_s / 3600}
+                        min={1 / 3}
+                        max={168}
+                        step={1}
+                        onChange={(v) =>
+                          mission.edit((d) => {
+                            d.duration_s = v * 3600;
+                          })
+                        }
+                      />
+                      <button
+                        className={`primary ${busy ? 'cancel' : ''}`}
+                        disabled={
+                          submitting || mission.orbitPending || mission.importing || mission.loading
+                        }
+                        onClick={
+                          busy
+                            ? () => void mission.cancel()
+                            : () => {
+                                setView('earth');
+                                startMission();
+                              }
+                        }
+                      >
+                        {busy ? 'Cancel run' : 'Run on Earth'} <span>{busy ? '■' : '↗'}</span>
+                      </button>
+                      <button
+                        className="text-button"
+                        disabled={!snapshot}
+                        onClick={() => setView('earth')}
+                      >
+                        Watch displayed history ↗
+                      </button>
+                      {dirty && (
+                        <span className="eyebrow">UNRUN EDITS · displayed history retained</span>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="offline-note">
+                    {mission.loading ? 'Loading mission' : 'Mission unavailable'}
+                  </div>
+                )
               ) : (
                 <SpacecraftInspector
                   variant={modelVariant}
@@ -666,11 +781,7 @@ export default function App() {
             <MissionInspector
               mission={mission}
               catalog={catalog}
-              onRun={() => {
-                setPlaying(false);
-                autoplayNext.current = true;
-                void mission.start();
-              }}
+              onRun={startMission}
               onInspect={() => setInspector(true)}
               canPin={!!snapshot}
               hasBaseline={!!baseline}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { RunSnapshot } from '../types';
-import { TracePlot } from './TracePlot';
+import type { RunSnapshot, Samples } from '../types';
+import { TracePlot, closestIndex } from './TracePlot';
 import { plotDefinitions, plotTraces } from './registry';
 import type { PlotId } from './registry';
 
@@ -12,6 +12,7 @@ const presets: { label: string; values: PlotId[] }[] = [
   { label: 'GNC', values: ['pointing', 'wheel_capacity', 'saturation'] },
   { label: 'Power', values: ['power', 'charge', 'actuator_power'] },
   { label: 'Thermal', values: ['temperatures', 'bus_heat'] },
+  { label: 'Battery', values: ['battery_soc', 'battery_voltage', 'battery_current'] },
 ];
 function readSelection(): PlotId[] {
   try {
@@ -26,6 +27,26 @@ function readSelection(): PlotId[] {
       return saved;
   } catch {}
   return defaults;
+}
+function showBatteryTemperatureNotice(
+  selection: readonly PlotId[],
+  samples: Samples | undefined,
+  cursorTime: number,
+) {
+  return (
+    selection.some((id) =>
+      [
+        'battery_voltage',
+        'battery_current',
+        'battery_soc',
+        'battery_remaining_charge',
+        'battery_heat',
+      ].includes(id),
+    ) &&
+    samples?.power?.battery_temperature_outside_reference?.[
+      closestIndex(samples.time_s, cursorTime)
+    ] === true
+  );
 }
 export function PlotDock({
   snapshot,
@@ -78,6 +99,11 @@ export function PlotDock({
       }),
     [selection, snapshot, baseline],
   );
+  const outsideBatteryReference = showBatteryTemperatureNotice(
+    selection,
+    snapshot?.run.result?.samples,
+    cursorTime,
+  );
   const toggle = (id: PlotId) =>
     setSelection((current) =>
       current.includes(id)
@@ -100,6 +126,14 @@ export function PlotDock({
             {preset.label}
           </button>
         ))}
+        {outsideBatteryReference && (
+          <span
+            className="battery-reference-badge"
+            title="OCV and resistance stay at the fixed 25°C reference outside the 25±1°C tests. Operating temperature gates are separate and do not validate cold/hot electrical predictions."
+          >
+            25°C reference · outside test temperature
+          </span>
+        )}
         <div className="plot-chooser" ref={chooser}>
           <button
             aria-expanded={choosing}

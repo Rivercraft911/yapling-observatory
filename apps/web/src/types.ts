@@ -109,6 +109,14 @@ export interface Samples {
     energy_fraction: number[];
     battery_voltage_v: Scalar[];
     battery_current_a: Scalar[];
+    battery_soc?: number[];
+    battery_remaining_charge_ah?: number[];
+    battery_open_circuit_voltage_v?: number[];
+    battery_resistance_ohm?: number[];
+    battery_terminal_power_w?: number[];
+    battery_ohmic_heat_w?: number[];
+    battery_mean_resistance_ohm?: number[];
+    battery_temperature_outside_reference?: boolean[];
     actuator_bus_w: number[];
     actuator_heat_w: number[];
     component_electrical_w?: Record<string, number[]>;
