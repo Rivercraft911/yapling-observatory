@@ -54,7 +54,7 @@ export interface MissionConfig {
     locked_inertia_kg_m2: [Vector3, Vector3, Vector3];
     initial_q_body_from_inertial_wxyz: [number, number, number, number];
     initial_omega_body_rad_s: Vector3;
-    wheels: { enabled: boolean; spec: WheelConfig }[];
+    wheels: { enabled: boolean; spec: WheelConfig; initial_speed_rpm?: number }[];
     magnetorquer: {
       enabled: boolean;
       spec: { max_dipole_am2: number };
@@ -63,6 +63,8 @@ export interface MissionConfig {
       thermal_node_id: string;
     } | null;
     controller: 'coast' | 'quaternion_pd';
+    magnetic_unloading_enabled?: boolean;
+    magnetic_unloading_time_constant_s?: number;
     proportional_nm_per_rad: Vector3;
     derivative_nm_s_per_rad: Vector3;
     body_boresight: Vector3;

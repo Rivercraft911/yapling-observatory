@@ -79,6 +79,19 @@ export interface Samples {
     wheel_relative_speed_rad_s: number[][];
     wheel_speed_utilization?: number[][];
     wheel_absolute_axial_momentum_nms: number[][];
+    wheel_momentum_body_nms?: number[][];
+    wheel_momentum_norm_nms?: number[];
+    unloading_requested_torque_body_nm?: number[][];
+    unloading_allocated_torque_body_nm?: number[][];
+    unloading_achieved_torque_body_nm?: number[][];
+    unloading_command_time_s?: Scalar[];
+    unloading_status?: (
+      | 'disabled'
+      | 'controller_inactive'
+      | 'hardware_unavailable'
+      | 'field_unavailable'
+      | 'active'
+    )[];
     requested_torque_body_nm: number[][];
     actual_torque_body_nm: number[][];
     residual_torque_body_nm: number[][];
@@ -98,6 +111,7 @@ export interface Samples {
     battery_current_a: Scalar[];
     actuator_bus_w: number[];
     actuator_heat_w: number[];
+    component_electrical_w?: Record<string, number[]>;
     sun_visibility: number[];
   };
   thermal?: {

@@ -15,6 +15,9 @@ export type PlotId =
   | 'body_rate'
   | 'wheel_speed'
   | 'wheel_capacity'
+  | 'wheel_momentum'
+  | 'unloading_torque'
+  | 'coil_power'
   | 'saturation'
   | 'power'
   | 'energy'
@@ -153,6 +156,47 @@ export const plotDefinitions: PlotDefinition[] = [
         label: `W${i + 1}`,
         values: (s.gnc?.wheel_speed_utilization || []).map((v) => 100 * v[i]),
       })),
+  },
+  {
+    id: 'wheel_momentum',
+    title: 'Wheel momentum',
+    unit: 'µN·m·s',
+    description:
+      'Absolute axial rotor momenta and norm of their vector sum. Opposing wheel momenta can cancel in the sum.',
+    read: (s) => [
+      ...Array.from(
+        { length: s.gnc?.wheel_absolute_axial_momentum_nms[0]?.length || 0 },
+        (_, index) => ({
+          label: `W${index + 1}`,
+          values: (s.gnc?.wheel_absolute_axial_momentum_nms || []).map(
+            (entry) => entry[index] * 1e6,
+          ),
+        }),
+      ),
+      { label: '|Σh|', values: scale(s.gnc?.wheel_momentum_norm_nms, 1e-6) },
+    ],
+  },
+  {
+    id: 'unloading_torque',
+    title: 'Unloading torque',
+    unit: 'µN·m',
+    description:
+      'Actual sampled magnetic torque during momentum unloading, body axes. Zero when unloading is inactive.',
+    read: (s) =>
+      [0, 1, 2].map((axis) => ({
+        label: 'xyz'[axis],
+        values: (s.gnc?.unloading_achieved_torque_body_nm || []).map((entry) => entry[axis] * 1e6),
+      })),
+  },
+  {
+    id: 'coil_power',
+    title: 'Coil power',
+    unit: 'mW',
+    description:
+      'Returned magnetorquer electrical draw, averaged over the preceding dynamics interval.',
+    read: (s) => [
+      { label: 'MTQ', values: scale(s.power?.component_electrical_w?.magnetorquers, 0.001) },
+    ],
   },
   {
     id: 'saturation',

@@ -12,6 +12,21 @@ export function MissionHardware({
   edit: (change: (draft: MissionConfig) => void) => void;
 }) {
   const craft = config.spacecraft;
+  const wheelsEnabled = craft.wheels.some((wheel) => wheel.enabled);
+  const magneticEnabled = !!craft.magnetorquer?.enabled;
+  const magneticAuthority = magneticEnabled && (craft.magnetorquer?.spec.max_dipole_am2 || 0) > 0;
+  const unloadingUnavailable =
+    !wheelsEnabled && !magneticEnabled
+      ? 'Needs wheels + MTQ'
+      : !wheelsEnabled
+        ? 'Needs wheels'
+        : !magneticEnabled
+          ? 'Needs MTQ'
+          : !magneticAuthority
+            ? 'Zero MTQ authority'
+            : craft.controller !== 'quaternion_pd'
+              ? 'Controller inactive'
+              : '';
   const [presets, setPresets] = useState<
     Record<string, Pick<MissionConfig['spacecraft'], 'wheels' | 'magnetorquer'>>
   >({});
@@ -70,7 +85,7 @@ export function MissionHardware({
         <label className="spacecraft-follow">
           <input
             type="checkbox"
-            checked={craft.wheels.some((w) => w.enabled)}
+            checked={wheelsEnabled}
             disabled={!craft.wheels.length && !wheelExample.length}
             onChange={(e) =>
               edit((d) => {
@@ -78,6 +93,7 @@ export function MissionHardware({
                   d.spacecraft.wheels = wheelExample.map((spec) => ({
                     spec: cloneScenario(spec),
                     enabled: true,
+                    initial_speed_rpm: 0,
                   }));
                 d.spacecraft.wheels.forEach((w) => {
                   w.enabled = e.target.checked;
@@ -115,6 +131,50 @@ export function MissionHardware({
             })
           }
         />
+        <label
+          className="spacecraft-follow"
+          title="Magnetic wheel momentum unloading during wheel PD. Saved intent is retained when hardware or controller authority is unavailable."
+        >
+          <input
+            type="checkbox"
+            checked={craft.magnetic_unloading_enabled ?? false}
+            disabled={!!unloadingUnavailable}
+            onChange={(event) =>
+              edit((draft) => {
+                draft.spacecraft.magnetic_unloading_enabled = event.target.checked;
+              })
+            }
+          />
+          Momentum unloading
+        </label>
+        {unloadingUnavailable ? (
+          <div className="profile-evidence">{unloadingUnavailable}</div>
+        ) : null}
+        {craft.magnetic_unloading_enabled ? (
+          <div title="Requested momentum decay time. Field projection, actuator limits and guidance affect the achieved response.">
+            <Field
+              label="τ unload"
+              unit="s"
+              value={craft.magnetic_unloading_time_constant_s ?? 600}
+              min={1}
+              max={1e7}
+              step={10}
+              disabled={!!unloadingUnavailable}
+              onChange={(value) =>
+                edit((draft) => {
+                  draft.spacecraft.magnetic_unloading_time_constant_s = value;
+                })
+              }
+            />
+            {!unloadingUnavailable &&
+              (craft.magnetic_unloading_time_constant_s ?? 600) <
+                config.clocks.controller_period_s && (
+                <small title="With a fixed field, a stationary body and no saturation, held commands alternate the perpendicular momentum when τ is below the controller interval. At τ ≤ half the interval, that scalar response does not decay. This is not a general stability test.">
+                  τ below controller interval
+                </small>
+              )}
+          </div>
+        ) : null}
         <label className="spacecraft-follow">
           <input
             type="checkbox"
@@ -232,10 +292,23 @@ export function MissionHardware({
       </details>
       {craft.wheels.length > 0 && (
         <details className="mission-details">
-          <summary>Wheel limits</summary>
+          <summary>Wheels</summary>
           {craft.wheels.map((wheel, index) => (
             <fieldset key={index}>
               <legend>W{index + 1}</legend>
+              <Field
+                label="ω₀"
+                unit="rpm"
+                value={wheel.initial_speed_rpm ?? 0}
+                min={-wheel.spec.max_speed_rpm}
+                max={wheel.spec.max_speed_rpm}
+                step={100}
+                onChange={(value) =>
+                  edit((draft) => {
+                    draft.spacecraft.wheels[index].initial_speed_rpm = value;
+                  })
+                }
+              />
               <Field
                 label="Js"
                 unit="kg·m²"
@@ -253,7 +326,7 @@ export function MissionHardware({
                 label="ω max"
                 unit="rpm"
                 value={wheel.spec.max_speed_rpm}
-                min={1}
+                min={Math.max(1, Math.abs(wheel.initial_speed_rpm ?? 0))}
                 max={100000}
                 step={100}
                 onChange={(v) =>
