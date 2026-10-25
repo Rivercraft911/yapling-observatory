@@ -111,7 +111,10 @@ export interface AssetInfo {
   sha256?: string;
   available?: boolean;
 }
-export type Assets = { variants: Partial<Record<Variant, AssetInfo>> };
+export type Assets = {
+  variants: Partial<Record<Variant, AssetInfo>>;
+  previews?: { cutaway?: AssetInfo; v45_outward?: AssetInfo };
+};
 export interface RadioPreset {
   id: string;
   label: string;

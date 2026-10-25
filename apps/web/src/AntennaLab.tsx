@@ -11,7 +11,9 @@ const labels: Record<AntennaModel, string> = {
   dipole: 'Half-wave dipole',
   turnstile: 'Quadrature turnstile',
   patch: 'Cosine patch surrogate',
-  v45: '45° V / tape · unresolved',
+  v45: 'Installed V / tape · unresolved',
+  bent_v_up_45: 'Upward V tape · assumed current',
+  bent_v_out_45: 'Outward V tape · assumed current',
 };
 const MIN_PATCH_GAIN = 10 * Math.log10(2),
   MAX_PATCH_GAIN = 20;
@@ -23,28 +25,32 @@ export function AntennaLab({
   sampleIndex,
   inspectorTarget,
   assets,
+  onFollowRunChange,
 }: {
   snapshot: RunSnapshot | null;
   sampleIndex: number;
   inspectorTarget?: HTMLElement | null;
   assets?: Assets;
+  onFollowRunChange?: (following: boolean) => void;
 }) {
   const [source, setSource] = useState<'run' | AntennaModel>('run');
   const [direction, setDirection] = useState<Direction>('uplink');
-  const [radiusMode, setRadiusMode] = useState<RadiusMode>('linear');
+  const [radiusMode, setRadiusMode] = useState<RadiusMode>('db');
   const [geometryVisible, setGeometryVisible] = useState(true);
   const [lobeVisible, setLobeVisible] = useState(true);
   const [lobeOpacity, setLobeOpacity] = useState(0.22);
   const [focusRequest, setFocusRequest] = useState(0);
   const [efficiency, setEfficiency] = useState(1);
+  const [frequencyMHz, setFrequencyMHz] = useState(438);
+  const [armLengthMm, setArmLengthMm] = useState(171.1144166667);
   const [patchGain, setPatchGain] = useState(6);
   const [angles, setAngles] = useState<[number, number, number]>([0, 0, 0]);
   const [azimuth, setAzimuth] = useState(90),
     [elevation, setElevation] = useState(0),
     [feedRoll, setFeedRoll] = useState(0);
-  const [followLos, setFollowLos] = useState(true);
-  const [pattern, setPattern] = useState<Pattern | null>(null),
-    [probe, setProbe] = useState<Probe | null>(null);
+  const [followLos, setFollowLos] = useState(false);
+  const [patternResult, setPattern] = useState<{ key: string; value: Pattern } | null>(null),
+    [probeResult, setProbe] = useState<{ key: string; value: Probe } | null>(null);
   const [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
     [retry, setRetry] = useState(0);
@@ -57,8 +63,21 @@ export function AntennaLab({
         ? 'patch'
         : snapshot?.scenario.antenna_variant || 'dipole'
       : source;
+  const bentTape = model === 'bent_v_up_45' || model === 'bent_v_out_45';
   const physicalVariant: Variant =
-    model === 'patch' ? snapshot?.scenario.antenna_variant || 'dipole' : model;
+    model === 'patch'
+      ? snapshot?.scenario.antenna_variant || 'dipole'
+      : bentTape
+        ? 'v45'
+        : (model as Variant);
+  const physicalAsset =
+    model === 'bent_v_out_45'
+      ? assets?.previews?.v45_outward || {
+          revision: 'unavailable',
+          available: false,
+          url: '/api/assets/previews/v45_outward.glb',
+        }
+      : assets?.variants[physicalVariant];
   useEffect(() => {
     if (source === 'run' && runLink?.spacecraft_antenna === 'patch')
       setPatchGain(
@@ -69,12 +88,17 @@ export function AntennaLab({
     () => ({
       model,
       efficiency,
+      frequency_hz: frequencyMHz * 1e6,
+      arm_length_m: armLengthMm / 1000,
       patch_peak_gain_dbi: patchGain,
       orientation_deg: angles,
       cut_azimuth_deg: model === 'patch' ? 90 : 0,
     }),
-    [model, efficiency, patchGain, angles],
+    [model, efficiency, patchGain, angles, frequencyMHz, armLengthMm],
   );
+  const shapeKey = JSON.stringify(shape);
+  const pattern = patternResult?.key === shapeKey ? patternResult.value : null;
+  const probe = probeResult?.key === shapeKey ? probeResult.value : null;
   useEffect(() => {
     const abort = new AbortController();
     let active = true;
@@ -87,7 +111,7 @@ export function AntennaLab({
         signal: abort.signal,
       })
         .then((result) => {
-          if (active) setPattern(result);
+          if (active) setPattern({ key: shapeKey, value: result });
         })
         .catch((cause) => {
           if (active && cause.name !== 'AbortError')
@@ -135,7 +159,7 @@ export function AntennaLab({
           signal: abort.signal,
         })
           .then((result) => {
-            if (active) setProbe(result);
+            if (active) setProbe({ key: shapeKey, value: result });
           })
           .catch((cause) => {
             if (active && cause.name !== 'AbortError')
@@ -150,6 +174,10 @@ export function AntennaLab({
       abort.abort();
     };
   }, [shape, azimuth, elevation, feedRoll, runProbe, retry]);
+  useEffect(() => {
+    onFollowRunChange?.(runProbe !== null);
+    return () => onFollowRunChange?.(false);
+  }, [runProbe !== null, onFollowRunChange]);
   const actualCoupling = samples?.[direction].polarization_coupling[sampleIndex];
   const time = samples?.time_s[sampleIndex];
   const angleChange = (index: number, next: number) =>
@@ -191,6 +219,34 @@ export function AntennaLab({
             </select>
           ) : null}
         </div>
+        {bentTape && (
+          <>
+            <NumberField
+              label="Frequency"
+              value={frequencyMHz}
+              unit="MHz"
+              min={1}
+              max={10000}
+              step={1}
+              onChange={setFrequencyMHz}
+            />
+            <NumberField
+              label="Arm length"
+              value={armLengthMm}
+              unit="mm"
+              min={0.1}
+              max={10000}
+              step={1}
+              onChange={setArmLengthMm}
+            />
+            <small
+              className="antenna-geometry-note"
+              title="Balanced sinusoidal thin-wire current approximation. No bus, feed gap, matching or finite tape width. The nominal spacecraft mesh retains its authored dimensions."
+            >
+              Free space · assumed current
+            </small>
+          </>
+        )}
         <label className="antenna-follow">
           <input
             type="checkbox"
@@ -226,9 +282,9 @@ export function AntennaLab({
         </button>
         <small
           className="antenna-geometry-note"
-          title="The existing GLB stays at its nominal mount. Reference pattern rotation is independent. Geometry does not generate an installed RF pattern."
+          title="The reference lobe is anchored at the nominal feed or radiator center. This is a display datum, not a measured phase center. Pattern rotation is independent."
         >
-          Highlighted hardware · nominal mount
+          Highlighted hardware · pattern origin
         </small>
       </fieldset>
       <fieldset>
@@ -339,7 +395,7 @@ export function AntennaLab({
             Polarization undefined at a field null or unresolved pattern.
           </small>
         ) : null}
-        {snapshot ? (
+        {snapshot && runProbe ? (
           <div className="antenna-run-reference">
             <span>Run {direction} coupling</span>
             <b>{value(actualCoupling, 3)}</b>
@@ -399,7 +455,7 @@ export function AntennaLab({
           mode={radiusMode}
           loading={loading}
           variant={physicalVariant}
-          asset={assets?.variants[physicalVariant]}
+          asset={physicalAsset}
           model={model}
           geometryVisible={geometryVisible}
           lobeVisible={lobeVisible}

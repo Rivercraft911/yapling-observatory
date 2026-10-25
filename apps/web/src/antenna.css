@@ -559,3 +559,21 @@
     font-size: 8px;
   }
 }
+.beamwidth-label {
+  font: 11px var(--mono);
+  font-weight: 500;
+  color: #f0b4b7;
+  margin-left: auto;
+}
+.cut-beam-shade {
+  fill: #d94b6118;
+}
+.cut-beam-bound {
+  stroke: #e9929d;
+  stroke-width: 1.5;
+}
+.cut-beam-edge {
+  stroke: #b56972;
+  stroke-width: 0.8;
+  stroke-dasharray: 3 3;
+}

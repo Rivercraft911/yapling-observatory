@@ -1,4 +1,4 @@
-import { Box3, Group, Material, Mesh, MeshStandardMaterial, Sphere, Texture } from 'three';
+import { Box3, Group, Material, Mesh, MeshStandardMaterial, Sphere, Texture, Vector3 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { AssetInfo, Variant } from '../types';
 import { createSpacecraftDisplay } from '../graphics/spacecraftDisplay';
@@ -23,6 +23,8 @@ export class NominalPreview {
   private disposed = false;
   private desiredModel: AntennaModel = 'dipole';
   private selection: Mesh[] = [];
+  private readonly origin = new Vector3();
+  originReference = 'body origin';
   private selectedMaterials = new Map<
     Mesh,
     { original: Material | Material[]; clones: Material[] }
@@ -142,6 +144,18 @@ export class NominalPreview {
       this.selectedMaterials.set(object, { original, clones });
       this.selection.push(object);
     });
+    this.group.updateMatrixWorld(true);
+    this.origin.set(0, 0, 0);
+    const feed = this.root?.getObjectByName('ANTENNA_FEED_REFERENCE');
+    if (model !== 'patch' && feed) {
+      feed.getWorldPosition(this.origin);
+      this.originReference = 'nominal feed';
+    } else if (this.selection.length) {
+      const bounds = new Box3();
+      this.selection.forEach((mesh) => bounds.union(new Box3().setFromObject(mesh)));
+      bounds.getCenter(this.origin);
+      this.originReference = 'radiator center';
+    } else this.originReference = 'body origin';
     if (this.status.state === 'ready') {
       this.status = { ...this.status, selectedParts: this.selection.length };
       this.onStatus(this.status);
@@ -154,6 +168,10 @@ export class NominalPreview {
   ) {
     this.group.updateMatrixWorld(true);
     this.detail?.update(camera, physicalHeight, 0.55);
+  }
+
+  patternOrigin() {
+    return this.origin;
   }
 
   selectionSphere() {
@@ -173,6 +191,8 @@ export class NominalPreview {
     }
     this.root = null;
     this.detail = null;
+    this.origin.set(0, 0, 0);
+    this.originReference = 'body origin';
   }
 
   dispose() {

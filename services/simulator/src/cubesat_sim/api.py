@@ -22,13 +22,14 @@ from .jobs import JobManager
 from .models import FrozenModel, Scenario, RadioProfile, default_scenario
 
 ASSET_VARIANTS = ("dipole", "turnstile", "v45")
+ASSET_PREVIEWS = ("cutaway", "v45_outward")
 
 
 class RunRequest(FrozenModel):
     scenario: Scenario
 
 
-def asset_entries():
+def asset_entries(keys=ASSET_VARIANTS):
     """Only an operator-configured private manifest selects filesystem paths."""
     manifest_path = os.environ.get("CUBESAT_MODEL_MANIFEST")
     manifest = {}
@@ -45,10 +46,10 @@ def asset_entries():
     except (OSError, ValueError, TypeError):
         error = "Local model manifest is unavailable or invalid"
     entries = {}
-    for variant in ASSET_VARIANTS:
+    for variant in keys:
         item = manifest.get(variant, {})
         public = dict(revision=item.get("revision", "unavailable") if isinstance(item, dict) else "unavailable",
-                      url=f"/api/assets/spacecraft.glb?variant={variant}",
+                      url=f"/api/assets/previews/{variant}.glb" if variant in ASSET_PREVIEWS else f"/api/assets/spacecraft.glb?variant={variant}",
                       label=item.get("label", variant) if isinstance(item, dict) else variant,
                       fallback=bool(item.get("fallback", False)) if isinstance(item, dict) else False,
                       sha256=item.get("sha256") if isinstance(item, dict) else None, available=False)
@@ -186,17 +187,26 @@ def create_app():
 
     @app.get("/api/assets")
     def get_assets():
-        return {"variants":{variant:public for variant,(public,_) in asset_entries().items()}}
+        entries = asset_entries(ASSET_VARIANTS + ASSET_PREVIEWS)
+        return {"variants":{key:entries[key][0] for key in ASSET_VARIANTS},
+                "previews":{key:entries[key][0] for key in ASSET_PREVIEWS}}
+
+    def asset_response(entry):
+        public, path = entry
+        if path is None:
+            raise HTTPException(409 if "hash mismatch" in public.get("error", "") else 404, public.get("error", "Model unavailable"))
+        return FileResponse(path, media_type="model/gltf-binary", headers={
+            "X-Model-Revision":str(public["revision"]), "X-Asset-Revision":str(public["revision"]),
+            "ETag":'"'+public["sha256"]+'"', "Cache-Control":"no-cache", "X-Model-Fallback":str(public["fallback"]).lower(),
+        })
 
     @app.get("/api/assets/spacecraft.glb")
     def get_asset(variant: Literal["dipole", "turnstile", "v45"] = "dipole"):
-        public, path = asset_entries()[variant]
-        if path is None:
-            raise HTTPException(409 if "hash mismatch" in public.get("error", "") else 404, public.get("error", "Model variant unavailable"))
-        return FileResponse(path, media_type="model/gltf-binary", headers={
-            "X-Model-Revision":str(public["revision"]), "ETag":'"'+public["sha256"]+'"',
-            "Cache-Control":"no-cache", "X-Model-Fallback":str(public["fallback"]).lower(),
-        })
+        return asset_response(asset_entries()[variant])
+
+    @app.get("/api/assets/previews/{preview}.glb")
+    def get_preview(preview: Literal["cutaway", "v45_outward"]):
+        return asset_response(asset_entries(ASSET_PREVIEWS)[preview])
 
     return app
 

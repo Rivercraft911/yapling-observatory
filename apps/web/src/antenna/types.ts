@@ -1,4 +1,10 @@
-export type AntennaModel = 'dipole' | 'turnstile' | 'patch' | 'v45';
+export type AntennaModel =
+  | 'dipole'
+  | 'turnstile'
+  | 'patch'
+  | 'v45'
+  | 'bent_v_up_45'
+  | 'bent_v_out_45';
 export type RadiusMode = 'linear' | 'db';
 export interface Probe {
   direction_body: number[];
@@ -39,6 +45,14 @@ export interface Pattern {
       gain_linear: number[];
       gain_dbi: (number | null)[];
       fixed_angle_deg: number;
+      half_power?: {
+        lower_deg: number | null;
+        upper_deg: number | null;
+        width_deg: number | null;
+        threshold_gain_dbi: number;
+        relative_level_db: number;
+        peak_search_step_deg: number;
+      } | null;
     }
   > | null;
   peak_gain_linear: number | null;

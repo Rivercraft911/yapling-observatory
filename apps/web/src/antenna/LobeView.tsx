@@ -201,6 +201,10 @@ export function LobeView({
     const render = () => {
       controls.update();
       if (preview.group.visible) preview.update(camera, canvas.height);
+      lobe.position.copy(preview.patternOrigin());
+      probeGroup.position.copy(preview.patternOrigin());
+      canvas.dataset.patternOrigin = JSON.stringify(preview.patternOrigin().toArray());
+      canvas.dataset.originReference = preview.originReference;
       // Include the normalized shell and axes as well as the SI-derived preview.
       const distance = camera.position.length();
       const near = Math.min(camera.near, Math.max(0.005, (distance - 1.6) * 0.8));
@@ -230,9 +234,6 @@ export function LobeView({
   useEffect(() => {
     void sceneHandle.current?.preview.load(variant, asset, model);
   }, [variant, asset?.url, asset?.sha256, asset?.revision, asset?.available, model]);
-  useEffect(() => {
-    sceneHandle.current?.reset();
-  }, [model]);
   useEffect(() => {
     if (focusRequest > 0) sceneHandle.current?.focus();
   }, [focusRequest, geometryStatus.state]);
@@ -272,6 +273,28 @@ export function LobeView({
     geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
+    const contourMaterial = new LineBasicMaterial({
+      color: '#e9d4b4',
+      transparent: true,
+      opacity: 0.3,
+      depthWrite: false,
+    });
+    const point = (index: number) => new Vector3(...positions.slice(index * 3, index * 3 + 3));
+    for (let row = 6; row < grid.polar_steps; row += 6) {
+      const points = Array.from({ length: width }, (_, column) => point(row * width + column));
+      handle.lobe.add(
+        new Line(new BufferGeometry().setFromPoints(points), contourMaterial.clone()),
+      );
+    }
+    for (let column = 0; column < grid.azimuth_steps; column += 12) {
+      const points = Array.from({ length: grid.polar_steps + 1 }, (_, row) =>
+        point(row * width + column),
+      );
+      handle.lobe.add(
+        new Line(new BufferGeometry().setFromPoints(points), contourMaterial.clone()),
+      );
+    }
+    contourMaterial.dispose();
     handle.lobe.add(
       new Mesh(
         geometry,
@@ -332,12 +355,12 @@ export function LobeView({
         <strong>
           {mode === 'linear' ? 'Radius = G / sampled Gmax' : 'Radius = relative gain, −30 to 0 dB'}
         </strong>
-        <small>Shape scale is normalized. No physical distance.</small>
+        <small>Relative gain · origin at nominal antenna mount</small>
       </div>
       <div
         className="antenna-geometry-caption"
         aria-live="polite"
-        title="Existing GLB in its nominal mount. Geometry is uniformly scaled for inspection; the lobe has no metre radius. Pattern rotation does not articulate this spacecraft."
+        title="The lobe uses the nominal feed or radiator center as its visual origin, not a measured phase center. Radius is normalized, not metres. Pattern rotation does not articulate the spacecraft."
       >
         <strong>Nominal geometry</strong>
         <span>
