@@ -6,6 +6,7 @@ Earth thermal forcing below uses a uniform Lambertian sphere, not weather.
 """
 
 import math
+from datetime import timedelta
 from ..geometry.vectors import add, cross, dot, norm, scale, unit
 from .ephemeris import utc_datetime
 
@@ -15,12 +16,12 @@ MAGNETIC_RADIUS_M = 6371200.0
 
 
 def decimal_year(epoch_utc, elapsed_s=0.0):
-    epoch = utc_datetime(epoch_utc)
+    epoch = utc_datetime(epoch_utc) + timedelta(seconds=elapsed_s)
     start = epoch.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
     end = start.replace(year=start.year + 1)
     return (
         start.year
-        + ((epoch - start).total_seconds() + elapsed_s) / (end - start).total_seconds()
+        + (epoch - start).total_seconds() / (end - start).total_seconds()
     )
 
 
