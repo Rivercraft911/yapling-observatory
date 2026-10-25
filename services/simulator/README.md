@@ -1,6 +1,8 @@
 # Simulator service 0.1.0
 
-This first runnable slice computes an **illustrative analytical circular pass**, prescribed attitude, vector antenna coupling, independent uplink/downlink budgets, and integrated **ideal threshold capacity**. It does not predict mission performance or implement packet delivery, synchronization, receiver lock, acquisition, retries or queues. Separate power and thermal studies use prescribed phases; their results do not change this pass.
+The main mission model couples propagated orbit, rigid-body attitude, limited actuators, RF geometry, solar generation, stored energy and lumped temperatures. Its headless entry is `mission.driver.run_mission(MissionScenario.model_validate(data))`. Results retain the exact inputs, clocks, frame approximations, source hashes, events and energy balance.
+
+The original constructed circular-pass API and CLI remain available as analytical references. They use prescribed attitude and ideal threshold capacity. Independent power/thermal and dynamics labs have separate input contracts. None of these models implements hardware receiver acquisition, packet delivery or operational orbit determination.
 
 Run from the repository after the root setup creates `.venv` and installs this package:
 
@@ -15,28 +17,47 @@ The service binds `127.0.0.1:8765` through `serve`. The application import for t
 
 ## Numerical model map
 
-The Python domains contain the formulas. `core.py` connects them and builds the columnar run; API routes and browser views consume that result.
+The Python domains contain the formulas. `mission/driver.py` connects the shared mission; `core.py` retains the constructed circular reference. API routes and browser views consume their returned columns.
 
-| Module | Responsibility and current limit |
-| --- | --- |
-| `geometry/vectors.py`, `geometry/frames.py` | Vector/matrix operations, Hamilton quaternion conversion, WGS84 geodetic/ENU transforms and right-hand rotations. |
-| `orbit/circular_pass.py` | Synthetic point-mass circular pass, constant Earth rotation, endpoint velocities and line-of-sight geometry. No TLE or general propagator. |
-| `attitude/prescribed.py` | Kinematic station tracking, prescribed body-axis spin and pointing offset. No actuator, torque or controller solve. |
-| `rf/antennas.py`, `rf/polarization.py` | Analytical vector patterns, normalized source power, horizon feed orientation and reciprocal field coupling. |
-| `rf/free_space.py`, `rf/noise.py` | Free-space attenuation, logarithmic power and antenna-port thermal noise density. |
-| `rf/modem.py`, `rf/link_budget.py` | Generic nominal information rate and direction-specific RF budget, metric, margin and ideal rate gate. Exact DVB framing and LoRa airtime remain absent. |
-| `rf/pattern_sampling.py` | Headless pattern-sphere/cut sampling and constant-work field probes using the same antenna formulas as runs. |
-| `operations/schedule.py`, `operations/capacity.py` | Half-open alternating slots, requested sample grid and midpoint ideal-capacity integration split at slot boundaries. |
-| `power/solar.py`, `power/battery.py`, `power/loads.py` | Projected PV generation, nominal stored-energy balance and electrical/RF/heat accounting. No IV strings, OCV or cell-aging model. |
-| `thermal/network.py`, `thermal/models.py` | Lumped conduction, radiation and implicit thermal integration with explicit material/contact inputs. |
-| `power/study.py`, `power/models.py` | Prescribed CONOPS, manual imaging/eclipse windows, coupled power/thermal bookkeeping and run provenance. |
-| `models.py`, `antenna_models.py` | Immutable validated input contracts and evidence records. `RadioProfile.net_rate_bps()` delegates to `rf/modem.py`. |
-| `run_manifest.py` | Model/input provenance, runtime versions, constants, validity limits and numerical-source SHA-256 identities. |
-| `api.py`, `antenna_lab.py`, `jobs.py`, `worker.py` | HTTP adapters and cancellable job lifecycle. Pattern endpoints contain no pattern equations. |
+| Module                                                                        | Responsibility and current limit                                                                                                                         |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `geometry/vectors.py`, `geometry/frames.py`                                   | Vector/matrix operations, Hamilton quaternion conversion, WGS84 geodetic/ENU transforms and right-hand rotations.                                        |
+| `orbit/gravity.py`, `orbit/elements.py`, `orbit/two_body.py`                  | Central/J2 acceleration and potential, osculating elements, RK4/velocity Verlet, first-order SSO reference and epoch-linked local mean solar time.       |
+| `attitude/dynamics.py`, `attitude/control.py`, `attitude/actuators.py`        | Rigid-body/wheel momentum dynamics, quaternion PD/B-dot references, torque allocation, saturation and actuator electrical/heat ledgers.                  |
+| `mission/driver.py`, `mission/environment.py`, `mission/ephemeris.py`         | Shared fixed-clock coupling; approximate Sun/GMST, degree-one IGRF-14 field, spherical Earth flux and geometric eclipse.                                 |
+| `mission_models.py`, `mission_lab.py`, `mission_jobs.py`, `mission_worker.py` | Immutable mission inputs, HTTP routes and cancellable process execution.                                                                                 |
+| `orbit/circular_pass.py`                                                      | Synthetic point-mass circular pass, constant Earth rotation, endpoint velocities and line-of-sight geometry. No TLE or general propagator.               |
+| `attitude/prescribed.py`                                                      | Kinematic station tracking, prescribed body-axis spin and pointing offset. No actuator, torque or controller solve.                                      |
+| `rf/antennas.py`, `rf/polarization.py`                                        | Analytical vector patterns, normalized source power, horizon feed orientation and reciprocal field coupling.                                             |
+| `rf/free_space.py`, `rf/noise.py`                                             | Free-space attenuation, logarithmic power and antenna-port thermal noise density.                                                                        |
+| `rf/modem.py`, `rf/link_budget.py`                                            | Generic nominal information rate and direction-specific RF budget, metric, margin and ideal rate gate. Exact DVB framing and LoRa airtime remain absent. |
+| `rf/pattern_sampling.py`                                                      | Headless pattern-sphere/cut sampling and constant-work field probes using the same antenna formulas as runs.                                             |
+| `operations/schedule.py`, `operations/capacity.py`                            | Half-open alternating slots, requested sample grid and midpoint ideal-capacity integration split at slot boundaries.                                     |
+| `power/solar.py`, `power/battery.py`, `power/loads.py`                        | Projected PV generation, nominal stored-energy balance and electrical/RF/heat accounting. No IV strings, OCV or cell-aging model.                        |
+| `thermal/network.py`, `thermal/models.py`                                     | Lumped conduction, radiation and implicit thermal integration with explicit material/contact inputs.                                                     |
+| `power/study.py`, `power/models.py`                                           | Prescribed CONOPS, manual imaging/eclipse windows, coupled power/thermal bookkeeping and run provenance.                                                 |
+| `models.py`, `antenna_models.py`                                              | Immutable validated input contracts and evidence records. `RadioProfile.net_rate_bps()` delegates to `rf/modem.py`.                                      |
+| `run_manifest.py`                                                             | Model/input provenance, runtime versions, constants, validity limits and numerical-source SHA-256 identities.                                            |
+| `api.py`, `antenna_lab.py`, `jobs.py`, `worker.py`                            | HTTP adapters and cancellable job lifecycle. Pattern endpoints contain no pattern equations.                                                             |
 
 `physics.py` temporarily reexports the numerical functions for existing studies; it contains no second implementation. `core.CircularPass`, `core.evaluate_link` and the existing antenna-lab imports also remain compatible. Numerical domains cannot depend on HTTP, worker lifecycle or browser/plotting packages. AST dependency tests and a headless subprocess import guard enforce this direction.
 
 ## API
+
+- `GET /api/mission/default`: provisional one-day dusk SSO scenario.
+- `POST /api/mission/orbit`: `{orbit, ltan_hours?, sso?}`. Return linked node metadata; explicit SSO requests update inclination. Ordinary element edits remain free.
+- `GET /api/mission/actuator-presets`: provisional wheel-assisted and magnetic-only spacecraft patches.
+- `POST /api/mission/runs`: `{scenario}`; return an identified job. `GET` and `DELETE /api/mission/runs/{run_id}` inspect or cancel it.
+
+Mission workers run one at a time, allow two active/queued jobs and retain eight results in memory. The wall-clock limit is 180 seconds. `status=complete` means worker execution finished; inspect `summary.end_reason` and `computed_duration_s` before treating the requested interval as covered. The UI labels early termination as Stopped. Results contain shared RF samples plus `gnc`, `power` and `thermal` arrays; voltage/current are null until an electrical model is supplied.
+
+The provisional default is three example wheels plus an enabled MTQ, with free roll angle and full angular-rate damping. It uses 1 s dynamics, 2 s controller, 10 s thermal/environment and 30 s output clocks. The wheel branch does not perform magnetic unloading; enabled MTQ authority is used in magnetic-only tracking or detumble. Disabling actuators removes their torque and associated power, without guessing a mass/inertia correction.
+
+A source-frozen one-day run completed in 38.31 s; a fresh-process 0.5 s dynamics-only refinement with the same other clocks completed in 67.32 s. At common output times, attitude RMS/max differences were 0.0514°/1.0304°, maximum node-temperature difference was 0.0677 K, battery-trace difference was 0.00290 Wh, and uplink/downlink ideal capacity differed by 0.2893%/0.2979%. The largest attitude difference occurred at a contact transition; events remain dynamics-grid resolved. Total energy closure was below 0.8 µJ. These checks cover this provisional example, not general magnetic tracking stability or the fixed 10 s environment/quadrature fidelity. Magnetic-only cases stopped at explicit angular-step guards and remain comparison studies.
+
+The epoch-equatorial Sun/GMST adapter uses UTC as UT1 and omits precession, nutation and EOP. The field is degree-one IGRF-14 only. The separate thermal Earth radius, uniform albedo/IR, fixed concept-cell footprints, 29% covered-footprint efficiency, thermal materials and contacts remain explicit approximations. Imaging windows currently guide the configured common boresight and switch loads; lens FOV and camera-specific image coverage are not solved.
+
+The following routes retain the earlier independent studies:
 
 - `GET /api/power-lab/default`: complete provisional power/thermal inputs.
 - `GET /api/power-lab/stage-templates`: validated provisional loads and illumination for Sun pointing, ground tracking, imaging and detumble.
@@ -73,7 +94,7 @@ uplink / downlink:
 
 `attitude_angle_deg` is patch +Y boresight error to the station, not an Euler attitude angle. Margins are counterfactual instantaneous budgets for both directions; only the scheduled direction accumulates capacity. `summary.ideal_capacity_bits[direction]` is **null**, with `capacity_available=false`, if the pattern or receiver threshold is unresolved. Its rates and cumulative values are also null. A known antenna/polarization null, horizon block or negative margin is a physical modeled zero when the model and threshold are otherwise available. Null logarithmic values have a `reason`; no artificial finite floor is drawn through a true antenna field null.
 
-## Geometry, time and attitude
+## Original circular-pass geometry, time and attitude
 
 All numerical distances, times and rates use SI; field names retain units. Station coordinates use the WGS84 ellipsoid, but the default 37.4275° N, 122.1697° W and 30 m ellipsoidal height are unsurveyed campus demonstration inputs. The user's Durand-roof station and 1.9 m dish reports do not establish these coordinates or a measured antenna pattern.
 
@@ -108,7 +129,7 @@ DVB-S2 QPSK/8PSK threshold templates use [ETSI EN 302 307-1 V1.4.1, section 6, T
 
 The optional 438 MHz LoRa template has an unresolved C/N0 threshold and an illustrative 4,800 bit/s information rate. Exact MiniF27 SKU, SX1262/LLCC68 variant, waveform settings and receiver curves remain unresolved. It returns null margin/capacity until a user supplies a labeled illustrative threshold. No sensitivity or packet-success curve is fabricated.
 
-Capacity integrates the ideal net rate only while visible, scheduled and above the selected threshold. Midpoint geometry is evaluated independently from display samples and every schedule boundary is split exactly. Visibility and threshold crossings remain grid-resolved. Tests refine the timestep and compare integrated capacity; a result is not a packet count or achieved throughput. The 30 s default slots alternate directions. Simultaneous availability is never inferred from two positive budgets.
+Capacity integrates the ideal net rate only while visible, scheduled and above the selected threshold. The original circular reference evaluates midpoint geometry independently from display samples and splits every schedule boundary exactly. The shared mission integrates on its explicit dynamics clock, with slots constrained to that grid and operation/visibility transitions grid resolved. Visibility and threshold crossings remain grid-resolved. Tests refine the timestep and compare integrated capacity; a result is not a packet count or achieved throughput. The 30 s default slots alternate directions. Simultaneous availability is never inferred from two positive budgets.
 
 ## Power and thermal study
 
@@ -120,7 +141,7 @@ The external energy balance follows [NASA SmallSat Thermal Control, section 7.1,
 
 ## Evidence and checks
 
-Each Scenario is frozen and content-addressed from canonical JSON. A change creates a different scenario hash; each Run archives that exact Scenario, runtime/model versions, numerical settings, constants, source locators, warnings and effective-input provenance. `manifest.source_code_hashes` records relative package paths and SHA-256 values for the numerical domains, validated input contracts and run orchestration. An unavailable source file is explicit null; private absolute paths are never included. Changed bundled values are tagged as unverified user inputs. Results are independent of camera state and contain a deterministic content hash. No random inputs are used.
+Each Scenario is frozen and content-addressed from canonical JSON. A change creates a different scenario hash; each Run archives that exact Scenario, runtime/model versions, numerical settings, constants, source locators, warnings and effective-input provenance. `manifest.source_code_hashes` records relative package paths and SHA-256 values for the numerical domains, validated input contracts and run orchestration. An unavailable source file is explicit null; private absolute paths are never included. In the original analytical contract, changed bundled values are tagged as unverified user inputs and results contain a deterministic content hash. The shared mission retains its full frozen input, scenario hash, unique run ID and numerical source identities. Both are independent of camera state. No random inputs are used.
 
 Primary references checked for this implementation:
 

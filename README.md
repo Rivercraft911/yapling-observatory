@@ -1,8 +1,8 @@
 # Stanford SSI Link Workspace
 
-Explore a CubeSat pass, inspect antenna lobes, and compare uplink and downlink budgets. Follow the spacecraft above Earth or work with its physical model. Resize the panes, choose the lower plots, and replay a computed run at 0.25× to 1000×. Click or drag a plot to scrub. Hover to inspect a sampled value while playback continues. Graphics interpolate between samples for smooth replay.
+Run a CubeSat mission, inspect antenna lobes, and compare RF, pointing, power and temperatures on one timeline. Follow the spacecraft above Earth or work with its physical model. Resize the panes, choose the lower plots, and replay a computed run at 0.25× to 1000×. Click or drag a plot to scrub. Hover to inspect a sampled value while playback continues. Graphics interpolate between samples for smooth replay.
 
-Python owns the engineering calculations. The browser displays immutable results and handles cameras, geometry and controls. Equations have named homes such as [`rf/free_space.py`](services/simulator/src/cubesat_sim/rf/free_space.py), [`rf/link_budget.py`](services/simulator/src/cubesat_sim/rf/link_budget.py) and [`orbit/circular_pass.py`](services/simulator/src/cubesat_sim/orbit/circular_pass.py). See the [model map and numerical guide](services/simulator/README.md).
+Python owns the engineering calculations. The browser displays immutable results and handles cameras, geometry and controls. Equations have named homes such as [`rf/free_space.py`](services/simulator/src/cubesat_sim/rf/free_space.py), [`rf/link_budget.py`](services/simulator/src/cubesat_sim/rf/link_budget.py) and [`orbit/gravity.py`](services/simulator/src/cubesat_sim/orbit/gravity.py). See the [model map and numerical guide](services/simulator/README.md).
 
 ## Run locally
 
@@ -19,24 +19,29 @@ The spacecraft view includes an optional cutaway with a removable tracker. Space
 
 ## Model limits
 
-The current pass is a constructed circular example with prescribed tracking or tumble. RF uses analytical vector patterns and ideal threshold capacity. DVB-S2 supports QPSK and 8PSK. UHF LoRa is separate, with an unresolved receiver threshold. The antenna lab includes two bent-wire V references with prescribed current and patch half-power cuts. The rendered hardware has no validated installed radiation pattern.
+The main mission starts with an editable 24-hour, 550 km dusk-ascending SSO example. Edit a, e, i, Ω, ω and ν directly; LTAN and Ω stay linked at the entered epoch. Choose RK4 or velocity Verlet separately from central or central-plus-J2 gravity. The SSO preset uses a first-order mean-J2 estimate as osculating initial elements. It is a planning case, not a flight ephemeris.
 
-Spacecraft’s Power and Thermal sections run a separate prescribed CONOPS study. Edit phase loads, solar efficiency, the NCR18650GA pack, eclipse windows and thermal properties; inspect energy, temperatures and heat flows. Areas, material properties and loads are provisional inputs. The battery tracks nominal stored energy, without a voltage or aging model.
+The mission couples rigid-body dynamics, limited wheels and magnetorquers, RF geometry, Sun exposure, battery energy and lumped thermals. The provisional default has three example reaction wheels and an enabled magnetorquer; a magnetic-only comparison preset remains available. Wheel-assisted control does not yet perform magnetic momentum unloading. Ground passes interrupt Sun pointing; manual windows add imaging or detumble. The default reduced-attitude controller leaves roll angle free and damps body rates. Hardware, mass, inertia, electrical curves and thermal contacts remain provisional. Magnetic field uses an IGRF-14 degree-one reference, with no full-field accuracy claim. A run that reaches a numerical or power limit stops and reports its last valid common state.
 
-Real orbit forecasts, integrated physical control and hardware receiver behavior remain planned. The standalone power study does not yet use the Earth view’s orbit or attitude. Bundled values retain inspectable provenance. Earth imagery and shader lighting do not affect the calculations.
+The one-day reference completes with explicit 1 s dynamics, 2 s controller, 10 s thermal/environment and 30 s output clocks. On the checked local machine it took 38 s; a 0.5 s dynamics-only check took 67 s. Ideal capacity differed by about 0.3% and node temperatures by at most 0.068 K. This checks that example, with contact transitions still grid resolved; it does not validate other inputs or the fixed environment quadrature.
+
+RF uses analytical vector patterns and ideal threshold capacity. DVB-S2 supports QPSK and 8PSK. UHF LoRa has an unresolved receiver threshold. Antenna Lab includes two bent-wire V references and patch half-power cuts; rendered hardware has no validated installed pattern. Acquisition, packet delivery, mount servos and historical weather effects remain unimplemented.
+
+Spacecraft’s Power, Thermal and GNC labs also support independent studies with their own inputs. Hardware controls edit the shared mission. The NCR18650GA battery tracks nominal energy; terminal voltage, cell current and aging remain unresolved. Static clouds supply appearance only. Numerical Sun directions drive mission lighting; shaders never feed calculations.
 
 ## Repository
 
-| Path | Purpose |
-| --- | --- |
-| `services/simulator/` | Numerical domains, validated inputs, API and tests |
-| `apps/web/src/earth/` | Earth rendering and spacecraft-follow camera |
-| `apps/web/src/graphics/` | Shared display and material handling |
-| `apps/web/src/antenna/` | Antenna inspection graphics |
-| `apps/web/src/plots/` | Selection and display of returned traces |
-| `apps/web/src/systems/` | Spacecraft study controls and returned power/thermal plots |
-| `scripts/` | Local setup and process lifecycle |
-| `private/` | Ignored mission notes, studies, source CAD and renders |
+| Path                     | Purpose                                                    |
+| ------------------------ | ---------------------------------------------------------- |
+| `services/simulator/`    | Numerical domains, validated inputs, API and tests         |
+| `apps/web/src/earth/`    | Earth rendering and spacecraft-follow camera               |
+| `apps/web/src/graphics/` | Shared display and material handling                       |
+| `apps/web/src/antenna/`  | Antenna inspection graphics                                |
+| `apps/web/src/plots/`    | Selection and display of returned traces                   |
+| `apps/web/src/mission/`  | Shared mission inputs, worker state and display adapters   |
+| `apps/web/src/systems/`  | Spacecraft study controls and returned power/thermal plots |
+| `scripts/`               | Local setup and process lifecycle                          |
+| `private/`               | Ignored mission notes, studies, source CAD and renders     |
 
 ## Checks
 
@@ -52,6 +57,7 @@ node --experimental-strip-types apps/web/src/earth/earth-depth.test.mjs
 node --experimental-strip-types apps/web/src/graphics/display-interpolation.test.mjs
 node --experimental-strip-types apps/web/src/graphics/frame-size.test.mjs
 node --experimental-strip-types apps/web/src/spacecraft/preview-visibility.test.mjs
+node --experimental-strip-types apps/web/src/graphics/thermal-overlay.test.mjs
 ```
 
 Tests cover physical reference cases, numerical regressions and dependency boundaries. The GitHub workflow is configured to run the same checks. Use `npm --prefix apps/web run format` after frontend edits.
