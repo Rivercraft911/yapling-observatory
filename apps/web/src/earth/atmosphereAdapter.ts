@@ -1,27 +1,53 @@
-import { AdditiveBlending, BackSide, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, BackSide, ShaderMaterial, Vector3, Vector4 } from 'three';
 import type { Texture } from 'three';
 
 // Independent compatibility implementation. Replace this boundary with Takram's
 // renderer-context/TSL atmosphere API when the app adopts that pipeline.
 export interface EarthAppearance {
-  surface:ShaderMaterial;clouds:ShaderMaterial;atmosphere:ShaderMaterial;
-  setSun:(direction:readonly number[])=>void;dispose:()=>void;
+  surface: ShaderMaterial;
+  clouds: ShaderMaterial;
+  atmosphere: ShaderMaterial;
+  setSun: (direction: readonly number[]) => void;
+  setRegionalMap: (texture: Texture | null, bounds?: readonly number[]) => void;
+  setRegionalOpacity: (opacity: number) => void;
+  dispose: () => void;
 }
-const vertex=`
+const vertex = `
 varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
 void main(){vUv=uv;vPosition=(modelMatrix*vec4(position,1.)).xyz;vNormal=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}
 `;
-export function createEarthAppearance(day:Texture,cloud:Texture,ocean:Texture):EarthAppearance{
-  const sun={value:new Vector3(1,0,0)};
-  const uniforms={sun,dayMap:{value:day},cloudMap:{value:cloud},oceanMap:{value:ocean}};
-  const surface=new ShaderMaterial({uniforms,vertexShader:vertex,fragmentShader:`
+export function createEarthAppearance(
+  day: Texture,
+  cloud: Texture,
+  ocean: Texture,
+): EarthAppearance {
+  const sun = { value: new Vector3(1, 0, 0) };
+  const uniforms = {
+    sun,
+    dayMap: { value: day },
+    cloudMap: { value: cloud },
+    oceanMap: { value: ocean },
+    regionalDayMap: { value: day },
+    regionalBounds: { value: new Vector4(0, 0, 1, 1) },
+    regionalOpacity: { value: 0 },
+  };
+  const surface = new ShaderMaterial({
+    uniforms,
+    vertexShader: vertex,
+    fragmentShader: `
 uniform sampler2D dayMap;uniform sampler2D cloudMap;uniform sampler2D oceanMap;uniform vec3 sun;
+uniform sampler2D regionalDayMap;uniform vec4 regionalBounds;uniform float regionalOpacity;
 varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
 const float PI=3.141592653589793;
 vec2 directionUv(vec3 p){vec3 n=normalize(vec3(p.x,p.y/0.9933056200,p.z));return vec2(atan(-n.z,n.x)/(2.*PI)+.5,asin(clamp(n.y,-1.,1.))/PI+.5);}
 void main(){
  vec3 n=normalize(vNormal);vec3 view=normalize(cameraPosition-vPosition);float ndl=dot(n,sun);float water=texture2D(oceanMap,vUv).r;
- vec3 albedo=texture2D(dayMap,vUv).rgb;float luminance=dot(albedo,vec3(.2126,.7152,.0722));albedo=mix(vec3(luminance),albedo,.83);
+ vec3 albedo=texture2D(dayMap,vUv).rgb;
+ vec2 regionalUv=(vUv-regionalBounds.xy)/(regionalBounds.zw-regionalBounds.xy);
+ float edge=min(min(regionalUv.x,regionalUv.y),min(1.-regionalUv.x,1.-regionalUv.y));
+ float regionalMix=regionalOpacity*smoothstep(0.,.07,edge);
+ if(regionalMix>0.)albedo=mix(albedo,texture2D(regionalDayMap,clamp(regionalUv,0.,1.)).rgb,regionalMix);
+ float luminance=dot(albedo,vec3(.2126,.7152,.0722));albedo=mix(vec3(luminance),albedo,.83);
  albedo*=mix(.93,.48,water);float direct=smoothstep(-.025,.10,ndl)*max(ndl,0.);
  vec2 shadowUv=directionUv(vPosition+sun*(.00125/max(ndl,.16)));
  float shadow=smoothstep(.06,.87,texture2D(cloudMap,shadowUv).r)*.26;
@@ -33,15 +59,30 @@ void main(){
  gl_FragColor=vec4(color,1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
-}`});
-  const clouds=new ShaderMaterial({uniforms:{sun,cloudMap:{value:cloud}},vertexShader:vertex,transparent:true,depthWrite:false,fragmentShader:`
+}`,
+  });
+  const clouds = new ShaderMaterial({
+    uniforms: { sun, cloudMap: { value: cloud } },
+    vertexShader: vertex,
+    transparent: true,
+    depthWrite: false,
+    fragmentShader: `
 uniform sampler2D cloudMap;uniform vec3 sun;varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
 void main(){float density=texture2D(cloudMap,vUv).r;float opacity=smoothstep(.035,.94,density)*.94;float ndl=dot(normalize(vNormal),sun);float light=smoothstep(-.035,.08,ndl)*pow(max(ndl,0.),.52);
 vec3 color=vec3(.99,.99,1.)*(.008+light*1.4);gl_FragColor=vec4(color,opacity);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
-}`});
-  const atmosphere=new ShaderMaterial({uniforms:{sun},vertexShader:vertex,transparent:true,depthWrite:false,depthTest:false,side:BackSide,blending:AdditiveBlending,fragmentShader:`
+}`,
+  });
+  const atmosphere = new ShaderMaterial({
+    uniforms: { sun },
+    vertexShader: vertex,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    side: BackSide,
+    blending: AdditiveBlending,
+    fragmentShader: `
 uniform vec3 sun;varying vec3 vPosition;const float R=6378.137;const float PI=3.141592653589793;
 vec2 intersectSphere(vec3 o,vec3 d,float radius){float b=dot(o,d),c=dot(o,o)-radius*radius,h=b*b-c;if(h<0.)return vec2(1e5,-1e5);float s=sqrt(h);return vec2(-b-s,-b+s);}
 void main(){
@@ -63,6 +104,25 @@ void main(){
  gl_FragColor=vec4(scatter*4.,1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
-}`});
-  return {surface,clouds,atmosphere,setSun:direction=>sun.value.set(direction[0],direction[1],direction[2]).normalize(),dispose:()=>{surface.dispose();clouds.dispose();atmosphere.dispose();}};
+}`,
+  });
+  return {
+    surface,
+    clouds,
+    atmosphere,
+    setSun: (direction) => sun.value.set(direction[0], direction[1], direction[2]).normalize(),
+    setRegionalMap: (texture, bounds) => {
+      uniforms.regionalDayMap.value = texture || day;
+      if (bounds) uniforms.regionalBounds.value.fromArray(bounds);
+      if (!texture) uniforms.regionalOpacity.value = 0;
+    },
+    setRegionalOpacity: (opacity) => {
+      uniforms.regionalOpacity.value = opacity;
+    },
+    dispose: () => {
+      surface.dispose();
+      clouds.dispose();
+      atmosphere.dispose();
+    },
+  };
 }

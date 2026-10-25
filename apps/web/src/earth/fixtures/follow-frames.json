@@ -1,0 +1,247 @@
+{
+  "source": "Python CircularPass, model analytic-circular-vector-rf-0.1.0; expected axes use independent matrix transform R_EI then C(x,y,z)=(x,z,-y).",
+  "base_scenario": {
+    "schema_version": "0.1.0",
+    "name": "Illustrative Stanford circular pass",
+    "epoch_utc": "2026-10-25T00:00:00Z",
+    "duration_s": 1200.0,
+    "step_s": 1.0,
+    "station": {
+      "latitude_deg": 37.4275,
+      "longitude_deg": -122.1697,
+      "height_m": 30.0,
+      "minimum_elevation_deg": 10.0
+    },
+    "orbit": {
+      "altitude_m": 550000.0,
+      "ground_track_heading_deg": 0.0
+    },
+    "attitude": {
+      "mode": "tracking",
+      "pointing_error_deg": 0.0,
+      "spin_rate_deg_s": 6.0,
+      "spin_axis_body": [1.0, 0.4, 0.7]
+    },
+    "antenna_variant": "dipole",
+    "schedule": {
+      "slot_duration_s": 30.0,
+      "first_direction": "uplink"
+    },
+    "uplink": {
+      "spacecraft_antenna": "patch",
+      "frequency_hz": 2400000000.0,
+      "tx_power_w": 5.0,
+      "tx_feed_loss_db": 1.0,
+      "ground_peak_gain_dbi": 31.0,
+      "spacecraft_peak_gain_dbi": 6.0,
+      "rx_system_noise_temperature_k": 800.0,
+      "extra_path_loss_db": 0.0,
+      "ground_feed_roll_deg": 0.0,
+      "profile": {
+        "waveform": "dvb_s2",
+        "modulation": "QPSK",
+        "symbol_rate_sps": 1000000.0,
+        "code_rate": 0.5,
+        "net_efficiency": 0.9,
+        "information_rate_bps": null,
+        "threshold_metric": "esn0",
+        "threshold_db": 1.0,
+        "threshold_status": "ideal_awgn",
+        "engineering_reserve_db": 0.0
+      }
+    },
+    "downlink": {
+      "spacecraft_antenna": "patch",
+      "frequency_hz": 2400000000.0,
+      "tx_power_w": 2.0,
+      "tx_feed_loss_db": 1.0,
+      "ground_peak_gain_dbi": 31.0,
+      "spacecraft_peak_gain_dbi": 6.0,
+      "rx_system_noise_temperature_k": 150.0,
+      "extra_path_loss_db": 0.0,
+      "ground_feed_roll_deg": 0.0,
+      "profile": {
+        "waveform": "dvb_s2",
+        "modulation": "QPSK",
+        "symbol_rate_sps": 1000000.0,
+        "code_rate": 0.5,
+        "net_efficiency": 0.9,
+        "information_rate_bps": null,
+        "threshold_metric": "esn0",
+        "threshold_db": 1.0,
+        "threshold_status": "ideal_awgn",
+        "engineering_reserve_db": 0.0
+      }
+    },
+    "provenance": [
+      {
+        "path": "station",
+        "status": "illustrative",
+        "source": "Approximate Stanford campus location, not a surveyed antenna reference point",
+        "conditions": "User reports Durand roof; these approximate campus coordinates and 30 m ellipsoidal height are demonstration assumptions, not Durand measurements."
+      },
+      {
+        "path": "orbit",
+        "status": "illustrative",
+        "source": "User's 550 km circular planning case; an overhead-like plane is constructed for demonstration",
+        "conditions": "No launch orbit, TLE, inclination, RAAN or flight ephemeris has been supplied."
+      },
+      {
+        "path": "uplink.ground_peak_gain_dbi",
+        "status": "illustrative",
+        "source": "Editable 31 dBi example for the user-reported 1.9 m S-band dish",
+        "conditions": "Pattern, feed efficiency, antenna reference point and measurements unresolved."
+      },
+      {
+        "path": "uplink.profile.threshold_db",
+        "status": "primary_reference",
+        "source": "https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf",
+        "conditions": "EN 302 307-1 V1.4.1 section 6, Table 13, p. 36: ideal simulated QPSK 1/2, 1 dB Es/N0. Not a receiver acquisition or measured decoder curve."
+      },
+      {
+        "path": "downlink.profile.threshold_db",
+        "status": "primary_reference",
+        "source": "https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf",
+        "conditions": "EN 302 307-1 V1.4.1 section 6, Table 13, p. 36: ideal simulated QPSK 1/2 threshold 1 dB, AWGN, normal FECFRAME, perfect synchronization. No hardware/acquisition claim."
+      },
+      {
+        "path": "downlink.ground_peak_gain_dbi",
+        "status": "illustrative",
+        "source": "Editable 31 dBi example near aperture estimate for reported 1.9 m dish",
+        "conditions": "User reports dish diameter; efficiency/feed/pattern/receiver measurements unavailable. This gain is independently editable and does not update with frequency."
+      },
+      {
+        "path": "",
+        "status": "illustrative",
+        "source": "Bundled analytical example, version 0.1.0",
+        "conditions": "All remaining inputs, including power, noise, feed loss, net efficiency, schedules and kinematic attitude, are editable demonstration assumptions. No mission hardware is selected."
+      }
+    ]
+  },
+  "fixture_overrides": {
+    "pointing_error_deg": 17.0,
+    "modes": ["tracking", "tumble"]
+  },
+  "fixtures": [
+    {
+      "mode": "tracking",
+      "time_s": 0,
+      "duration_s": 1200,
+      "q": [0.23549151801255894, -0.23395498596669573, -0.7193295680248492, -0.6102243702529815],
+      "exact_angle": 0.04375269,
+      "expected": [
+        [-0.8061639194741608, -0.05326195589283608, -0.5892901653621316],
+        [0.042752745485894215, 0.9880936948884337, -0.14779395412242452],
+        [0.590145691919781, -0.1443399257869858, -0.794288391034598]
+      ]
+    },
+    {
+      "mode": "tracking",
+      "time_s": 137,
+      "duration_s": 1200,
+      "q": [0.25348797447542365, -0.251851332020269, -0.7490925520204247, -0.5578307107568483],
+      "exact_angle": 0.03376249245,
+      "expected": [
+        [-0.7664884308490949, -0.09879109232071548, -0.6346146905426725],
+        [0.08599355594167479, 0.9634162294779405, -0.2538390772024951],
+        [0.6364751320444485, -0.24913748986571277, -0.7299519966630776]
+      ]
+    },
+    {
+      "mode": "tracking",
+      "time_s": 600,
+      "duration_s": 1200,
+      "q": [0.855202956453802, 0.4380243474016717, -0.12630377065632908, 0.24659669883031593],
+      "exact_angle": -0.0,
+      "expected": [
+        [0.8464748512879677, 2.220446049250313e-16, 0.5324287052150859],
+        [0.3111321983506501, -0.8114916195806579, -0.49464947841866014],
+        [0.4320614323062226, 0.5843640572026662, -0.6869072480059696]
+      ]
+    },
+    {
+      "mode": "tracking",
+      "time_s": 991,
+      "duration_s": 1200,
+      "q": [0.32233312186606095, 0.4971993180695517, 0.3962424251729369, -0.7013459468424419],
+      "exact_angle": -0.02851216965,
+      "expected": [
+        [-0.27354485609855905, -0.44197333715826875, -0.8543025113759188],
+        [-0.07171980117947173, -0.8763336544901881, 0.4763355919167163],
+        [-0.959181673000895, 0.19156955720848445, 0.2080183235442242]
+      ]
+    },
+    {
+      "mode": "tracking",
+      "time_s": 1200,
+      "duration_s": 1200,
+      "q": [0.2554490689868349, 0.19688843053796617, 0.44650000883772945, -0.8346367240793825],
+      "exact_angle": -0.04375269,
+      "expected": [
+        [-0.7648625072134891, -0.10054460622625519, -0.6362987719757935],
+        [-0.2709439127333122, -0.845920541905881, 0.45935588919096715],
+        [-0.5844439590002268, 0.5237453760564079, 0.6197709575703535]
+      ]
+    },
+    {
+      "mode": "tumble",
+      "time_s": 0,
+      "duration_s": 1200,
+      "q": [0.8552029564538008, 0.4380243474016735, -0.12630377065632864, 0.24659669883031682],
+      "exact_angle": 0.04375269,
+      "expected": [
+        [0.8689525344957307, 2.9118680151298497e-15, 0.49489543622208315],
+        [0.28919910500182044, -0.81149161958066, -0.5077846285744612],
+        [0.4016034990629339, 0.5843640572026632, -0.7051476995566608]
+      ]
+    },
+    {
+      "mode": "tumble",
+      "time_s": 137,
+      "duration_s": 1200,
+      "q": [0.9069328959505643, -0.3283716951253665, -0.23071127037425523, -0.12812908259061886],
+      "exact_angle": 0.03376249245,
+      "expected": [
+        [0.8472601059236913, -0.3343313530476346, -0.41276247319676906],
+        [-0.10621278675463451, 0.6547438316492279, -0.7483510933025367],
+        [0.520450916840378, 0.6778886791255814, 0.5192280634493714]
+      ]
+    },
+    {
+      "mode": "tumble",
+      "time_s": 600,
+      "duration_s": 1200,
+      "q": [0.855202956453802, 0.4380243474016717, -0.12630377065632908, 0.24659669883031593],
+      "exact_angle": -0.0,
+      "expected": [
+        [0.8464748512879677, 2.220446049250313e-16, 0.5324287052150859],
+        [0.3111321983506501, -0.8114916195806579, -0.49464947841866014],
+        [0.4320614323062226, 0.5843640572026662, -0.6869072480059696]
+      ]
+    },
+    {
+      "mode": "tumble",
+      "time_s": 991,
+      "duration_s": 1200,
+      "q": [0.4290667643691675, -0.7990997844757187, -0.18771424827107794, -0.37696764736600047],
+      "exact_angle": -0.02851216965,
+      "expected": [
+        [0.6628299632895202, 0.4413856412656554, -0.6048430833283289],
+        [-0.03947677387630358, 0.8272587149618427, 0.5604325140853266],
+        [0.7477285764834275, -0.34759420910623184, 0.5657563448215853]
+      ]
+    },
+    {
+      "mode": "tumble",
+      "time_s": 1200,
+      "duration_s": 1200,
+      "q": [0.8552029564538031, 0.4380243474016699, -0.12630377065632953, 0.24659669883031507],
+      "exact_angle": -0.04375269,
+      "expected": [
+        [0.8223770215433482, -2.467778805279787e-15, 0.5689429096469093],
+        [0.3324697869979578, -0.8114916195806557, -0.4805675728593189],
+        [0.46169240319830224, 0.584364057202669, -0.6673520611181268]
+      ]
+    }
+  ]
+}

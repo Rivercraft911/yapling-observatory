@@ -44,6 +44,7 @@ npm --prefix apps/web run build
 node --experimental-strip-types apps/web/src/earth/geodesy.test.mjs
 node --experimental-strip-types apps/web/src/earth/follow-frames.test.mjs
 node apps/web/src/earth/regional-lod.test.mjs
+node --experimental-strip-types apps/web/src/earth/follow-link.test.mjs
 ```
 
 Tests cover physical reference cases, numerical regressions and dependency boundaries. The GitHub workflow is configured to run the same checks. Use `npm --prefix apps/web run format` after frontend edits.

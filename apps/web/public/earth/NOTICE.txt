@@ -11,3 +11,13 @@ The publisher credits NASA Blue Marble and other geodata. These are static, adju
 Active day and cloud maps are the unmodified original 8192x4096JPEGs from the publisher. GPUs supporting less than 8192px use the preserved 4096x2048fallbacks. Fallback changes: Lanczos downsampling, grayscale PNG cloud conversion. Ocean/specular mask converted from TIFF to grayscale PNG. Rendering adjusts saturation, lighting, cloud opacity and material response. Geography was not generated or redrawn. See asset-provenance.json for exact sources, sizes and SHA256 hashes.
 
 Rendering: a display-only approximate atmosphere and Sun direction, independent of RF, weather, orbital dynamics and delivered data. The orbit arc is only the returned synthetic Run history. Locator sizes are exaggerated.
+
+Regional daytime LOD
+
+NASA Earth Observatory / Reto Stöckli and Robert Simmon
+https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/base-map/
+https://www.nasa.gov/nasa-brand-center/images-and-media/
+
+Blue Marble: Next Generation, August 2004 base map, A1 native 21600 × 21600 source. The runtime 4096 × 4096 JPEG is an exact pixel crop, with no upsampling or invented detail. Geographic coverage:29.1–46.166666667 degrees N,130.666666667–113.6 degrees W. Published nominal product resolution 500 m; angular grid spacing 1/240 degree. Dates describe a monthly composite, not simulated-time imagery or live weather. This patch has separate NASA imagery-use terms; it is not covered by the Solar System Scope CC BY license. NASA content generally is not subject to US copyright and may be used for educational/informational computer simulations with source acknowledgment. No NASA endorsement is implied.
+
+The western-US patch is lazy-loaded only for a visible close camera near its coverage, with soft geographic/distance blending into the preserved global 8K fallback. Outside coverage, only the global map is available. Clouds remain the static 8K composite. See regional-lod.json for exact source, crop bounds, bytes, transformations and SHA-256 identities.
