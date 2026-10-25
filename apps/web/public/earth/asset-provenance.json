@@ -10,7 +10,7 @@
     "Publisher describes adjusted/saturated colors and merged geodata. Runtime shader further adjusts saturation, illumination and ocean response.",
     "No city-light texture or terrain geometry is used. Ocean mask is a visual material mask, not a measured bidirectional reflectance function.",
     "Cloud-mask density, height, shadow and atmospheric scattering are visual approximations and never enter RF or numerical results.",
-    "Primary NASA regional native-resolution daytime LOD has separate NASA terms, August2004 epoch and explicit western-US bounds; all other assets retain the originalCCBY4.0terms."
+    "Primary NASA regional daytime and native cloud tiles have separate NASA terms and explicit acquisition/composite epochs. Solar System Scope assets retain CC BY4.0 terms."
   ],
   "assets": [
     {
@@ -113,7 +113,7 @@
       "file": "earth-day-stanford-500m.jpg",
       "url": "/earth/earth-day-stanford-500m.jpg",
       "publisher": "NASA Earth Observatory",
-      "credit": "NASA Earth Observatory / Reto St\u00f6ckli and Robert Simmon",
+      "credit": "NASA Earth Observatory / Reto Stöckli and Robert Simmon",
       "publisher_page": "https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/base-map/",
       "source_url": "https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-base/august/world.200408.3x21600x21600.A1.jpg",
       "license": "NASA imagery use guidelines; generally not subject to US copyright. Educational/informational use with acknowledgment; no endorsement.",
@@ -158,7 +158,7 @@
         "Regional coverage only.500m is the publisher product class, not global runtime resolution; angular pixel spacing is1/240degree and east-west physical spacing varies with latitude.",
         "August2004 cloud-free MODIS composite. It is not the simulated epoch, live imagery, measured albedo or a weather product.",
         "Global8K Solar System Scope map remains the fallback; region and camera-distance feathering blend imagery with differing dates/colors.",
-        "Clouds retain the licensed8K static composite. Cloud, terrain and ocean detail are not upgraded by this patch.",
+        "Close clouds use the separately identified native1km NASA cloud tiles; ground detail is not cloud resolution.",
         "Loaded only for a visible close Earth camera near this region;SHA256 checked before decode;one4096square RGBA texture+mips, at most85.34MiB additional GPU storage. Released after15s outside the active close region and immediately when Earth unmounts."
       ]
     },
@@ -207,16 +207,77 @@
       "limits": [
         "Visual cloud coverage artwork, not liquid-water density or RF attenuation.",
         "Native1km product class is not an instantaneous weather observation.",
-        "Global8Kmap retained elsewhere; edge and camera blending joins composites with possibly different coverage.",
-        "One2048squareRGBAtexture+mips adds at most22369620bytes(21.34MiB). Independent verified load/failure/cancellation;15s inactive release and immediate view disposal."
+        "Global8Kmap retained elsewhere; edge and camera blending joins composites with possibly different coverage."
       ],
       "schema_version": "1.0",
       "file": "earth-clouds-stanford-1km.png",
       "extra_gpu_memory_upper_bound_bytes": 22369620,
-      "license": "NASA imagery-use guidelines;generally not subject toUScopyright;educational/informational use with acknowledgment,no endorsement."
+      "license": "NASA imagery-use guidelines;generally not subject toUScopyright;educational/informational use with acknowledgment,no endorsement.",
+      "role": "Preserved previous Stanford-only cloud derivative; superseded at runtime by cloud-tiles.json."
+    },
+    {
+      "collection": "clouds-native",
+      "role": "Active close-camera native cloud LOD; global8K artwork remains fallback.",
+      "manifest": "/earth/cloud-tiles.json",
+      "revision": "nasa-blue-marble-cloud-2001-native-tiles-v2",
+      "publisher": "NASA Earth Observatory",
+      "publisher_page": "https://science.nasa.gov/earth/earth-observatory/the-blue-marble-true-color-global-imagery-at-1km-resolution/",
+      "license": "NASA imagery-use guidelines; educational/informational use with source acknowledgment; no endorsement.",
+      "license_url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+      "credit": "NASA Goddard Space Flight Center / Reto Stöckli; compositing enhancements by Robert Simmon.",
+      "acquisition_epoch": "2001 multiday composite, released 2002; not simulated epoch or live weather",
+      "source_grid": [
+        43200,
+        21600
+      ],
+      "runtime_tile_count": 242,
+      "runtime_total_bytes": 86643482,
+      "maximum_tile_dimensions": [
+        2048,
+        2048
+      ],
+      "published_nominal_resolution_m": 1000,
+      "angular_pixel_spacing_deg": 0.008333333333333333,
+      "sources": [
+        {
+          "hemisphere": "W",
+          "source_url": "https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud.W.2001210.21600x21600.png",
+          "source_dimensions": [
+            21600,
+            21600
+          ],
+          "source_bytes": 210808929,
+          "source_sha256": "d7a6b03bb54b8ba56f72af6d1d49f191a25c12e911c43739c900e893d10eb814"
+        },
+        {
+          "hemisphere": "E",
+          "source_url": "https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud.E.2001210.21600x21600.png",
+          "source_dimensions": [
+            21600,
+            21600
+          ],
+          "source_bytes": 211800444,
+          "source_sha256": "11eb1aaf8e6056b9aebc0de4894dc5ad8a21cbe8738c6ddc92e88701eb7e1b99"
+        }
+      ],
+      "transform": "Native-pixel crops; eight real neighboring-pixel gutters on all edges, longitude wraps and latitude clamps. Grayscale WebP quality90/method4, no resize, sharpening, inpainting or procedural detail. Pillow 11.2.1.",
+      "compression_validation": {
+        "mean_absolute_channel_error": 0.8062966794008031,
+        "maximum_absolute_channel_error": 21,
+        "worst_tile_mean_absolute_channel_error": 1.4165594577789307,
+        "scale": "8-bit channel units, compared to original native L pixels before runtime decode"
+      },
+      "limits": [
+        "Static visual coverage artwork only; not cloud-water, historical weather, RF attenuation or thermal-environment truth.",
+        "Source composite artifacts, including a western-US mosaic wedge, are preserved.",
+        "Native nominal1km is coarser than the500m regional land imagery.",
+        "Nine tile resident limit, two concurrent loads, single-channel R8 textures; GPU mips at most48MiB and retained CPU mask data at most36MiB.",
+        "Only camera-neighborhood coverage is resident; global artwork remains beyond loaded tiles and near some horizon/polar edges."
+      ]
     }
   ],
-  "updated_utc": "2026-10-25T11:23:29.467679+00:00",
+  "updated_utc": "2026-10-25T22:16:12.839945+00:00",
   "regional_lod_manifest": "/earth/regional-lod.json",
-  "regional_cloud_manifest": "/earth/regional-cloud.json"
+  "regional_cloud_manifest": "/earth/regional-cloud.json",
+  "native_cloud_manifest": "/earth/cloud-tiles.json"
 }

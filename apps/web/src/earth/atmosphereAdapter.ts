@@ -1,5 +1,6 @@
 import { AdditiveBlending, BackSide, ShaderMaterial, Vector3, Vector4 } from 'three';
 import type { Texture } from 'three';
+import type { CloudTileView } from './CloudTiles';
 
 // Independent compatibility implementation. Replace this boundary with Takram's
 // renderer-context/TSL atmosphere API when the app adopts that pipeline.
@@ -10,40 +11,66 @@ export interface EarthAppearance {
   setSun: (direction: readonly number[]) => void;
   setRegionalMap: (texture: Texture | null, bounds?: readonly number[]) => void;
   setRegionalOpacity: (opacity: number) => void;
-  setRegionalCloudMap: (texture: Texture | null, bounds?: readonly number[]) => void;
-  setRegionalCloudOpacity: (opacity: number) => void;
+  setCloudTiles: (tiles: readonly CloudTileView[]) => void;
   dispose: () => void;
 }
 const vertex = `
 varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
 void main(){vUv=uv;vPosition=(modelMatrix*vec4(position,1.)).xyz;vNormal=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}
 `;
-const cloudSampling = `
-uniform sampler2D cloudMap;uniform sampler2D regionalCloudMap;
-uniform vec4 regionalCloudBounds;uniform float regionalCloudOpacity;
+function cloudSampling(tileCount: number) {
+  const samples = Array.from(
+    { length: tileCount },
+    (_, index) => `
+ if(nativeCloudOpacity[${index}]>0.){
+  vec4 bounds=nativeCloudBounds[${index}];
+  float u=uv.x+floor((bounds.x+bounds.z)*.5-uv.x+.5);
+  vec2 localUv=(vec2(u,uv.y)-bounds.xy)/(bounds.zw-bounds.xy);
+  float edge=min(min(localUv.x,localUv.y),min(1.-localUv.x,1.-localUv.y));
+  if(edge>=0.){
+   vec4 distance=vec4(localUv,1.-localUv);
+   vec4 feather=mix(vec4(1.),smoothstep(vec4(0.),vec4(.07),distance),nativeCloudFeather[${index}]);
+   float blend=nativeCloudOpacity[${index}]*feather.x*feather.y*feather.z*feather.w;
+   float tile=texture2DGradEXT(nativeCloudMaps[${index}],localUv,dx/(bounds.zw-bounds.xy),dy/(bounds.zw-bounds.xy)).r;
+   base=mix(base,tile,blend);
+  }
+ }`,
+  ).join('');
+  return `
+uniform sampler2D cloudMap;
+${
+  tileCount
+    ? `uniform sampler2D nativeCloudMaps[${tileCount}];
+uniform vec4 nativeCloudBounds[${tileCount}];uniform vec4 nativeCloudFeather[${tileCount}];
+uniform float nativeCloudOpacity[${tileCount}];`
+    : ''
+}
 float cloudCoverage(vec2 uv){
- float base=texture2D(cloudMap,uv).r;
- vec2 localUv=(uv-regionalCloudBounds.xy)/(regionalCloudBounds.zw-regionalCloudBounds.xy);
- float edge=min(min(localUv.x,localUv.y),min(1.-localUv.x,1.-localUv.y));
- float blend=regionalCloudOpacity*smoothstep(0.,.07,edge);
- if(regionalCloudOpacity>0.){
-  float regional=texture2D(regionalCloudMap,clamp(localUv,0.,1.)).r;
-  base=mix(base,regional,blend);
- }
+ // Explicit derivatives remain valid across geographic branches and longitude wrap.
+ vec2 dx=dFdx(uv),dy=dFdy(uv);dx.x-=floor(dx.x+.5);dy.x-=floor(dy.x+.5);
+ float base=texture2DGradEXT(cloudMap,uv,dx,dy).r;
+${samples}
  return base;
 }
 `;
+}
 export function createEarthAppearance(
   day: Texture,
   cloud: Texture,
   ocean: Texture,
+  cloudTileCount = 0,
 ): EarthAppearance {
   const sun = { value: new Vector3(1, 0, 0) };
   const cloudUniforms = {
     cloudMap: { value: cloud },
-    regionalCloudMap: { value: cloud },
-    regionalCloudBounds: { value: new Vector4(0, 0, 1, 1) },
-    regionalCloudOpacity: { value: 0 },
+    nativeCloudMaps: { value: Array.from({ length: cloudTileCount }, () => cloud) },
+    nativeCloudBounds: {
+      value: Array.from({ length: cloudTileCount }, () => new Vector4(0, 0, 1, 1)),
+    },
+    nativeCloudFeather: {
+      value: Array.from({ length: cloudTileCount }, () => new Vector4(1, 1, 1, 1)),
+    },
+    nativeCloudOpacity: { value: new Float32Array(cloudTileCount) },
   };
   const uniforms = {
     sun,
@@ -59,7 +86,7 @@ export function createEarthAppearance(
     vertexShader: vertex,
     fragmentShader: `
 uniform sampler2D dayMap;uniform sampler2D oceanMap;uniform vec3 sun;
-${cloudSampling}
+${cloudSampling(cloudTileCount)}
 uniform sampler2D regionalDayMap;uniform vec4 regionalBounds;uniform float regionalOpacity;
 varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
 const float PI=3.141592653589793;
@@ -95,7 +122,7 @@ void main(){
     depthWrite: false,
     // Linear coverage commutes with mip filtering; a post-filter threshold loses wisps at distance.
     fragmentShader: `
-${cloudSampling}
+${cloudSampling(cloudTileCount)}
 uniform vec3 sun;varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
 void main(){float density=cloudCoverage(vUv);float opacity=density*.94;float ndl=dot(normalize(vNormal),sun);float light=smoothstep(-.035,.08,ndl)*pow(max(ndl,0.),.52);
 vec3 color=vec3(.99,.99,1.)*(.008+light*1.4);gl_FragColor=vec4(color,opacity);
@@ -148,13 +175,16 @@ void main(){
     setRegionalOpacity: (opacity) => {
       uniforms.regionalOpacity.value = opacity;
     },
-    setRegionalCloudMap: (texture, bounds) => {
-      cloudUniforms.regionalCloudMap.value = texture || cloud;
-      if (bounds) cloudUniforms.regionalCloudBounds.value.fromArray(bounds);
-      if (!texture) cloudUniforms.regionalCloudOpacity.value = 0;
-    },
-    setRegionalCloudOpacity: (opacity) => {
-      cloudUniforms.regionalCloudOpacity.value = opacity;
+    setCloudTiles: (tiles) => {
+      for (let i = 0; i < cloudTileCount; i++) {
+        const tile = tiles[i];
+        cloudUniforms.nativeCloudMaps.value[i] = tile?.texture || cloud;
+        cloudUniforms.nativeCloudOpacity.value[i] = tile?.opacity || 0;
+        if (tile) {
+          cloudUniforms.nativeCloudBounds.value[i].fromArray(tile.bounds);
+          cloudUniforms.nativeCloudFeather.value[i].fromArray(tile.featherEdges);
+        }
+      }
     },
     dispose: () => {
       surface.dispose();

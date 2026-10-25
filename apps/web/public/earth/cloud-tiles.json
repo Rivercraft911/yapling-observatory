@@ -1,0 +1,5384 @@
+{
+  "schema_version": "1.0",
+  "revision": "nasa-blue-marble-cloud-2001-native-tiles-v2",
+  "publisher_page": "https://science.nasa.gov/earth/earth-observatory/the-blue-marble-true-color-global-imagery-at-1km-resolution/",
+  "license_url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+  "license": "NASA imagery-use guidelines; educational/informational use with source acknowledgment; no endorsement.",
+  "credit": "NASA Goddard Space Flight Center / Reto Stöckli; compositing enhancements by Robert Simmon.",
+  "retrieved_utc": "2026-10-25T22:15:01.208392+00:00",
+  "acquisition_epoch": "2001 multiday composite, released 2002; not simulated epoch or live weather",
+  "published_nominal_resolution_m": 1000,
+  "angular_pixel_spacing_deg": 0.008333333333333333,
+  "grid": {
+    "width": 43200,
+    "height": 21600,
+    "interior_pixels": 2032,
+    "gutter_pixels": 8,
+    "columns": 22,
+    "rows": 11
+  },
+  "sources": [
+    {
+      "hemisphere": "W",
+      "source_url": "https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud.W.2001210.21600x21600.png",
+      "source_dimensions": [
+        21600,
+        21600
+      ],
+      "source_bytes": 210808929,
+      "source_sha256": "d7a6b03bb54b8ba56f72af6d1d49f191a25c12e911c43739c900e893d10eb814"
+    },
+    {
+      "hemisphere": "E",
+      "source_url": "https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud.E.2001210.21600x21600.png",
+      "source_dimensions": [
+        21600,
+        21600
+      ],
+      "source_bytes": 211800444,
+      "source_sha256": "11eb1aaf8e6056b9aebc0de4894dc5ad8a21cbe8738c6ddc92e88701eb7e1b99"
+    }
+  ],
+  "transform": "Native-pixel crops; eight real neighboring-pixel gutters on all edges, longitude wraps and latitude clamps. Grayscale WebP quality90/method4, no resize, sharpening, inpainting or procedural detail. Pillow 11.2.1.",
+  "compression_validation": {
+    "mean_absolute_channel_error": 0.8062966794008031,
+    "maximum_absolute_channel_error": 21,
+    "worst_tile_mean_absolute_channel_error": 1.4165594577789307,
+    "scale": "8-bit channel units, compared to original native L pixels before runtime decode"
+  },
+  "runtime_total_bytes": 86643482,
+  "tile_count": 242,
+  "limits": [
+    "Static visual coverage artwork only; not cloud-water, historical weather, RF attenuation or thermal-environment truth.",
+    "Source composite artifacts, including a western-US mosaic wedge, are preserved.",
+    "Native nominal1km is coarser than the500m regional land imagery.",
+    "Nine tile resident limit, two concurrent loads, single-channel R8 textures; GPU mips at most48MiB and retained CPU mask data at most36MiB.",
+    "Only camera-neighborhood coverage is resident; global artwork remains beyond loaded tiles and near some horizon/polar edges."
+  ],
+  "tiles": [
+    {
+      "id": "0-0",
+      "url": "/earth/clouds-native/0-0.webp",
+      "runtime_bytes": 32890,
+      "runtime_sha256": "5f564a19a556b56450ea9f6f5f1cc81adf18899ab458a9ca5d4f66c9736b5a54",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        -8,
+        -8,
+        2040,
+        2040
+      ],
+      "bounds_uv": [
+        -0.00018518518518518518,
+        0.9055555555555556,
+        0.04722222222222222,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "1-0",
+      "url": "/earth/clouds-native/1-0.webp",
+      "runtime_bytes": 128760,
+      "runtime_sha256": "402c358fe50dbf2bb971ba62f0655af69f493fd90de528b5baa446ff058a0a27",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        2024,
+        -8,
+        4072,
+        2040
+      ],
+      "bounds_uv": [
+        0.04685185185185185,
+        0.9055555555555556,
+        0.09425925925925926,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "2-0",
+      "url": "/earth/clouds-native/2-0.webp",
+      "runtime_bytes": 125420,
+      "runtime_sha256": "81660edc42d9952e2e4b408b90efa5a2687b1c4384d457677da3fe941876a9fa",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        4056,
+        -8,
+        6104,
+        2040
+      ],
+      "bounds_uv": [
+        0.09388888888888888,
+        0.9055555555555556,
+        0.1412962962962963,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "3-0",
+      "url": "/earth/clouds-native/3-0.webp",
+      "runtime_bytes": 166518,
+      "runtime_sha256": "e1df4cc1dcd2fbd40e18601ddf95e01d7a0138d876ddbcb00cb4944fd05fe5f4",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        6088,
+        -8,
+        8136,
+        2040
+      ],
+      "bounds_uv": [
+        0.14092592592592593,
+        0.9055555555555556,
+        0.18833333333333332,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "4-0",
+      "url": "/earth/clouds-native/4-0.webp",
+      "runtime_bytes": 159918,
+      "runtime_sha256": "ff3a1bff97ca4c9c9e2d576148d98aef378ffa75c022daa77038f3268cb8f62a",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        8120,
+        -8,
+        10168,
+        2040
+      ],
+      "bounds_uv": [
+        0.18796296296296297,
+        0.9055555555555556,
+        0.23537037037037037,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "5-0",
+      "url": "/earth/clouds-native/5-0.webp",
+      "runtime_bytes": 137526,
+      "runtime_sha256": "1acd28af360581b4da1859fefcb448afcdd7c8a67014dddd82be760d5cd21b36",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        10152,
+        -8,
+        12200,
+        2040
+      ],
+      "bounds_uv": [
+        0.235,
+        0.9055555555555556,
+        0.2824074074074074,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "6-0",
+      "url": "/earth/clouds-native/6-0.webp",
+      "runtime_bytes": 50812,
+      "runtime_sha256": "b1b6ce2eb484531ec500c876d7e5144d5081f17a98c8f157fa38026c9c8839ec",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        12184,
+        -8,
+        14232,
+        2040
+      ],
+      "bounds_uv": [
+        0.28203703703703703,
+        0.9055555555555556,
+        0.32944444444444443,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "7-0",
+      "url": "/earth/clouds-native/7-0.webp",
+      "runtime_bytes": 27094,
+      "runtime_sha256": "af76245cd7eee723277c79525dec9385c1a85be44bfea0a3543294850efa7baf",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        14216,
+        -8,
+        16264,
+        2040
+      ],
+      "bounds_uv": [
+        0.3290740740740741,
+        0.9055555555555556,
+        0.3764814814814815,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "8-0",
+      "url": "/earth/clouds-native/8-0.webp",
+      "runtime_bytes": 7518,
+      "runtime_sha256": "f5fa50e355dada2b3c4331fda379839617d8c756abecf40de6207c51247e0015",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        16248,
+        -8,
+        18296,
+        2040
+      ],
+      "bounds_uv": [
+        0.3761111111111111,
+        0.9055555555555556,
+        0.4235185185185185,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "9-0",
+      "url": "/earth/clouds-native/9-0.webp",
+      "runtime_bytes": 7540,
+      "runtime_sha256": "8a6e43c2fa1f37f9cd3dfb11b2e0d17dbdd6907a01eb1f5208a550851e1e9222",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        18280,
+        -8,
+        20328,
+        2040
+      ],
+      "bounds_uv": [
+        0.42314814814814816,
+        0.9055555555555556,
+        0.47055555555555556,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "10-0",
+      "url": "/earth/clouds-native/10-0.webp",
+      "runtime_bytes": 53566,
+      "runtime_sha256": "4a9074a6713b33fbac0eaaac53ec70faf589e90ffc2da3906f540f90bc25a22c",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        20312,
+        -8,
+        22360,
+        2040
+      ],
+      "bounds_uv": [
+        0.4701851851851852,
+        0.9055555555555556,
+        0.5175925925925926,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "11-0",
+      "url": "/earth/clouds-native/11-0.webp",
+      "runtime_bytes": 135662,
+      "runtime_sha256": "4aa82f6c293ee7c8d85227627a47a5d2901e90b201530bf479e9f7b1d31eb2e8",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        22344,
+        -8,
+        24392,
+        2040
+      ],
+      "bounds_uv": [
+        0.5172222222222222,
+        0.9055555555555556,
+        0.5646296296296296,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "12-0",
+      "url": "/earth/clouds-native/12-0.webp",
+      "runtime_bytes": 206314,
+      "runtime_sha256": "0148e42c1307b17f9361f5caf0eb37cea86fe77d2217789dcfb3038b9f38e040",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        24376,
+        -8,
+        26424,
+        2040
+      ],
+      "bounds_uv": [
+        0.5642592592592592,
+        0.9055555555555556,
+        0.6116666666666667,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "13-0",
+      "url": "/earth/clouds-native/13-0.webp",
+      "runtime_bytes": 175458,
+      "runtime_sha256": "147771e7b99aaefd6b0b01471b896428dfd310730e36295127ec39fec15556a4",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        26408,
+        -8,
+        28456,
+        2040
+      ],
+      "bounds_uv": [
+        0.6112962962962963,
+        0.9055555555555556,
+        0.6587037037037037,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "14-0",
+      "url": "/earth/clouds-native/14-0.webp",
+      "runtime_bytes": 160134,
+      "runtime_sha256": "1ef2d023d134bcd517f4d0d030ea0b4bcc931fdddcf3d0389cffd5a001ea1abb",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        28440,
+        -8,
+        30488,
+        2040
+      ],
+      "bounds_uv": [
+        0.6583333333333333,
+        0.9055555555555556,
+        0.7057407407407408,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "15-0",
+      "url": "/earth/clouds-native/15-0.webp",
+      "runtime_bytes": 164736,
+      "runtime_sha256": "70c3c8c1c20c83e3afecf964113e688cbf52d6e5bd2375bf926965f6fa92a317",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        30472,
+        -8,
+        32520,
+        2040
+      ],
+      "bounds_uv": [
+        0.7053703703703704,
+        0.9055555555555556,
+        0.7527777777777778,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "16-0",
+      "url": "/earth/clouds-native/16-0.webp",
+      "runtime_bytes": 154630,
+      "runtime_sha256": "de345564b760153ecee52b9f2935d1bb020c00b1bec3f48508def6b0db93ecc6",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        32504,
+        -8,
+        34552,
+        2040
+      ],
+      "bounds_uv": [
+        0.7524074074074074,
+        0.9055555555555556,
+        0.7998148148148149,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "17-0",
+      "url": "/earth/clouds-native/17-0.webp",
+      "runtime_bytes": 175884,
+      "runtime_sha256": "d9ca160476660ab8424791b2ebd0894d5f2f60cdcbe599d1988ab6f069f07e21",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        34536,
+        -8,
+        36584,
+        2040
+      ],
+      "bounds_uv": [
+        0.7994444444444444,
+        0.9055555555555556,
+        0.8468518518518519,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "18-0",
+      "url": "/earth/clouds-native/18-0.webp",
+      "runtime_bytes": 125214,
+      "runtime_sha256": "3b6bfa87ec00feab60d0e7da2bba49185c16261706d82671d311f9465c31bbe6",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        36568,
+        -8,
+        38616,
+        2040
+      ],
+      "bounds_uv": [
+        0.8464814814814815,
+        0.9055555555555556,
+        0.8938888888888888,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "19-0",
+      "url": "/earth/clouds-native/19-0.webp",
+      "runtime_bytes": 31270,
+      "runtime_sha256": "8808e2d031718fa028bcd35e859c339aa6a362985ee2c4ac9fdc28168114000a",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        38600,
+        -8,
+        40648,
+        2040
+      ],
+      "bounds_uv": [
+        0.8935185185185185,
+        0.9055555555555556,
+        0.9409259259259259,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "20-0",
+      "url": "/earth/clouds-native/20-0.webp",
+      "runtime_bytes": 20194,
+      "runtime_sha256": "93ed1368e7688522fdb1ea4939babbde6c52364af9b5f545b6e971c08742ec16",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        40632,
+        -8,
+        42680,
+        2040
+      ],
+      "bounds_uv": [
+        0.9405555555555556,
+        0.9055555555555556,
+        0.9879629629629629,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "21-0",
+      "url": "/earth/clouds-native/21-0.webp",
+      "runtime_bytes": 2042,
+      "runtime_sha256": "5ac0b0ab29eb75c2a97aa9c5fd0257721c26fb1f28c316b03d393655750f6402",
+      "runtime_dimensions": [
+        544,
+        2048
+      ],
+      "pixel_box": [
+        42664,
+        -8,
+        43208,
+        2040
+      ],
+      "bounds_uv": [
+        0.9875925925925926,
+        0.9055555555555556,
+        1.0001851851851853,
+        1.0003703703703704
+      ]
+    },
+    {
+      "id": "0-1",
+      "url": "/earth/clouds-native/0-1.webp",
+      "runtime_bytes": 499144,
+      "runtime_sha256": "c3302e03af9d7a878f6770ccd951f79b28470a08ff3809c39524bd9984b133ae",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        -8,
+        2024,
+        2040,
+        4072
+      ],
+      "bounds_uv": [
+        -0.00018518518518518518,
+        0.8114814814814815,
+        0.04722222222222222,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "1-1",
+      "url": "/earth/clouds-native/1-1.webp",
+      "runtime_bytes": 464226,
+      "runtime_sha256": "9ad927d351c72ec2920f0faa81ff5dc9b8f0426b1a332d4c3b13267403e26112",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        2024,
+        2024,
+        4072,
+        4072
+      ],
+      "bounds_uv": [
+        0.04685185185185185,
+        0.8114814814814815,
+        0.09425925925925926,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "2-1",
+      "url": "/earth/clouds-native/2-1.webp",
+      "runtime_bytes": 487042,
+      "runtime_sha256": "1677a94eb1ef45ac076b5182a3d05ab3c9c9d5f5a6fe981521012024d6ceaa71",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        4056,
+        2024,
+        6104,
+        4072
+      ],
+      "bounds_uv": [
+        0.09388888888888888,
+        0.8114814814814815,
+        0.1412962962962963,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "3-1",
+      "url": "/earth/clouds-native/3-1.webp",
+      "runtime_bytes": 609448,
+      "runtime_sha256": "38358b7106960c82d4f4bbb32429b9ec383bf6e9fd086de6c6fc6126ebffa0f0",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        6088,
+        2024,
+        8136,
+        4072
+      ],
+      "bounds_uv": [
+        0.14092592592592593,
+        0.8114814814814815,
+        0.18833333333333332,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "4-1",
+      "url": "/earth/clouds-native/4-1.webp",
+      "runtime_bytes": 426546,
+      "runtime_sha256": "1c4a6c5761df651747314581a2f7a45b3a20c839e84204478dbff4e232d87655",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        8120,
+        2024,
+        10168,
+        4072
+      ],
+      "bounds_uv": [
+        0.18796296296296297,
+        0.8114814814814815,
+        0.23537037037037037,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "5-1",
+      "url": "/earth/clouds-native/5-1.webp",
+      "runtime_bytes": 279810,
+      "runtime_sha256": "25c82a18c31d69cfdb1d31f6813d28929621c30afe3f407442e0d00adefcdcb6",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        10152,
+        2024,
+        12200,
+        4072
+      ],
+      "bounds_uv": [
+        0.235,
+        0.8114814814814815,
+        0.2824074074074074,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "6-1",
+      "url": "/earth/clouds-native/6-1.webp",
+      "runtime_bytes": 254666,
+      "runtime_sha256": "575390511692952e299b4dfc679b1b6ad9baead6edb24611b3668fb3b5cb8181",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        12184,
+        2024,
+        14232,
+        4072
+      ],
+      "bounds_uv": [
+        0.28203703703703703,
+        0.8114814814814815,
+        0.32944444444444443,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "7-1",
+      "url": "/earth/clouds-native/7-1.webp",
+      "runtime_bytes": 184710,
+      "runtime_sha256": "d58f73a0764ea12e749c8c76bfc58de66f10caaba0339e13a3599aabc20fa315",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        14216,
+        2024,
+        16264,
+        4072
+      ],
+      "bounds_uv": [
+        0.3290740740740741,
+        0.8114814814814815,
+        0.3764814814814815,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "8-1",
+      "url": "/earth/clouds-native/8-1.webp",
+      "runtime_bytes": 155652,
+      "runtime_sha256": "7e9f0ad8d728024b4570436c7c90d23982f18d6353ca0bde9497f38cdfb488f2",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        16248,
+        2024,
+        18296,
+        4072
+      ],
+      "bounds_uv": [
+        0.3761111111111111,
+        0.8114814814814815,
+        0.4235185185185185,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "9-1",
+      "url": "/earth/clouds-native/9-1.webp",
+      "runtime_bytes": 363664,
+      "runtime_sha256": "c32e18c4aac838210ca5f9984d4457e749df98fd095f285a7cb178e7c6f82bb9",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        18280,
+        2024,
+        20328,
+        4072
+      ],
+      "bounds_uv": [
+        0.42314814814814816,
+        0.8114814814814815,
+        0.47055555555555556,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "10-1",
+      "url": "/earth/clouds-native/10-1.webp",
+      "runtime_bytes": 397566,
+      "runtime_sha256": "1e8b00ecb8169347cd16d0c4949cefc8081687d0b2bd5d23bf422256ba8fd036",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        20312,
+        2024,
+        22360,
+        4072
+      ],
+      "bounds_uv": [
+        0.4701851851851852,
+        0.8114814814814815,
+        0.5175925925925926,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "11-1",
+      "url": "/earth/clouds-native/11-1.webp",
+      "runtime_bytes": 422110,
+      "runtime_sha256": "4e799ab2040bfa74065e0d20e4e98bdd8f176e77996c57233311e1e0a9c0d26f",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        22344,
+        2024,
+        24392,
+        4072
+      ],
+      "bounds_uv": [
+        0.5172222222222222,
+        0.8114814814814815,
+        0.5646296296296296,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "12-1",
+      "url": "/earth/clouds-native/12-1.webp",
+      "runtime_bytes": 385622,
+      "runtime_sha256": "c67b4501806258f53442358273144d13a8b0a829de15bbdec962cbcbbdf91626",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        24376,
+        2024,
+        26424,
+        4072
+      ],
+      "bounds_uv": [
+        0.5642592592592592,
+        0.8114814814814815,
+        0.6116666666666667,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "13-1",
+      "url": "/earth/clouds-native/13-1.webp",
+      "runtime_bytes": 686366,
+      "runtime_sha256": "95a5984116ccd2f72e42b8b979f9362e0ba7b9e62b2cd59b2d3d7c94b8315a12",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        26408,
+        2024,
+        28456,
+        4072
+      ],
+      "bounds_uv": [
+        0.6112962962962963,
+        0.8114814814814815,
+        0.6587037037037037,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "14-1",
+      "url": "/earth/clouds-native/14-1.webp",
+      "runtime_bytes": 422784,
+      "runtime_sha256": "d5ef11f7291ebfb126e001afe9ff6f4507c2f09081c456500c4732ed4c4200d7",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        28440,
+        2024,
+        30488,
+        4072
+      ],
+      "bounds_uv": [
+        0.6583333333333333,
+        0.8114814814814815,
+        0.7057407407407408,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "15-1",
+      "url": "/earth/clouds-native/15-1.webp",
+      "runtime_bytes": 491542,
+      "runtime_sha256": "f82b3add7851a93841f8e5195ed79c32b352ce786f7ee0de37dae5b5aa2f2fa8",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        30472,
+        2024,
+        32520,
+        4072
+      ],
+      "bounds_uv": [
+        0.7053703703703704,
+        0.8114814814814815,
+        0.7527777777777778,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "16-1",
+      "url": "/earth/clouds-native/16-1.webp",
+      "runtime_bytes": 488684,
+      "runtime_sha256": "220e98044cf6eb7c5fd7eade24715c683da84fb8defb9ea544f9406522ce6e71",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        32504,
+        2024,
+        34552,
+        4072
+      ],
+      "bounds_uv": [
+        0.7524074074074074,
+        0.8114814814814815,
+        0.7998148148148149,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "17-1",
+      "url": "/earth/clouds-native/17-1.webp",
+      "runtime_bytes": 404154,
+      "runtime_sha256": "57ddb3223f62e8495bf7d52f826f2cd97ad3f7f215711f3f900cef1e12130354",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        34536,
+        2024,
+        36584,
+        4072
+      ],
+      "bounds_uv": [
+        0.7994444444444444,
+        0.8114814814814815,
+        0.8468518518518519,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "18-1",
+      "url": "/earth/clouds-native/18-1.webp",
+      "runtime_bytes": 324448,
+      "runtime_sha256": "6f65dc19effb41db7f76f14119919aa056d1e0237c8f2d3cf9895a24518a212f",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        36568,
+        2024,
+        38616,
+        4072
+      ],
+      "bounds_uv": [
+        0.8464814814814815,
+        0.8114814814814815,
+        0.8938888888888888,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "19-1",
+      "url": "/earth/clouds-native/19-1.webp",
+      "runtime_bytes": 304604,
+      "runtime_sha256": "c85142855ec1005cd2015f9df2c4720aa6c66accda8841ba713faf937ce7175c",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        38600,
+        2024,
+        40648,
+        4072
+      ],
+      "bounds_uv": [
+        0.8935185185185185,
+        0.8114814814814815,
+        0.9409259259259259,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "20-1",
+      "url": "/earth/clouds-native/20-1.webp",
+      "runtime_bytes": 269242,
+      "runtime_sha256": "ab0ab101ba5c6bd637c5101b78bc9ca9f5d8a7665b799d218da2d78eaa982d77",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        40632,
+        2024,
+        42680,
+        4072
+      ],
+      "bounds_uv": [
+        0.9405555555555556,
+        0.8114814814814815,
+        0.9879629629629629,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "21-1",
+      "url": "/earth/clouds-native/21-1.webp",
+      "runtime_bytes": 66296,
+      "runtime_sha256": "11d2df65a7b8948e0dcd76a561702de74dfa28aa1092715660ea9d71682b0267",
+      "runtime_dimensions": [
+        544,
+        2048
+      ],
+      "pixel_box": [
+        42664,
+        2024,
+        43208,
+        4072
+      ],
+      "bounds_uv": [
+        0.9875925925925926,
+        0.8114814814814815,
+        1.0001851851851853,
+        0.9062962962962963
+      ]
+    },
+    {
+      "id": "0-2",
+      "url": "/earth/clouds-native/0-2.webp",
+      "runtime_bytes": 418236,
+      "runtime_sha256": "93410f48f9d35f0861a5c296b63225a3f66760756926d5ee46df1e1bc536fbde",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        -8,
+        4056,
+        2040,
+        6104
+      ],
+      "bounds_uv": [
+        -0.00018518518518518518,
+        0.7174074074074074,
+        0.04722222222222222,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "1-2",
+      "url": "/earth/clouds-native/1-2.webp",
+      "runtime_bytes": 339062,
+      "runtime_sha256": "991417eb282d3e9d5135abdb5cf682fcd0637c995a68bca6f889c2d5fb103a92",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        2024,
+        4056,
+        4072,
+        6104
+      ],
+      "bounds_uv": [
+        0.04685185185185185,
+        0.7174074074074074,
+        0.09425925925925926,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "2-2",
+      "url": "/earth/clouds-native/2-2.webp",
+      "runtime_bytes": 487836,
+      "runtime_sha256": "3010c6ee754c9d58a8e87bd460ec4b427d492d637fb7620ec247bd1c579e55e6",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        4056,
+        4056,
+        6104,
+        6104
+      ],
+      "bounds_uv": [
+        0.09388888888888888,
+        0.7174074074074074,
+        0.1412962962962963,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "3-2",
+      "url": "/earth/clouds-native/3-2.webp",
+      "runtime_bytes": 618234,
+      "runtime_sha256": "969022da4135ba4bf80ca1f80b1897320d789ba3bfb3a47175224d88e36d50ea",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        6088,
+        4056,
+        8136,
+        6104
+      ],
+      "bounds_uv": [
+        0.14092592592592593,
+        0.7174074074074074,
+        0.18833333333333332,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "4-2",
+      "url": "/earth/clouds-native/4-2.webp",
+      "runtime_bytes": 443302,
+      "runtime_sha256": "7471c13d42c0fb4faa07d299f290c8cbe37f25c6ed9226a57c714e7480480f5e",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        8120,
+        4056,
+        10168,
+        6104
+      ],
+      "bounds_uv": [
+        0.18796296296296297,
+        0.7174074074074074,
+        0.23537037037037037,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "5-2",
+      "url": "/earth/clouds-native/5-2.webp",
+      "runtime_bytes": 654392,
+      "runtime_sha256": "6907ec074f1fe95f21a55bfcdafcfa468d54db2669afa8737c4eb90339f5bd82",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        10152,
+        4056,
+        12200,
+        6104
+      ],
+      "bounds_uv": [
+        0.235,
+        0.7174074074074074,
+        0.2824074074074074,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "6-2",
+      "url": "/earth/clouds-native/6-2.webp",
+      "runtime_bytes": 552500,
+      "runtime_sha256": "fa2c90f722f15bcfd00c67217ecc4da877bd16c3aa97d758b9034d7ebbc66306",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        12184,
+        4056,
+        14232,
+        6104
+      ],
+      "bounds_uv": [
+        0.28203703703703703,
+        0.7174074074074074,
+        0.32944444444444443,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "7-2",
+      "url": "/earth/clouds-native/7-2.webp",
+      "runtime_bytes": 366266,
+      "runtime_sha256": "83860ce9fe994c66976924e6f43afd2e6a6265a5918887f57b502228dff38499",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        14216,
+        4056,
+        16264,
+        6104
+      ],
+      "bounds_uv": [
+        0.3290740740740741,
+        0.7174074074074074,
+        0.3764814814814815,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "8-2",
+      "url": "/earth/clouds-native/8-2.webp",
+      "runtime_bytes": 364550,
+      "runtime_sha256": "df698ad7abc8b7336831195159c69034bcdb944cf8ef12bcb30313a47e4c2c53",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        16248,
+        4056,
+        18296,
+        6104
+      ],
+      "bounds_uv": [
+        0.3761111111111111,
+        0.7174074074074074,
+        0.4235185185185185,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "9-2",
+      "url": "/earth/clouds-native/9-2.webp",
+      "runtime_bytes": 427458,
+      "runtime_sha256": "42107e48cc4b65f86c03b66a67e025b9f9728f6fb288c6d9e6177a09704e44af",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        18280,
+        4056,
+        20328,
+        6104
+      ],
+      "bounds_uv": [
+        0.42314814814814816,
+        0.7174074074074074,
+        0.47055555555555556,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "10-2",
+      "url": "/earth/clouds-native/10-2.webp",
+      "runtime_bytes": 442312,
+      "runtime_sha256": "9a350833118edad2163a96b1c059fa1395440904d80a6810261585a27b97c347",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        20312,
+        4056,
+        22360,
+        6104
+      ],
+      "bounds_uv": [
+        0.4701851851851852,
+        0.7174074074074074,
+        0.5175925925925926,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "11-2",
+      "url": "/earth/clouds-native/11-2.webp",
+      "runtime_bytes": 528190,
+      "runtime_sha256": "1ecbd2610d8632f40ebdeba74cae91f312f3a51257345347426f6450c39c107b",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        22344,
+        4056,
+        24392,
+        6104
+      ],
+      "bounds_uv": [
+        0.5172222222222222,
+        0.7174074074074074,
+        0.5646296296296296,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "12-2",
+      "url": "/earth/clouds-native/12-2.webp",
+      "runtime_bytes": 542968,
+      "runtime_sha256": "48882824ba47146dbd2ea43a9882b8f81b65b2f02ce177cc62c4099f6c18ea26",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        24376,
+        4056,
+        26424,
+        6104
+      ],
+      "bounds_uv": [
+        0.5642592592592592,
+        0.7174074074074074,
+        0.6116666666666667,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "13-2",
+      "url": "/earth/clouds-native/13-2.webp",
+      "runtime_bytes": 501884,
+      "runtime_sha256": "6692a6f89bab701273acdb0ec82a3a2dd97592814ecb56be4b21b8bed937835f",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        26408,
+        4056,
+        28456,
+        6104
+      ],
+      "bounds_uv": [
+        0.6112962962962963,
+        0.7174074074074074,
+        0.6587037037037037,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "14-2",
+      "url": "/earth/clouds-native/14-2.webp",
+      "runtime_bytes": 342772,
+      "runtime_sha256": "ac9a3e39dbdcf6a03d4c19fb81c71d7956859b0b950c239f7689ef6a02c3fa16",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        28440,
+        4056,
+        30488,
+        6104
+      ],
+      "bounds_uv": [
+        0.6583333333333333,
+        0.7174074074074074,
+        0.7057407407407408,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "15-2",
+      "url": "/earth/clouds-native/15-2.webp",
+      "runtime_bytes": 552260,
+      "runtime_sha256": "8b28a85ce80fb8995fb38e3e71f12ba09f8a472832ed7e51e8cb38d2e3751bb7",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        30472,
+        4056,
+        32520,
+        6104
+      ],
+      "bounds_uv": [
+        0.7053703703703704,
+        0.7174074074074074,
+        0.7527777777777778,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "16-2",
+      "url": "/earth/clouds-native/16-2.webp",
+      "runtime_bytes": 715270,
+      "runtime_sha256": "01038b6e8e86c51c8c1075b48e57c46f7a029b5ea43b6ae9571680b26b645dda",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        32504,
+        4056,
+        34552,
+        6104
+      ],
+      "bounds_uv": [
+        0.7524074074074074,
+        0.7174074074074074,
+        0.7998148148148149,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "17-2",
+      "url": "/earth/clouds-native/17-2.webp",
+      "runtime_bytes": 988982,
+      "runtime_sha256": "34545df0694006e13cb105715ec0db300ac71c4c54d5b69c6df4ee2927283909",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        34536,
+        4056,
+        36584,
+        6104
+      ],
+      "bounds_uv": [
+        0.7994444444444444,
+        0.7174074074074074,
+        0.8468518518518519,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "18-2",
+      "url": "/earth/clouds-native/18-2.webp",
+      "runtime_bytes": 453672,
+      "runtime_sha256": "278d4d84062d7b369617ba3d001526074ca7b7837e6c9d15848fcafce985ffc4",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        36568,
+        4056,
+        38616,
+        6104
+      ],
+      "bounds_uv": [
+        0.8464814814814815,
+        0.7174074074074074,
+        0.8938888888888888,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "19-2",
+      "url": "/earth/clouds-native/19-2.webp",
+      "runtime_bytes": 327826,
+      "runtime_sha256": "8b158c9ab2e20c393fc6b99746cab97d34131b9ca9676d451663e24a0449d921",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        38600,
+        4056,
+        40648,
+        6104
+      ],
+      "bounds_uv": [
+        0.8935185185185185,
+        0.7174074074074074,
+        0.9409259259259259,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "20-2",
+      "url": "/earth/clouds-native/20-2.webp",
+      "runtime_bytes": 335502,
+      "runtime_sha256": "c31357663cb00e2ccccfb759ba421cd177d092f2951f71ed8fcd7034a7f1888c",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        40632,
+        4056,
+        42680,
+        6104
+      ],
+      "bounds_uv": [
+        0.9405555555555556,
+        0.7174074074074074,
+        0.9879629629629629,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "21-2",
+      "url": "/earth/clouds-native/21-2.webp",
+      "runtime_bytes": 138712,
+      "runtime_sha256": "3e3ce256874af8d17b0dafd02acbbcc78e14347449c0f448a336a4b2b893054a",
+      "runtime_dimensions": [
+        544,
+        2048
+      ],
+      "pixel_box": [
+        42664,
+        4056,
+        43208,
+        6104
+      ],
+      "bounds_uv": [
+        0.9875925925925926,
+        0.7174074074074074,
+        1.0001851851851853,
+        0.8122222222222222
+      ]
+    },
+    {
+      "id": "0-3",
+      "url": "/earth/clouds-native/0-3.webp",
+      "runtime_bytes": 379176,
+      "runtime_sha256": "09c3a1ac12d7f93a21cef5071adfdc3a933a6acb25dc4558e7779605584cd6f0",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        -8,
+        6088,
+        2040,
+        8136
+      ],
+      "bounds_uv": [
+        -0.00018518518518518518,
+        0.6233333333333333,
+        0.04722222222222222,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "1-3",
+      "url": "/earth/clouds-native/1-3.webp",
+      "runtime_bytes": 514538,
+      "runtime_sha256": "68e1a344ed0f7403b7d90bf0dca64c7bd1f526c4b2b39e00ad305966b07d4102",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        2024,
+        6088,
+        4072,
+        8136
+      ],
+      "bounds_uv": [
+        0.04685185185185185,
+        0.6233333333333333,
+        0.09425925925925926,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "2-3",
+      "url": "/earth/clouds-native/2-3.webp",
+      "runtime_bytes": 858664,
+      "runtime_sha256": "d4257963f7c01aa952ce7f2d341119b634cf1860b9eda49ecb13ea226fdc7deb",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        4056,
+        6088,
+        6104,
+        8136
+      ],
+      "bounds_uv": [
+        0.09388888888888888,
+        0.6233333333333333,
+        0.1412962962962963,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "3-3",
+      "url": "/earth/clouds-native/3-3.webp",
+      "runtime_bytes": 426240,
+      "runtime_sha256": "6c8ad29751f89a10a5ec7be2e56c95005378a93bb109a3fa7e168143bd3b9464",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        6088,
+        6088,
+        8136,
+        8136
+      ],
+      "bounds_uv": [
+        0.14092592592592593,
+        0.6233333333333333,
+        0.18833333333333332,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "4-3",
+      "url": "/earth/clouds-native/4-3.webp",
+      "runtime_bytes": 490942,
+      "runtime_sha256": "f718c66122a24359d6d1a092a86c5a5ebeb2fe9332c7892d052f0f80d5ee0d0f",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        8120,
+        6088,
+        10168,
+        8136
+      ],
+      "bounds_uv": [
+        0.18796296296296297,
+        0.6233333333333333,
+        0.23537037037037037,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "5-3",
+      "url": "/earth/clouds-native/5-3.webp",
+      "runtime_bytes": 627566,
+      "runtime_sha256": "35afc2c9a1d36d405e34fd5b80a37bc94af243e2f590592b09f84dfe9898a1d1",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        10152,
+        6088,
+        12200,
+        8136
+      ],
+      "bounds_uv": [
+        0.235,
+        0.6233333333333333,
+        0.2824074074074074,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "6-3",
+      "url": "/earth/clouds-native/6-3.webp",
+      "runtime_bytes": 356986,
+      "runtime_sha256": "b4b9b91bec4e56f19c8dea5e5f0d893061e3b9e2fd3385787d332733fa697931",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        12184,
+        6088,
+        14232,
+        8136
+      ],
+      "bounds_uv": [
+        0.28203703703703703,
+        0.6233333333333333,
+        0.32944444444444443,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "7-3",
+      "url": "/earth/clouds-native/7-3.webp",
+      "runtime_bytes": 376026,
+      "runtime_sha256": "449fd531c9f3291a7ba932ff07dc74439c2b47d6beb4939a6dcc0f9b29a90ee6",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        14216,
+        6088,
+        16264,
+        8136
+      ],
+      "bounds_uv": [
+        0.3290740740740741,
+        0.6233333333333333,
+        0.3764814814814815,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "8-3",
+      "url": "/earth/clouds-native/8-3.webp",
+      "runtime_bytes": 465914,
+      "runtime_sha256": "0e865f053d1c71ea8d98bdae40925a61314d13889e15554d3328c67e01515a0b",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        16248,
+        6088,
+        18296,
+        8136
+      ],
+      "bounds_uv": [
+        0.3761111111111111,
+        0.6233333333333333,
+        0.4235185185185185,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "9-3",
+      "url": "/earth/clouds-native/9-3.webp",
+      "runtime_bytes": 399710,
+      "runtime_sha256": "4a9e3a2ca61fb90f1e9ccc33a51d7222514510884c8521b8fdbed680db5b7f4f",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        18280,
+        6088,
+        20328,
+        8136
+      ],
+      "bounds_uv": [
+        0.42314814814814816,
+        0.6233333333333333,
+        0.47055555555555556,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "10-3",
+      "url": "/earth/clouds-native/10-3.webp",
+      "runtime_bytes": 410416,
+      "runtime_sha256": "cce2287b524341608d6bf47ac06364fbc6477506027e0509ce5450adef769a61",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        20312,
+        6088,
+        22360,
+        8136
+      ],
+      "bounds_uv": [
+        0.4701851851851852,
+        0.6233333333333333,
+        0.5175925925925926,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "11-3",
+      "url": "/earth/clouds-native/11-3.webp",
+      "runtime_bytes": 78154,
+      "runtime_sha256": "972be7028e4d2967f6878c0d2138c9aa4e47725d588f915f7bddbc5552b90fac",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        22344,
+        6088,
+        24392,
+        8136
+      ],
+      "bounds_uv": [
+        0.5172222222222222,
+        0.6233333333333333,
+        0.5646296296296296,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "12-3",
+      "url": "/earth/clouds-native/12-3.webp",
+      "runtime_bytes": 117826,
+      "runtime_sha256": "e2d2a2ba6e3b45dd074032d809d182eb2846720a6231092e583af9d973526d92",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        24376,
+        6088,
+        26424,
+        8136
+      ],
+      "bounds_uv": [
+        0.5642592592592592,
+        0.6233333333333333,
+        0.6116666666666667,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "13-3",
+      "url": "/earth/clouds-native/13-3.webp",
+      "runtime_bytes": 157596,
+      "runtime_sha256": "297652df3055f41e5c37cacc723891956babc837f0b2c0887642dab0a2439362",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        26408,
+        6088,
+        28456,
+        8136
+      ],
+      "bounds_uv": [
+        0.6112962962962963,
+        0.6233333333333333,
+        0.6587037037037037,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "14-3",
+      "url": "/earth/clouds-native/14-3.webp",
+      "runtime_bytes": 368990,
+      "runtime_sha256": "9e7a362f003b9d88ce90c42d70bd380f46a5edf9d226657b0efc3e314e54ffe9",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        28440,
+        6088,
+        30488,
+        8136
+      ],
+      "bounds_uv": [
+        0.6583333333333333,
+        0.6233333333333333,
+        0.7057407407407408,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "15-3",
+      "url": "/earth/clouds-native/15-3.webp",
+      "runtime_bytes": 894666,
+      "runtime_sha256": "9e19ce9905cf0b9e51210acc4cdf733592aeb6b670af7548a8ffe9d32fb247e8",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        30472,
+        6088,
+        32520,
+        8136
+      ],
+      "bounds_uv": [
+        0.7053703703703704,
+        0.6233333333333333,
+        0.7527777777777778,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "16-3",
+      "url": "/earth/clouds-native/16-3.webp",
+      "runtime_bytes": 652062,
+      "runtime_sha256": "6d8aff8c0daf0b532db2d8e2e385faa46082408bd06d94201c4db95ed480d320",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        32504,
+        6088,
+        34552,
+        8136
+      ],
+      "bounds_uv": [
+        0.7524074074074074,
+        0.6233333333333333,
+        0.7998148148148149,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "17-3",
+      "url": "/earth/clouds-native/17-3.webp",
+      "runtime_bytes": 673608,
+      "runtime_sha256": "f00dbb47e7e4a75cefb6077d17aaee9c911c3727e551890f9bfc4890aac601f8",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        34536,
+        6088,
+        36584,
+        8136
+      ],
+      "bounds_uv": [
+        0.7994444444444444,
+        0.6233333333333333,
+        0.8468518518518519,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "18-3",
+      "url": "/earth/clouds-native/18-3.webp",
+      "runtime_bytes": 472254,
+      "runtime_sha256": "a236826baa8f07f36c76cbbfb36f3c1ead97382bf22753341b2387d98525da0b",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        36568,
+        6088,
+        38616,
+        8136
+      ],
+      "bounds_uv": [
+        0.8464814814814815,
+        0.6233333333333333,
+        0.8938888888888888,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "19-3",
+      "url": "/earth/clouds-native/19-3.webp",
+      "runtime_bytes": 434946,
+      "runtime_sha256": "aa637499c98403fefc490d5a33975ba2f039b0690f001d895cfc800b3b5ee513",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        38600,
+        6088,
+        40648,
+        8136
+      ],
+      "bounds_uv": [
+        0.8935185185185185,
+        0.6233333333333333,
+        0.9409259259259259,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "20-3",
+      "url": "/earth/clouds-native/20-3.webp",
+      "runtime_bytes": 355980,
+      "runtime_sha256": "e85e9d7a66e9b88bdc76bf71adce7d9c77437837d12d13c9a2fc9c9f5810e800",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        40632,
+        6088,
+        42680,
+        8136
+      ],
+      "bounds_uv": [
+        0.9405555555555556,
+        0.6233333333333333,
+        0.9879629629629629,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "21-3",
+      "url": "/earth/clouds-native/21-3.webp",
+      "runtime_bytes": 82012,
+      "runtime_sha256": "1df936dcd0499c0d7d738baae82f07beb563e9033996ac1238edd3279ac49f12",
+      "runtime_dimensions": [
+        544,
+        2048
+      ],
+      "pixel_box": [
+        42664,
+        6088,
+        43208,
+        8136
+      ],
+      "bounds_uv": [
+        0.9875925925925926,
+        0.6233333333333333,
+        1.0001851851851853,
+        0.7181481481481482
+      ]
+    },
+    {
+      "id": "0-4",
+      "url": "/earth/clouds-native/0-4.webp",
+      "runtime_bytes": 502754,
+      "runtime_sha256": "b6101df590dae016eea720d8ca106e65aea3f6884b6f2da3a685e2b77fe3eb00",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        -8,
+        8120,
+        2040,
+        10168
+      ],
+      "bounds_uv": [
+        -0.00018518518518518518,
+        0.5292592592592593,
+        0.04722222222222222,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "1-4",
+      "url": "/earth/clouds-native/1-4.webp",
+      "runtime_bytes": 367078,
+      "runtime_sha256": "139885e7fc3676a7b9224f3bfc194d31786c70a38a7994bfa083757e87d7bd81",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        2024,
+        8120,
+        4072,
+        10168
+      ],
+      "bounds_uv": [
+        0.04685185185185185,
+        0.5292592592592593,
+        0.09425925925925926,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "2-4",
+      "url": "/earth/clouds-native/2-4.webp",
+      "runtime_bytes": 600554,
+      "runtime_sha256": "72e77f9d84ac2a245c5f72df839e984a0d2dc688b26dcf2fd8f9a87de9b4a1cc",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        4056,
+        8120,
+        6104,
+        10168
+      ],
+      "bounds_uv": [
+        0.09388888888888888,
+        0.5292592592592593,
+        0.1412962962962963,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "3-4",
+      "url": "/earth/clouds-native/3-4.webp",
+      "runtime_bytes": 484572,
+      "runtime_sha256": "3d359beb595e5c339915d16af297184d0ec80827ba442c524e5793c998429d06",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        6088,
+        8120,
+        8136,
+        10168
+      ],
+      "bounds_uv": [
+        0.14092592592592593,
+        0.5292592592592593,
+        0.18833333333333332,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "4-4",
+      "url": "/earth/clouds-native/4-4.webp",
+      "runtime_bytes": 307664,
+      "runtime_sha256": "d592ced7cdec1ec86fed8cd263f4eeef5cc6d196731b320c16add184fb68f75e",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        8120,
+        8120,
+        10168,
+        10168
+      ],
+      "bounds_uv": [
+        0.18796296296296297,
+        0.5292592592592593,
+        0.23537037037037037,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "5-4",
+      "url": "/earth/clouds-native/5-4.webp",
+      "runtime_bytes": 501768,
+      "runtime_sha256": "16d976381e68f2bb2b948cf0edd8502157f932d2dfecd74c52009cf476ce1b36",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        10152,
+        8120,
+        12200,
+        10168
+      ],
+      "bounds_uv": [
+        0.235,
+        0.5292592592592593,
+        0.2824074074074074,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "6-4",
+      "url": "/earth/clouds-native/6-4.webp",
+      "runtime_bytes": 709256,
+      "runtime_sha256": "411ad5295ff4412f2d86510266d1b9539d4fe632e90aca161e57fc7a0434f6f3",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        12184,
+        8120,
+        14232,
+        10168
+      ],
+      "bounds_uv": [
+        0.28203703703703703,
+        0.5292592592592593,
+        0.32944444444444443,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "7-4",
+      "url": "/earth/clouds-native/7-4.webp",
+      "runtime_bytes": 427884,
+      "runtime_sha256": "80f4a197a029244e5366e7abaceaa600d928e2e7bba9b893da27500b128311f1",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        14216,
+        8120,
+        16264,
+        10168
+      ],
+      "bounds_uv": [
+        0.3290740740740741,
+        0.5292592592592593,
+        0.3764814814814815,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "8-4",
+      "url": "/earth/clouds-native/8-4.webp",
+      "runtime_bytes": 532904,
+      "runtime_sha256": "d15795dbd3ad58f526950f580c5f3e891e6f243656b58670d4f977f9c80cf83f",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        16248,
+        8120,
+        18296,
+        10168
+      ],
+      "bounds_uv": [
+        0.3761111111111111,
+        0.5292592592592593,
+        0.4235185185185185,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "9-4",
+      "url": "/earth/clouds-native/9-4.webp",
+      "runtime_bytes": 561630,
+      "runtime_sha256": "628047e4f497ba60363b37adbd5129e91db21942edfba1e45ab59fbc567ab641",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        18280,
+        8120,
+        20328,
+        10168
+      ],
+      "bounds_uv": [
+        0.42314814814814816,
+        0.5292592592592593,
+        0.47055555555555556,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "10-4",
+      "url": "/earth/clouds-native/10-4.webp",
+      "runtime_bytes": 269470,
+      "runtime_sha256": "092906505e7df1033e7d7be4f2278bf816ac2ea28b9c6d6cd78ae5825502a513",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        20312,
+        8120,
+        22360,
+        10168
+      ],
+      "bounds_uv": [
+        0.4701851851851852,
+        0.5292592592592593,
+        0.5175925925925926,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "11-4",
+      "url": "/earth/clouds-native/11-4.webp",
+      "runtime_bytes": 433392,
+      "runtime_sha256": "9b473fd490672f97ca61b191293556c447fc39d73817f7709b7e08507225e319",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        22344,
+        8120,
+        24392,
+        10168
+      ],
+      "bounds_uv": [
+        0.5172222222222222,
+        0.5292592592592593,
+        0.5646296296296296,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "12-4",
+      "url": "/earth/clouds-native/12-4.webp",
+      "runtime_bytes": 359972,
+      "runtime_sha256": "236ed12ba083561bd558cbcd448c6d38b7482fcda86156a457439821b4d4806b",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        24376,
+        8120,
+        26424,
+        10168
+      ],
+      "bounds_uv": [
+        0.5642592592592592,
+        0.5292592592592593,
+        0.6116666666666667,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "13-4",
+      "url": "/earth/clouds-native/13-4.webp",
+      "runtime_bytes": 343502,
+      "runtime_sha256": "75a56663377e6631c93269b3d0cf48b8ffa9d98986d38dabafdacbcb4be5cf7e",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        26408,
+        8120,
+        28456,
+        10168
+      ],
+      "bounds_uv": [
+        0.6112962962962963,
+        0.5292592592592593,
+        0.6587037037037037,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "14-4",
+      "url": "/earth/clouds-native/14-4.webp",
+      "runtime_bytes": 423716,
+      "runtime_sha256": "352b57486622e91f28beb3341116e369f6ab0977dfff0f362b0efad4dd9775b9",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        28440,
+        8120,
+        30488,
+        10168
+      ],
+      "bounds_uv": [
+        0.6583333333333333,
+        0.5292592592592593,
+        0.7057407407407408,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "15-4",
+      "url": "/earth/clouds-native/15-4.webp",
+      "runtime_bytes": 482094,
+      "runtime_sha256": "0ccac4f6069fc89ba186760bdf308d10f117713484bce52aab2b6d4a1f76b914",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        30472,
+        8120,
+        32520,
+        10168
+      ],
+      "bounds_uv": [
+        0.7053703703703704,
+        0.5292592592592593,
+        0.7527777777777778,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "16-4",
+      "url": "/earth/clouds-native/16-4.webp",
+      "runtime_bytes": 605098,
+      "runtime_sha256": "73c924deda17d23500b4367d0e3e4dd00d7eb688eb2243a7e3acffe17d801268",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        32504,
+        8120,
+        34552,
+        10168
+      ],
+      "bounds_uv": [
+        0.7524074074074074,
+        0.5292592592592593,
+        0.7998148148148149,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "17-4",
+      "url": "/earth/clouds-native/17-4.webp",
+      "runtime_bytes": 351234,
+      "runtime_sha256": "a1c31fb9c916c5d5b5e54dea401264b18941919e87ccabefb4a717ce3d01173b",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        34536,
+        8120,
+        36584,
+        10168
+      ],
+      "bounds_uv": [
+        0.7994444444444444,
+        0.5292592592592593,
+        0.8468518518518519,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "18-4",
+      "url": "/earth/clouds-native/18-4.webp",
+      "runtime_bytes": 384566,
+      "runtime_sha256": "923983c229898fc390bd989a80ba38c2333bc1b28ef7f4dd65eeb6098d448a81",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        36568,
+        8120,
+        38616,
+        10168
+      ],
+      "bounds_uv": [
+        0.8464814814814815,
+        0.5292592592592593,
+        0.8938888888888888,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "19-4",
+      "url": "/earth/clouds-native/19-4.webp",
+      "runtime_bytes": 402674,
+      "runtime_sha256": "87c06525275ccf672ced5312395ab5506a32e9d6c638136b51f2f510269f1cb5",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        38600,
+        8120,
+        40648,
+        10168
+      ],
+      "bounds_uv": [
+        0.8935185185185185,
+        0.5292592592592593,
+        0.9409259259259259,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "20-4",
+      "url": "/earth/clouds-native/20-4.webp",
+      "runtime_bytes": 460636,
+      "runtime_sha256": "fc9c41bd75a98f822a5651fa93795b98ac110e56d1c92d06a52ed15f0dfdab59",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        40632,
+        8120,
+        42680,
+        10168
+      ],
+      "bounds_uv": [
+        0.9405555555555556,
+        0.5292592592592593,
+        0.9879629629629629,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "21-4",
+      "url": "/earth/clouds-native/21-4.webp",
+      "runtime_bytes": 94762,
+      "runtime_sha256": "7855a1b80d0b9809496e7016563133311298b0bf6ea2ca93dd4630cf36c60e2c",
+      "runtime_dimensions": [
+        544,
+        2048
+      ],
+      "pixel_box": [
+        42664,
+        8120,
+        43208,
+        10168
+      ],
+      "bounds_uv": [
+        0.9875925925925926,
+        0.5292592592592593,
+        1.0001851851851853,
+        0.624074074074074
+      ]
+    },
+    {
+      "id": "0-5",
+      "url": "/earth/clouds-native/0-5.webp",
+      "runtime_bytes": 611554,
+      "runtime_sha256": "6be9f2b024e077fef969d1f639889590053069588fe562f7c9b5896ad46f5daa",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        -8,
+        10152,
+        2040,
+        12200
+      ],
+      "bounds_uv": [
+        -0.00018518518518518518,
+        0.43518518518518523,
+        0.04722222222222222,
+        0.53
+      ]
+    },
+    {
+      "id": "1-5",
+      "url": "/earth/clouds-native/1-5.webp",
+      "runtime_bytes": 511308,
+      "runtime_sha256": "c775e67d8247bb58f58056a70aa6b8d5b836412ffb6baea2ddbff2b80a0a86c8",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        2024,
+        10152,
+        4072,
+        12200
+      ],
+      "bounds_uv": [
+        0.04685185185185185,
+        0.43518518518518523,
+        0.09425925925925926,
+        0.53
+      ]
+    },
+    {
+      "id": "2-5",
+      "url": "/earth/clouds-native/2-5.webp",
+      "runtime_bytes": 532860,
+      "runtime_sha256": "61103f5781fb6dc7482557c8496aff5b22a95ba09c1e611e8b50ee5efd8745e9",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        4056,
+        10152,
+        6104,
+        12200
+      ],
+      "bounds_uv": [
+        0.09388888888888888,
+        0.43518518518518523,
+        0.1412962962962963,
+        0.53
+      ]
+    },
+    {
+      "id": "3-5",
+      "url": "/earth/clouds-native/3-5.webp",
+      "runtime_bytes": 553626,
+      "runtime_sha256": "0908a6095a4c295b4bc374453d4856745a3615a5da0caac18987be0b97191b8e",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        6088,
+        10152,
+        8136,
+        12200
+      ],
+      "bounds_uv": [
+        0.14092592592592593,
+        0.43518518518518523,
+        0.18833333333333332,
+        0.53
+      ]
+    },
+    {
+      "id": "4-5",
+      "url": "/earth/clouds-native/4-5.webp",
+      "runtime_bytes": 580278,
+      "runtime_sha256": "9807d366317d2a1979b8b9da336a1ac07d55e37d5f8b25b4b60f5a308e384084",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        8120,
+        10152,
+        10168,
+        12200
+      ],
+      "bounds_uv": [
+        0.18796296296296297,
+        0.43518518518518523,
+        0.23537037037037037,
+        0.53
+      ]
+    },
+    {
+      "id": "5-5",
+      "url": "/earth/clouds-native/5-5.webp",
+      "runtime_bytes": 770528,
+      "runtime_sha256": "887af9b91552b61ff2412578967a2ea8738c1d8fd2a5cb2fdbe542fcae944860",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        10152,
+        10152,
+        12200,
+        12200
+      ],
+      "bounds_uv": [
+        0.235,
+        0.43518518518518523,
+        0.2824074074074074,
+        0.53
+      ]
+    },
+    {
+      "id": "6-5",
+      "url": "/earth/clouds-native/6-5.webp",
+      "runtime_bytes": 819372,
+      "runtime_sha256": "3a1c586ed2fc83a2b438c5967d57776df7375ccbd69b82aced154487455080bf",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        12184,
+        10152,
+        14232,
+        12200
+      ],
+      "bounds_uv": [
+        0.28203703703703703,
+        0.43518518518518523,
+        0.32944444444444443,
+        0.53
+      ]
+    },
+    {
+      "id": "7-5",
+      "url": "/earth/clouds-native/7-5.webp",
+      "runtime_bytes": 413120,
+      "runtime_sha256": "48ffb95c8dd2ea99b3c2cf02c5ca7ff8ddf04318969cee815ee4229170b6e94e",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        14216,
+        10152,
+        16264,
+        12200
+      ],
+      "bounds_uv": [
+        0.3290740740740741,
+        0.43518518518518523,
+        0.3764814814814815,
+        0.53
+      ]
+    },
+    {
+      "id": "8-5",
+      "url": "/earth/clouds-native/8-5.webp",
+      "runtime_bytes": 521348,
+      "runtime_sha256": "7508dcd7cee6dd27fa8d6fa4b12a52bead323b0bf0a67db8d9a8a068b11929b6",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        16248,
+        10152,
+        18296,
+        12200
+      ],
+      "bounds_uv": [
+        0.3761111111111111,
+        0.43518518518518523,
+        0.4235185185185185,
+        0.53
+      ]
+    },
+    {
+      "id": "9-5",
+      "url": "/earth/clouds-native/9-5.webp",
+      "runtime_bytes": 458402,
+      "runtime_sha256": "5845b3deec009d9ec57f98430c9c828ddee5df5b114a9e2acf74f47e00b56331",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        18280,
+        10152,
+        20328,
+        12200
+      ],
+      "bounds_uv": [
+        0.42314814814814816,
+        0.43518518518518523,
+        0.47055555555555556,
+        0.53
+      ]
+    },
+    {
+      "id": "10-5",
+      "url": "/earth/clouds-native/10-5.webp",
+      "runtime_bytes": 495788,
+      "runtime_sha256": "73aac8a1f9362527fb170bd30e5497bb3b24c3758edaed580168d1bd9e51f2b8",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        20312,
+        10152,
+        22360,
+        12200
+      ],
+      "bounds_uv": [
+        0.4701851851851852,
+        0.43518518518518523,
+        0.5175925925925926,
+        0.53
+      ]
+    },
+    {
+      "id": "11-5",
+      "url": "/earth/clouds-native/11-5.webp",
+      "runtime_bytes": 383916,
+      "runtime_sha256": "7b6f0f9c51957a654071d209869261f27194a68e67648226df969c8f202b6250",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        22344,
+        10152,
+        24392,
+        12200
+      ],
+      "bounds_uv": [
+        0.5172222222222222,
+        0.43518518518518523,
+        0.5646296296296296,
+        0.53
+      ]
+    },
+    {
+      "id": "12-5",
+      "url": "/earth/clouds-native/12-5.webp",
+      "runtime_bytes": 596100,
+      "runtime_sha256": "1f37b8d0a9ce3889af81ea12deb51d77cd4737541d83612a0d12cbf314c043e7",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        24376,
+        10152,
+        26424,
+        12200
+      ],
+      "bounds_uv": [
+        0.5642592592592592,
+        0.43518518518518523,
+        0.6116666666666667,
+        0.53
+      ]
+    },
+    {
+      "id": "13-5",
+      "url": "/earth/clouds-native/13-5.webp",
+      "runtime_bytes": 626946,
+      "runtime_sha256": "5b7d656c73173fabb0375bd2d36d557ae2aed07f43f892acd46cd26594948848",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        26408,
+        10152,
+        28456,
+        12200
+      ],
+      "bounds_uv": [
+        0.6112962962962963,
+        0.43518518518518523,
+        0.6587037037037037,
+        0.53
+      ]
+    },
+    {
+      "id": "14-5",
+      "url": "/earth/clouds-native/14-5.webp",
+      "runtime_bytes": 494572,
+      "runtime_sha256": "ac38e059172b97516c5fe3f82508127aa8dd05fdc6c9f6d93f8672bfa0e5eecd",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        28440,
+        10152,
+        30488,
+        12200
+      ],
+      "bounds_uv": [
+        0.6583333333333333,
+        0.43518518518518523,
+        0.7057407407407408,
+        0.53
+      ]
+    },
+    {
+      "id": "15-5",
+      "url": "/earth/clouds-native/15-5.webp",
+      "runtime_bytes": 534572,
+      "runtime_sha256": "3f69d7e921b169cd6a985e567fd6f12d213475c36594a84c34775f34bebcb5c1",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        30472,
+        10152,
+        32520,
+        12200
+      ],
+      "bounds_uv": [
+        0.7053703703703704,
+        0.43518518518518523,
+        0.7527777777777778,
+        0.53
+      ]
+    },
+    {
+      "id": "16-5",
+      "url": "/earth/clouds-native/16-5.webp",
+      "runtime_bytes": 677752,
+      "runtime_sha256": "6726db09a3924e43640075211ace09d450bb6ba5d8c79013bd714a9d1afc5638",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        32504,
+        10152,
+        34552,
+        12200
+      ],
+      "bounds_uv": [
+        0.7524074074074074,
+        0.43518518518518523,
+        0.7998148148148149,
+        0.53
+      ]
+    },
+    {
+      "id": "17-5",
+      "url": "/earth/clouds-native/17-5.webp",
+      "runtime_bytes": 522300,
+      "runtime_sha256": "20572375df064bae3a9439dc4e958d3757d738c3376beac6bf563bb69fb0c052",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        34536,
+        10152,
+        36584,
+        12200
+      ],
+      "bounds_uv": [
+        0.7994444444444444,
+        0.43518518518518523,
+        0.8468518518518519,
+        0.53
+      ]
+    },
+    {
+      "id": "18-5",
+      "url": "/earth/clouds-native/18-5.webp",
+      "runtime_bytes": 621672,
+      "runtime_sha256": "40435d50a589bb20aa8f18993e084ac32f668ae675911d90481b1074a892c328",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        36568,
+        10152,
+        38616,
+        12200
+      ],
+      "bounds_uv": [
+        0.8464814814814815,
+        0.43518518518518523,
+        0.8938888888888888,
+        0.53
+      ]
+    },
+    {
+      "id": "19-5",
+      "url": "/earth/clouds-native/19-5.webp",
+      "runtime_bytes": 594358,
+      "runtime_sha256": "c04c175b5192d8efba85bb683544c2ac84233b54c568d9bc7e3fc1eb67d8a6e5",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        38600,
+        10152,
+        40648,
+        12200
+      ],
+      "bounds_uv": [
+        0.8935185185185185,
+        0.43518518518518523,
+        0.9409259259259259,
+        0.53
+      ]
+    },
+    {
+      "id": "20-5",
+      "url": "/earth/clouds-native/20-5.webp",
+      "runtime_bytes": 514848,
+      "runtime_sha256": "b21b2176094ff21620033f15a59e8666ea875c3ed728e2ed8b9e94be9a536a28",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        40632,
+        10152,
+        42680,
+        12200
+      ],
+      "bounds_uv": [
+        0.9405555555555556,
+        0.43518518518518523,
+        0.9879629629629629,
+        0.53
+      ]
+    },
+    {
+      "id": "21-5",
+      "url": "/earth/clouds-native/21-5.webp",
+      "runtime_bytes": 110350,
+      "runtime_sha256": "22a612f0c0c313c0d99da0d405899caf70153e1fad8842afd7189260327e065e",
+      "runtime_dimensions": [
+        544,
+        2048
+      ],
+      "pixel_box": [
+        42664,
+        10152,
+        43208,
+        12200
+      ],
+      "bounds_uv": [
+        0.9875925925925926,
+        0.43518518518518523,
+        1.0001851851851853,
+        0.53
+      ]
+    },
+    {
+      "id": "0-6",
+      "url": "/earth/clouds-native/0-6.webp",
+      "runtime_bytes": 672276,
+      "runtime_sha256": "a511ae7ca99e05535606b977fde9caf3dbd46229b097fe2469d2890c689e9cd5",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        -8,
+        12184,
+        2040,
+        14232
+      ],
+      "bounds_uv": [
+        -0.00018518518518518518,
+        0.34111111111111114,
+        0.04722222222222222,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "1-6",
+      "url": "/earth/clouds-native/1-6.webp",
+      "runtime_bytes": 577946,
+      "runtime_sha256": "4609e8312b3e6cd045fc767027e6cdf796b98f864bd778cf2ba1adbbaa994a43",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        2024,
+        12184,
+        4072,
+        14232
+      ],
+      "bounds_uv": [
+        0.04685185185185185,
+        0.34111111111111114,
+        0.09425925925925926,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "2-6",
+      "url": "/earth/clouds-native/2-6.webp",
+      "runtime_bytes": 421016,
+      "runtime_sha256": "2fc535b390182b3525f75d5c47ac7a698fa2eae2d800d3731c3ccd90b99a87ba",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        4056,
+        12184,
+        6104,
+        14232
+      ],
+      "bounds_uv": [
+        0.09388888888888888,
+        0.34111111111111114,
+        0.1412962962962963,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "3-6",
+      "url": "/earth/clouds-native/3-6.webp",
+      "runtime_bytes": 603754,
+      "runtime_sha256": "66645658efb1aeae225b48f25413de5a1be2741893093560ebaa611073d64fe8",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        6088,
+        12184,
+        8136,
+        14232
+      ],
+      "bounds_uv": [
+        0.14092592592592593,
+        0.34111111111111114,
+        0.18833333333333332,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "4-6",
+      "url": "/earth/clouds-native/4-6.webp",
+      "runtime_bytes": 615582,
+      "runtime_sha256": "31324680f9234e2cf172bceb96c57a6046e048640b134a71b8261cd196063d89",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        8120,
+        12184,
+        10168,
+        14232
+      ],
+      "bounds_uv": [
+        0.18796296296296297,
+        0.34111111111111114,
+        0.23537037037037037,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "5-6",
+      "url": "/earth/clouds-native/5-6.webp",
+      "runtime_bytes": 497182,
+      "runtime_sha256": "3655c4431c0c3a7ad6861b165733e21478442c1e3626db51c205346e298e5d32",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        10152,
+        12184,
+        12200,
+        14232
+      ],
+      "bounds_uv": [
+        0.235,
+        0.34111111111111114,
+        0.2824074074074074,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "6-6",
+      "url": "/earth/clouds-native/6-6.webp",
+      "runtime_bytes": 500648,
+      "runtime_sha256": "532f981bfe1a7c72f525f73336fa506152c40ac3e5764bc7fd78b1d817ddacc1",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        12184,
+        12184,
+        14232,
+        14232
+      ],
+      "bounds_uv": [
+        0.28203703703703703,
+        0.34111111111111114,
+        0.32944444444444443,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "7-6",
+      "url": "/earth/clouds-native/7-6.webp",
+      "runtime_bytes": 327222,
+      "runtime_sha256": "8a59302385cb13c41d066f712b17903b25896d4b9b3df190e4df03923ec4a9e5",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        14216,
+        12184,
+        16264,
+        14232
+      ],
+      "bounds_uv": [
+        0.3290740740740741,
+        0.34111111111111114,
+        0.3764814814814815,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "8-6",
+      "url": "/earth/clouds-native/8-6.webp",
+      "runtime_bytes": 539504,
+      "runtime_sha256": "354371578aad33365f35679fef9d5f659ace80c1a16700d84ddf091061c36c38",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        16248,
+        12184,
+        18296,
+        14232
+      ],
+      "bounds_uv": [
+        0.3761111111111111,
+        0.34111111111111114,
+        0.4235185185185185,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "9-6",
+      "url": "/earth/clouds-native/9-6.webp",
+      "runtime_bytes": 546570,
+      "runtime_sha256": "b69149cbc7fd93209ba3e26aeb6df1c06bab855921ef4110f3e10597677466c1",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        18280,
+        12184,
+        20328,
+        14232
+      ],
+      "bounds_uv": [
+        0.42314814814814816,
+        0.34111111111111114,
+        0.47055555555555556,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "10-6",
+      "url": "/earth/clouds-native/10-6.webp",
+      "runtime_bytes": 451600,
+      "runtime_sha256": "fa16d38f29a673ed782158ec0bd93696344eacd77b0f1ae7acc696473aee36d0",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        20312,
+        12184,
+        22360,
+        14232
+      ],
+      "bounds_uv": [
+        0.4701851851851852,
+        0.34111111111111114,
+        0.5175925925925926,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "11-6",
+      "url": "/earth/clouds-native/11-6.webp",
+      "runtime_bytes": 317802,
+      "runtime_sha256": "809a2de6a2939021b85a48f281d90168556a63be22c3130a09808e9f869379ff",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        22344,
+        12184,
+        24392,
+        14232
+      ],
+      "bounds_uv": [
+        0.5172222222222222,
+        0.34111111111111114,
+        0.5646296296296296,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "12-6",
+      "url": "/earth/clouds-native/12-6.webp",
+      "runtime_bytes": 653812,
+      "runtime_sha256": "e83e91bf398d3d4bdc1efe0b2c7a7e104adf8f39384b2fd969a5a8875efd93aa",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        24376,
+        12184,
+        26424,
+        14232
+      ],
+      "bounds_uv": [
+        0.5642592592592592,
+        0.34111111111111114,
+        0.6116666666666667,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "13-6",
+      "url": "/earth/clouds-native/13-6.webp",
+      "runtime_bytes": 699852,
+      "runtime_sha256": "f1032c2b5e914891495d0034d7f46929895e99c8c69070b0c242cdd60951ef3a",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        26408,
+        12184,
+        28456,
+        14232
+      ],
+      "bounds_uv": [
+        0.6112962962962963,
+        0.34111111111111114,
+        0.6587037037037037,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "14-6",
+      "url": "/earth/clouds-native/14-6.webp",
+      "runtime_bytes": 759404,
+      "runtime_sha256": "a6fd2ddce275f82e71af31b2cab1dbaad3a3e20201035588353fcaffad06fe55",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        28440,
+        12184,
+        30488,
+        14232
+      ],
+      "bounds_uv": [
+        0.6583333333333333,
+        0.34111111111111114,
+        0.7057407407407408,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "15-6",
+      "url": "/earth/clouds-native/15-6.webp",
+      "runtime_bytes": 890292,
+      "runtime_sha256": "d5658956dac521647f96cccec6dae3cc62aac1e6bf98d5df7f58aeabda075a8d",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        30472,
+        12184,
+        32520,
+        14232
+      ],
+      "bounds_uv": [
+        0.7053703703703704,
+        0.34111111111111114,
+        0.7527777777777778,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "16-6",
+      "url": "/earth/clouds-native/16-6.webp",
+      "runtime_bytes": 615222,
+      "runtime_sha256": "865c9baa096fc8ae63cf8585891b2a6b77d95f2cfe9500cbb39150c4581c7413",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        32504,
+        12184,
+        34552,
+        14232
+      ],
+      "bounds_uv": [
+        0.7524074074074074,
+        0.34111111111111114,
+        0.7998148148148149,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "17-6",
+      "url": "/earth/clouds-native/17-6.webp",
+      "runtime_bytes": 383484,
+      "runtime_sha256": "e1df6eda754c89625009112e2ea083892c54916f54b8313e0dbe73580d59b334",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        34536,
+        12184,
+        36584,
+        14232
+      ],
+      "bounds_uv": [
+        0.7994444444444444,
+        0.34111111111111114,
+        0.8468518518518519,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "18-6",
+      "url": "/earth/clouds-native/18-6.webp",
+      "runtime_bytes": 120868,
+      "runtime_sha256": "8c1bfa40aec2449e00bd9964597abc6c7a653d1241ca150ba3adf70f8de6c913",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        36568,
+        12184,
+        38616,
+        14232
+      ],
+      "bounds_uv": [
+        0.8464814814814815,
+        0.34111111111111114,
+        0.8938888888888888,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "19-6",
+      "url": "/earth/clouds-native/19-6.webp",
+      "runtime_bytes": 497694,
+      "runtime_sha256": "72f6ad6c6f59a0d9f03860a4c2546ad56f41155edb7a55e000767140d6299e16",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        38600,
+        12184,
+        40648,
+        14232
+      ],
+      "bounds_uv": [
+        0.8935185185185185,
+        0.34111111111111114,
+        0.9409259259259259,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "20-6",
+      "url": "/earth/clouds-native/20-6.webp",
+      "runtime_bytes": 556262,
+      "runtime_sha256": "3e8bb4f8f06aa81a0e058ae47e7e5fa704c1e95fe572c119c97adf7e2c50a018",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        40632,
+        12184,
+        42680,
+        14232
+      ],
+      "bounds_uv": [
+        0.9405555555555556,
+        0.34111111111111114,
+        0.9879629629629629,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "21-6",
+      "url": "/earth/clouds-native/21-6.webp",
+      "runtime_bytes": 91072,
+      "runtime_sha256": "97ced0ecea617e6d7f3746d7b782c4ad6cfc752a2e522ec3a3b869991b862a46",
+      "runtime_dimensions": [
+        544,
+        2048
+      ],
+      "pixel_box": [
+        42664,
+        12184,
+        43208,
+        14232
+      ],
+      "bounds_uv": [
+        0.9875925925925926,
+        0.34111111111111114,
+        1.0001851851851853,
+        0.43592592592592594
+      ]
+    },
+    {
+      "id": "0-7",
+      "url": "/earth/clouds-native/0-7.webp",
+      "runtime_bytes": 482912,
+      "runtime_sha256": "60a4deae849f0d32934e12d6ad1080a51bcf54368cb5af575525dae225b6686b",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        -8,
+        14216,
+        2040,
+        16264
+      ],
+      "bounds_uv": [
+        -0.00018518518518518518,
+        0.24703703703703705,
+        0.04722222222222222,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "1-7",
+      "url": "/earth/clouds-native/1-7.webp",
+      "runtime_bytes": 438284,
+      "runtime_sha256": "74858023baf4bc739475775648ab26982196321c23d6288a832356807a91d811",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        2024,
+        14216,
+        4072,
+        16264
+      ],
+      "bounds_uv": [
+        0.04685185185185185,
+        0.24703703703703705,
+        0.09425925925925926,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "2-7",
+      "url": "/earth/clouds-native/2-7.webp",
+      "runtime_bytes": 358358,
+      "runtime_sha256": "d5b5691948765d579d367c09257a2214561f26006c06831c8734c4e214af49ae",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        4056,
+        14216,
+        6104,
+        16264
+      ],
+      "bounds_uv": [
+        0.09388888888888888,
+        0.24703703703703705,
+        0.1412962962962963,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "3-7",
+      "url": "/earth/clouds-native/3-7.webp",
+      "runtime_bytes": 586630,
+      "runtime_sha256": "86068e805c4da76b01ee10c13b11a8347120d6e8d2cbafc205ace1028907f009",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        6088,
+        14216,
+        8136,
+        16264
+      ],
+      "bounds_uv": [
+        0.14092592592592593,
+        0.24703703703703705,
+        0.18833333333333332,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "4-7",
+      "url": "/earth/clouds-native/4-7.webp",
+      "runtime_bytes": 706988,
+      "runtime_sha256": "e6e4071a0d01f3d952a44cae27ed9e0bb40e4c2e18068514d32d7b192f02b5ea",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        8120,
+        14216,
+        10168,
+        16264
+      ],
+      "bounds_uv": [
+        0.18796296296296297,
+        0.24703703703703705,
+        0.23537037037037037,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "5-7",
+      "url": "/earth/clouds-native/5-7.webp",
+      "runtime_bytes": 501848,
+      "runtime_sha256": "d40280ac264902e11fc2ba028d3c107ca59b2d5fbbeac573d1d5a3484981c862",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        10152,
+        14216,
+        12200,
+        16264
+      ],
+      "bounds_uv": [
+        0.235,
+        0.24703703703703705,
+        0.2824074074074074,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "6-7",
+      "url": "/earth/clouds-native/6-7.webp",
+      "runtime_bytes": 422776,
+      "runtime_sha256": "0977d63b1efe34fd60e42cafe25c5f946f8bd82f16416e04ccf37adbcdf9cce8",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        12184,
+        14216,
+        14232,
+        16264
+      ],
+      "bounds_uv": [
+        0.28203703703703703,
+        0.24703703703703705,
+        0.32944444444444443,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "7-7",
+      "url": "/earth/clouds-native/7-7.webp",
+      "runtime_bytes": 533630,
+      "runtime_sha256": "29895a8cf644afce26fe8bb3b41f4017b562dcbe265d549840cf674c0e5503a5",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        14216,
+        14216,
+        16264,
+        16264
+      ],
+      "bounds_uv": [
+        0.3290740740740741,
+        0.24703703703703705,
+        0.3764814814814815,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "8-7",
+      "url": "/earth/clouds-native/8-7.webp",
+      "runtime_bytes": 471784,
+      "runtime_sha256": "cafd01efa22fd00ecc4566d5e532b106c35e100119343cd6268aeacbf075406e",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        16248,
+        14216,
+        18296,
+        16264
+      ],
+      "bounds_uv": [
+        0.3761111111111111,
+        0.24703703703703705,
+        0.4235185185185185,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "9-7",
+      "url": "/earth/clouds-native/9-7.webp",
+      "runtime_bytes": 384782,
+      "runtime_sha256": "0bd7a40d0d9f7de8c31e232a747a37a5f0eb52b58ac7e31c68d4bab343b09a1b",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        18280,
+        14216,
+        20328,
+        16264
+      ],
+      "bounds_uv": [
+        0.42314814814814816,
+        0.24703703703703705,
+        0.47055555555555556,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "10-7",
+      "url": "/earth/clouds-native/10-7.webp",
+      "runtime_bytes": 394642,
+      "runtime_sha256": "43def3b307835bdf909c1aac0772fe2ece07d74a0dda597ee0c96696d2b6f427",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        20312,
+        14216,
+        22360,
+        16264
+      ],
+      "bounds_uv": [
+        0.4701851851851852,
+        0.24703703703703705,
+        0.5175925925925926,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "11-7",
+      "url": "/earth/clouds-native/11-7.webp",
+      "runtime_bytes": 538246,
+      "runtime_sha256": "cf2eda188d75bb88639decbad333e52d0b23cc9cf2ab0f9cabc78182646aa846",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        22344,
+        14216,
+        24392,
+        16264
+      ],
+      "bounds_uv": [
+        0.5172222222222222,
+        0.24703703703703705,
+        0.5646296296296296,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "12-7",
+      "url": "/earth/clouds-native/12-7.webp",
+      "runtime_bytes": 584016,
+      "runtime_sha256": "df81cdfa5a1641c1dbf078f07bb227fbc5787f38ad848d9428c1baae9a1407a8",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        24376,
+        14216,
+        26424,
+        16264
+      ],
+      "bounds_uv": [
+        0.5642592592592592,
+        0.24703703703703705,
+        0.6116666666666667,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "13-7",
+      "url": "/earth/clouds-native/13-7.webp",
+      "runtime_bytes": 779786,
+      "runtime_sha256": "6b7ea27b5a97bdf3448d47108b20baf156002bc85c2aec9c304c635168cb7e55",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        26408,
+        14216,
+        28456,
+        16264
+      ],
+      "bounds_uv": [
+        0.6112962962962963,
+        0.24703703703703705,
+        0.6587037037037037,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "14-7",
+      "url": "/earth/clouds-native/14-7.webp",
+      "runtime_bytes": 538864,
+      "runtime_sha256": "f15f932774bac6e9217080e4f75b6a098167080f1a5ffdd4829bc3dc46e9fa3e",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        28440,
+        14216,
+        30488,
+        16264
+      ],
+      "bounds_uv": [
+        0.6583333333333333,
+        0.24703703703703705,
+        0.7057407407407408,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "15-7",
+      "url": "/earth/clouds-native/15-7.webp",
+      "runtime_bytes": 362798,
+      "runtime_sha256": "ebb8e52b2c81ee35e013c423c6a8d2a7190c2f8064451400c086670eabf3f9bb",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        30472,
+        14216,
+        32520,
+        16264
+      ],
+      "bounds_uv": [
+        0.7053703703703704,
+        0.24703703703703705,
+        0.7527777777777778,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "16-7",
+      "url": "/earth/clouds-native/16-7.webp",
+      "runtime_bytes": 562284,
+      "runtime_sha256": "f7a8ba8c2336a038baa713e80979bd0547960f0ddbf2a71c805ec60c576ed815",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        32504,
+        14216,
+        34552,
+        16264
+      ],
+      "bounds_uv": [
+        0.7524074074074074,
+        0.24703703703703705,
+        0.7998148148148149,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "17-7",
+      "url": "/earth/clouds-native/17-7.webp",
+      "runtime_bytes": 898408,
+      "runtime_sha256": "ab3c1d470fb96f2b6f5a03cadafe7ae6f9d752033a2c8671f535b57e8d32d097",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        34536,
+        14216,
+        36584,
+        16264
+      ],
+      "bounds_uv": [
+        0.7994444444444444,
+        0.24703703703703705,
+        0.8468518518518519,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "18-7",
+      "url": "/earth/clouds-native/18-7.webp",
+      "runtime_bytes": 323142,
+      "runtime_sha256": "e9b64b8908e48e2fb5288f7be6028aed938163b3d34d65fdd44b3560594e9989",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        36568,
+        14216,
+        38616,
+        16264
+      ],
+      "bounds_uv": [
+        0.8464814814814815,
+        0.24703703703703705,
+        0.8938888888888888,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "19-7",
+      "url": "/earth/clouds-native/19-7.webp",
+      "runtime_bytes": 435042,
+      "runtime_sha256": "510d1ef643daa026d20c0875bf56689a87018309ca7a64bba2eb81276e5d7a7b",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        38600,
+        14216,
+        40648,
+        16264
+      ],
+      "bounds_uv": [
+        0.8935185185185185,
+        0.24703703703703705,
+        0.9409259259259259,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "20-7",
+      "url": "/earth/clouds-native/20-7.webp",
+      "runtime_bytes": 486818,
+      "runtime_sha256": "5c0625e90e308b89e6ef91ae41a78a8b441031a8a7588b9c5439fd4bdf6762fc",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        40632,
+        14216,
+        42680,
+        16264
+      ],
+      "bounds_uv": [
+        0.9405555555555556,
+        0.24703703703703705,
+        0.9879629629629629,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "21-7",
+      "url": "/earth/clouds-native/21-7.webp",
+      "runtime_bytes": 200744,
+      "runtime_sha256": "2f18bede077ed5ac7bb34b7611560135a1a608a86cfdf626a89afb1775753b92",
+      "runtime_dimensions": [
+        544,
+        2048
+      ],
+      "pixel_box": [
+        42664,
+        14216,
+        43208,
+        16264
+      ],
+      "bounds_uv": [
+        0.9875925925925926,
+        0.24703703703703705,
+        1.0001851851851853,
+        0.34185185185185185
+      ]
+    },
+    {
+      "id": "0-8",
+      "url": "/earth/clouds-native/0-8.webp",
+      "runtime_bytes": 312984,
+      "runtime_sha256": "307f7ad48157f78efa9c763b00ae88748a88d3e2e04351b8ac0b50c2b319b450",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        -8,
+        16248,
+        2040,
+        18296
+      ],
+      "bounds_uv": [
+        -0.00018518518518518518,
+        0.15296296296296297,
+        0.04722222222222222,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "1-8",
+      "url": "/earth/clouds-native/1-8.webp",
+      "runtime_bytes": 349348,
+      "runtime_sha256": "6eed2bb01979d3b9bf5c8176d26310c84bef6300f6d712c652c8b2472ff09884",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        2024,
+        16248,
+        4072,
+        18296
+      ],
+      "bounds_uv": [
+        0.04685185185185185,
+        0.15296296296296297,
+        0.09425925925925926,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "2-8",
+      "url": "/earth/clouds-native/2-8.webp",
+      "runtime_bytes": 381536,
+      "runtime_sha256": "0b81493993cdbd4ea83b695d4de794f9a224329a6f9fd72f4306e07ca8a65189",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        4056,
+        16248,
+        6104,
+        18296
+      ],
+      "bounds_uv": [
+        0.09388888888888888,
+        0.15296296296296297,
+        0.1412962962962963,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "3-8",
+      "url": "/earth/clouds-native/3-8.webp",
+      "runtime_bytes": 529840,
+      "runtime_sha256": "e2902dc9217f169d66d8227e160cb445b4b086af4bd5ca66592136bdd5b30e32",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        6088,
+        16248,
+        8136,
+        18296
+      ],
+      "bounds_uv": [
+        0.14092592592592593,
+        0.15296296296296297,
+        0.18833333333333332,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "4-8",
+      "url": "/earth/clouds-native/4-8.webp",
+      "runtime_bytes": 448574,
+      "runtime_sha256": "c1a372af258903354bad152e4807ce0d3fb70f853da13ddd85d0c63b0decbee7",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        8120,
+        16248,
+        10168,
+        18296
+      ],
+      "bounds_uv": [
+        0.18796296296296297,
+        0.15296296296296297,
+        0.23537037037037037,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "5-8",
+      "url": "/earth/clouds-native/5-8.webp",
+      "runtime_bytes": 451912,
+      "runtime_sha256": "93bf749629427534542faabcf3cecdc97c1f720ab681f7d0afb22caf4616b42a",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        10152,
+        16248,
+        12200,
+        18296
+      ],
+      "bounds_uv": [
+        0.235,
+        0.15296296296296297,
+        0.2824074074074074,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "6-8",
+      "url": "/earth/clouds-native/6-8.webp",
+      "runtime_bytes": 376814,
+      "runtime_sha256": "bffc5c51c778ea72e5b84843d957e7ad317092c76e946b1291ec7eef9bef603a",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        12184,
+        16248,
+        14232,
+        18296
+      ],
+      "bounds_uv": [
+        0.28203703703703703,
+        0.15296296296296297,
+        0.32944444444444443,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "7-8",
+      "url": "/earth/clouds-native/7-8.webp",
+      "runtime_bytes": 293624,
+      "runtime_sha256": "a354d235395abb76e1c15b8ee7b71c1715637ecdc49e4daea202cc0eddb0d8c5",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        14216,
+        16248,
+        16264,
+        18296
+      ],
+      "bounds_uv": [
+        0.3290740740740741,
+        0.15296296296296297,
+        0.3764814814814815,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "8-8",
+      "url": "/earth/clouds-native/8-8.webp",
+      "runtime_bytes": 342490,
+      "runtime_sha256": "4b9b366a35eda2e2e5903b65bdea53d1174616f842b66b07cf3933a7f40d7b70",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        16248,
+        16248,
+        18296,
+        18296
+      ],
+      "bounds_uv": [
+        0.3761111111111111,
+        0.15296296296296297,
+        0.4235185185185185,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "9-8",
+      "url": "/earth/clouds-native/9-8.webp",
+      "runtime_bytes": 364266,
+      "runtime_sha256": "2245cc83edcb1817020ee3b84a863335cf495ecdacfa1447879eb999d6852a26",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        18280,
+        16248,
+        20328,
+        18296
+      ],
+      "bounds_uv": [
+        0.42314814814814816,
+        0.15296296296296297,
+        0.47055555555555556,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "10-8",
+      "url": "/earth/clouds-native/10-8.webp",
+      "runtime_bytes": 377556,
+      "runtime_sha256": "991462000b3f2e8e397ef8550e4cd81f43206b69d73eea0b45f64cedf1927176",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        20312,
+        16248,
+        22360,
+        18296
+      ],
+      "bounds_uv": [
+        0.4701851851851852,
+        0.15296296296296297,
+        0.5175925925925926,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "11-8",
+      "url": "/earth/clouds-native/11-8.webp",
+      "runtime_bytes": 362200,
+      "runtime_sha256": "2d631b783a06e00c9cc076a7e1aa877fdc81c60d03e481c7aaa6e9596e6ecfe5",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        22344,
+        16248,
+        24392,
+        18296
+      ],
+      "bounds_uv": [
+        0.5172222222222222,
+        0.15296296296296297,
+        0.5646296296296296,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "12-8",
+      "url": "/earth/clouds-native/12-8.webp",
+      "runtime_bytes": 309626,
+      "runtime_sha256": "24998c08965ac5de909e4bab96393b3b8ff405cb25b6759768126de07d4cb519",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        24376,
+        16248,
+        26424,
+        18296
+      ],
+      "bounds_uv": [
+        0.5642592592592592,
+        0.15296296296296297,
+        0.6116666666666667,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "13-8",
+      "url": "/earth/clouds-native/13-8.webp",
+      "runtime_bytes": 496026,
+      "runtime_sha256": "83cd6b922d59854f1b8ed17700df5c7af4ea2d946a82ca41ad1f622b52cc1a32",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        26408,
+        16248,
+        28456,
+        18296
+      ],
+      "bounds_uv": [
+        0.6112962962962963,
+        0.15296296296296297,
+        0.6587037037037037,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "14-8",
+      "url": "/earth/clouds-native/14-8.webp",
+      "runtime_bytes": 576378,
+      "runtime_sha256": "c111c788e6e815347b8f11e31be043251c91ed77a05c772ce919ab22e1d73d5d",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        28440,
+        16248,
+        30488,
+        18296
+      ],
+      "bounds_uv": [
+        0.6583333333333333,
+        0.15296296296296297,
+        0.7057407407407408,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "15-8",
+      "url": "/earth/clouds-native/15-8.webp",
+      "runtime_bytes": 203834,
+      "runtime_sha256": "ac49fd25005aeb18c8cd746e33e2daaf7b8eabbcfa82bdf56f485f609b061089",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        30472,
+        16248,
+        32520,
+        18296
+      ],
+      "bounds_uv": [
+        0.7053703703703704,
+        0.15296296296296297,
+        0.7527777777777778,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "16-8",
+      "url": "/earth/clouds-native/16-8.webp",
+      "runtime_bytes": 248486,
+      "runtime_sha256": "7e836fa4d0fad321203621ad1ca34a95990c7c51e72f94806da7c61a5d3053ba",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        32504,
+        16248,
+        34552,
+        18296
+      ],
+      "bounds_uv": [
+        0.7524074074074074,
+        0.15296296296296297,
+        0.7998148148148149,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "17-8",
+      "url": "/earth/clouds-native/17-8.webp",
+      "runtime_bytes": 634696,
+      "runtime_sha256": "1ba071a6ef68614366ecb9b03f95617d72783721235dddb4b55de78ce93674c4",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        34536,
+        16248,
+        36584,
+        18296
+      ],
+      "bounds_uv": [
+        0.7994444444444444,
+        0.15296296296296297,
+        0.8468518518518519,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "18-8",
+      "url": "/earth/clouds-native/18-8.webp",
+      "runtime_bytes": 482108,
+      "runtime_sha256": "22b2cd7d331b214ee6ba6fa89ce5479626a86d5c8097fa19e1f088bf9a0b9f75",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        36568,
+        16248,
+        38616,
+        18296
+      ],
+      "bounds_uv": [
+        0.8464814814814815,
+        0.15296296296296297,
+        0.8938888888888888,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "19-8",
+      "url": "/earth/clouds-native/19-8.webp",
+      "runtime_bytes": 610052,
+      "runtime_sha256": "088f8aa822450a4bfbb1293e73fd2d114181b9d328359a68e12596c81b2454c8",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        38600,
+        16248,
+        40648,
+        18296
+      ],
+      "bounds_uv": [
+        0.8935185185185185,
+        0.15296296296296297,
+        0.9409259259259259,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "20-8",
+      "url": "/earth/clouds-native/20-8.webp",
+      "runtime_bytes": 472788,
+      "runtime_sha256": "3912f5eee773264c6a85285a369b4e82217eac50cc5987ec5cdb2dfdac296648",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        40632,
+        16248,
+        42680,
+        18296
+      ],
+      "bounds_uv": [
+        0.9405555555555556,
+        0.15296296296296297,
+        0.9879629629629629,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "21-8",
+      "url": "/earth/clouds-native/21-8.webp",
+      "runtime_bytes": 159536,
+      "runtime_sha256": "c8491561e0d11cebaaccf17758c8a29df6895f7f2a268c4aed8414fe1482669b",
+      "runtime_dimensions": [
+        544,
+        2048
+      ],
+      "pixel_box": [
+        42664,
+        16248,
+        43208,
+        18296
+      ],
+      "bounds_uv": [
+        0.9875925925925926,
+        0.15296296296296297,
+        1.0001851851851853,
+        0.24777777777777776
+      ]
+    },
+    {
+      "id": "0-9",
+      "url": "/earth/clouds-native/0-9.webp",
+      "runtime_bytes": 149754,
+      "runtime_sha256": "73e6e96e60eb5c321317098842f1e86e5cc68823eeb7a5bbff61cbbd65d3826f",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        -8,
+        18280,
+        2040,
+        20328
+      ],
+      "bounds_uv": [
+        -0.00018518518518518518,
+        0.05888888888888888,
+        0.04722222222222222,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "1-9",
+      "url": "/earth/clouds-native/1-9.webp",
+      "runtime_bytes": 103872,
+      "runtime_sha256": "6ff061ef2bcb92aa170d0083801f3d832290ce6d9ec9920e8fd2a34c6f15f54e",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        2024,
+        18280,
+        4072,
+        20328
+      ],
+      "bounds_uv": [
+        0.04685185185185185,
+        0.05888888888888888,
+        0.09425925925925926,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "2-9",
+      "url": "/earth/clouds-native/2-9.webp",
+      "runtime_bytes": 115708,
+      "runtime_sha256": "ff3d722a51a5921f6bf3607987797cc311bde35e393bd9dda02dbc64f27542c0",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        4056,
+        18280,
+        6104,
+        20328
+      ],
+      "bounds_uv": [
+        0.09388888888888888,
+        0.05888888888888888,
+        0.1412962962962963,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "3-9",
+      "url": "/earth/clouds-native/3-9.webp",
+      "runtime_bytes": 98042,
+      "runtime_sha256": "84866ccdbb00650f6150ef61b9f61ceb5a4a3d17e66cd949ced9b00f56bcc0ee",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        6088,
+        18280,
+        8136,
+        20328
+      ],
+      "bounds_uv": [
+        0.14092592592592593,
+        0.05888888888888888,
+        0.18833333333333332,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "4-9",
+      "url": "/earth/clouds-native/4-9.webp",
+      "runtime_bytes": 117582,
+      "runtime_sha256": "df4c4dce0b3ec6da22a78f692ca52ee519b12cc323842f190cc70fca68d3c94f",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        8120,
+        18280,
+        10168,
+        20328
+      ],
+      "bounds_uv": [
+        0.18796296296296297,
+        0.05888888888888888,
+        0.23537037037037037,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "5-9",
+      "url": "/earth/clouds-native/5-9.webp",
+      "runtime_bytes": 208370,
+      "runtime_sha256": "85d75188b2d107078f4ff87a4038577b50fb09ccdb0af2b48d9813ae01612e38",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        10152,
+        18280,
+        12200,
+        20328
+      ],
+      "bounds_uv": [
+        0.235,
+        0.05888888888888888,
+        0.2824074074074074,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "6-9",
+      "url": "/earth/clouds-native/6-9.webp",
+      "runtime_bytes": 118722,
+      "runtime_sha256": "06d9398c8504cb397bea5cac4d3d2033168bc4c3567228e92eb68f84038297ff",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        12184,
+        18280,
+        14232,
+        20328
+      ],
+      "bounds_uv": [
+        0.28203703703703703,
+        0.05888888888888888,
+        0.32944444444444443,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "7-9",
+      "url": "/earth/clouds-native/7-9.webp",
+      "runtime_bytes": 106086,
+      "runtime_sha256": "984f07c7506ac90acba83699440ac5e9c44a00b1b23bc23ce4ea54ca77e23d5d",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        14216,
+        18280,
+        16264,
+        20328
+      ],
+      "bounds_uv": [
+        0.3290740740740741,
+        0.05888888888888888,
+        0.3764814814814815,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "8-9",
+      "url": "/earth/clouds-native/8-9.webp",
+      "runtime_bytes": 110052,
+      "runtime_sha256": "14a5e6e64225c47e7382406b70de38eb55a2b53785dcf61c49a483388264f604",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        16248,
+        18280,
+        18296,
+        20328
+      ],
+      "bounds_uv": [
+        0.3761111111111111,
+        0.05888888888888888,
+        0.4235185185185185,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "9-9",
+      "url": "/earth/clouds-native/9-9.webp",
+      "runtime_bytes": 169340,
+      "runtime_sha256": "4f99d9a1800a5a8b1e7ff2091de7c7d03a8bbbc5e43859fe40c6d6fa9e3c9238",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        18280,
+        18280,
+        20328,
+        20328
+      ],
+      "bounds_uv": [
+        0.42314814814814816,
+        0.05888888888888888,
+        0.47055555555555556,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "10-9",
+      "url": "/earth/clouds-native/10-9.webp",
+      "runtime_bytes": 134758,
+      "runtime_sha256": "2d4a24c39f2f295a507126624a2d74a2c4a01d779f92e88064d5b3e5cc72f7f3",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        20312,
+        18280,
+        22360,
+        20328
+      ],
+      "bounds_uv": [
+        0.4701851851851852,
+        0.05888888888888888,
+        0.5175925925925926,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "11-9",
+      "url": "/earth/clouds-native/11-9.webp",
+      "runtime_bytes": 62606,
+      "runtime_sha256": "adedf87c9089fc27542283c8ee0fdc7af8a87a72832afaa4b751d69de095685a",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        22344,
+        18280,
+        24392,
+        20328
+      ],
+      "bounds_uv": [
+        0.5172222222222222,
+        0.05888888888888888,
+        0.5646296296296296,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "12-9",
+      "url": "/earth/clouds-native/12-9.webp",
+      "runtime_bytes": 129824,
+      "runtime_sha256": "0a3660f2e94463b925e08ea06654739e85c6e98a912866d7d3a736839403df63",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        24376,
+        18280,
+        26424,
+        20328
+      ],
+      "bounds_uv": [
+        0.5642592592592592,
+        0.05888888888888888,
+        0.6116666666666667,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "13-9",
+      "url": "/earth/clouds-native/13-9.webp",
+      "runtime_bytes": 199832,
+      "runtime_sha256": "1ff76aab414b240d88fa988b08db3025ec87e79a0b29bea518af57e193f0ac71",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        26408,
+        18280,
+        28456,
+        20328
+      ],
+      "bounds_uv": [
+        0.6112962962962963,
+        0.05888888888888888,
+        0.6587037037037037,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "14-9",
+      "url": "/earth/clouds-native/14-9.webp",
+      "runtime_bytes": 150548,
+      "runtime_sha256": "21e3cdbee410424b573522e4a36034c6694195f54c453fdbddf8984f8cf0db7c",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        28440,
+        18280,
+        30488,
+        20328
+      ],
+      "bounds_uv": [
+        0.6583333333333333,
+        0.05888888888888888,
+        0.7057407407407408,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "15-9",
+      "url": "/earth/clouds-native/15-9.webp",
+      "runtime_bytes": 209250,
+      "runtime_sha256": "dd3cc432efae6ed13c6f8d67831d7c84b7b230922cba668a3336eab9e2eeb8e7",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        30472,
+        18280,
+        32520,
+        20328
+      ],
+      "bounds_uv": [
+        0.7053703703703704,
+        0.05888888888888888,
+        0.7527777777777778,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "16-9",
+      "url": "/earth/clouds-native/16-9.webp",
+      "runtime_bytes": 110722,
+      "runtime_sha256": "ef952415c7e129f120241ed6e7401204be538e8e759554f20f372c60fab03682",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        32504,
+        18280,
+        34552,
+        20328
+      ],
+      "bounds_uv": [
+        0.7524074074074074,
+        0.05888888888888888,
+        0.7998148148148149,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "17-9",
+      "url": "/earth/clouds-native/17-9.webp",
+      "runtime_bytes": 173592,
+      "runtime_sha256": "39d02450dfb280a5e3111ba37a3de91c7c67c4e785def344d5fff8a6f6152cc4",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        34536,
+        18280,
+        36584,
+        20328
+      ],
+      "bounds_uv": [
+        0.7994444444444444,
+        0.05888888888888888,
+        0.8468518518518519,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "18-9",
+      "url": "/earth/clouds-native/18-9.webp",
+      "runtime_bytes": 131028,
+      "runtime_sha256": "b65e9760bc78663b91704360b2e564d8b1ae95dbb2b5848ce6c8f1c6d082e1f1",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        36568,
+        18280,
+        38616,
+        20328
+      ],
+      "bounds_uv": [
+        0.8464814814814815,
+        0.05888888888888888,
+        0.8938888888888888,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "19-9",
+      "url": "/earth/clouds-native/19-9.webp",
+      "runtime_bytes": 219172,
+      "runtime_sha256": "f6e0d6a4a17b0e0de1f257c20cc5795a492487a4d1d7fd16ab8fdf51d1c4a01e",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        38600,
+        18280,
+        40648,
+        20328
+      ],
+      "bounds_uv": [
+        0.8935185185185185,
+        0.05888888888888888,
+        0.9409259259259259,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "20-9",
+      "url": "/earth/clouds-native/20-9.webp",
+      "runtime_bytes": 230692,
+      "runtime_sha256": "694876577160d5a0a4f9a658786f17e7efa8b377c479368800f900a4fd4482e4",
+      "runtime_dimensions": [
+        2048,
+        2048
+      ],
+      "pixel_box": [
+        40632,
+        18280,
+        42680,
+        20328
+      ],
+      "bounds_uv": [
+        0.9405555555555556,
+        0.05888888888888888,
+        0.9879629629629629,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "21-9",
+      "url": "/earth/clouds-native/21-9.webp",
+      "runtime_bytes": 47712,
+      "runtime_sha256": "3b871a9b40a7593453a2b41051d7377ff631b9b4818c87547e9dd4df4681b349",
+      "runtime_dimensions": [
+        544,
+        2048
+      ],
+      "pixel_box": [
+        42664,
+        18280,
+        43208,
+        20328
+      ],
+      "bounds_uv": [
+        0.9875925925925926,
+        0.05888888888888888,
+        1.0001851851851853,
+        0.15370370370370368
+      ]
+    },
+    {
+      "id": "0-10",
+      "url": "/earth/clouds-native/0-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        -8,
+        20312,
+        2040,
+        21608
+      ],
+      "bounds_uv": [
+        -0.00018518518518518518,
+        -0.00037037037037035425,
+        0.04722222222222222,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "1-10",
+      "url": "/earth/clouds-native/1-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        2024,
+        20312,
+        4072,
+        21608
+      ],
+      "bounds_uv": [
+        0.04685185185185185,
+        -0.00037037037037035425,
+        0.09425925925925926,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "2-10",
+      "url": "/earth/clouds-native/2-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        4056,
+        20312,
+        6104,
+        21608
+      ],
+      "bounds_uv": [
+        0.09388888888888888,
+        -0.00037037037037035425,
+        0.1412962962962963,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "3-10",
+      "url": "/earth/clouds-native/3-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        6088,
+        20312,
+        8136,
+        21608
+      ],
+      "bounds_uv": [
+        0.14092592592592593,
+        -0.00037037037037035425,
+        0.18833333333333332,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "4-10",
+      "url": "/earth/clouds-native/4-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        8120,
+        20312,
+        10168,
+        21608
+      ],
+      "bounds_uv": [
+        0.18796296296296297,
+        -0.00037037037037035425,
+        0.23537037037037037,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "5-10",
+      "url": "/earth/clouds-native/5-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        10152,
+        20312,
+        12200,
+        21608
+      ],
+      "bounds_uv": [
+        0.235,
+        -0.00037037037037035425,
+        0.2824074074074074,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "6-10",
+      "url": "/earth/clouds-native/6-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        12184,
+        20312,
+        14232,
+        21608
+      ],
+      "bounds_uv": [
+        0.28203703703703703,
+        -0.00037037037037035425,
+        0.32944444444444443,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "7-10",
+      "url": "/earth/clouds-native/7-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        14216,
+        20312,
+        16264,
+        21608
+      ],
+      "bounds_uv": [
+        0.3290740740740741,
+        -0.00037037037037035425,
+        0.3764814814814815,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "8-10",
+      "url": "/earth/clouds-native/8-10.webp",
+      "runtime_bytes": 5540,
+      "runtime_sha256": "8a5ad472c7d80790a6b2d10af80665678599a3749cc551b9d489bf7eb5981f50",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        16248,
+        20312,
+        18296,
+        21608
+      ],
+      "bounds_uv": [
+        0.3761111111111111,
+        -0.00037037037037035425,
+        0.4235185185185185,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "9-10",
+      "url": "/earth/clouds-native/9-10.webp",
+      "runtime_bytes": 5390,
+      "runtime_sha256": "4601f3a1155d134a79f6adeff378a7d35223e357d14d44d31e8f8315632a7760",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        18280,
+        20312,
+        20328,
+        21608
+      ],
+      "bounds_uv": [
+        0.42314814814814816,
+        -0.00037037037037035425,
+        0.47055555555555556,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "10-10",
+      "url": "/earth/clouds-native/10-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        20312,
+        20312,
+        22360,
+        21608
+      ],
+      "bounds_uv": [
+        0.4701851851851852,
+        -0.00037037037037035425,
+        0.5175925925925926,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "11-10",
+      "url": "/earth/clouds-native/11-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        22344,
+        20312,
+        24392,
+        21608
+      ],
+      "bounds_uv": [
+        0.5172222222222222,
+        -0.00037037037037035425,
+        0.5646296296296296,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "12-10",
+      "url": "/earth/clouds-native/12-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        24376,
+        20312,
+        26424,
+        21608
+      ],
+      "bounds_uv": [
+        0.5642592592592592,
+        -0.00037037037037035425,
+        0.6116666666666667,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "13-10",
+      "url": "/earth/clouds-native/13-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        26408,
+        20312,
+        28456,
+        21608
+      ],
+      "bounds_uv": [
+        0.6112962962962963,
+        -0.00037037037037035425,
+        0.6587037037037037,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "14-10",
+      "url": "/earth/clouds-native/14-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        28440,
+        20312,
+        30488,
+        21608
+      ],
+      "bounds_uv": [
+        0.6583333333333333,
+        -0.00037037037037035425,
+        0.7057407407407408,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "15-10",
+      "url": "/earth/clouds-native/15-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        30472,
+        20312,
+        32520,
+        21608
+      ],
+      "bounds_uv": [
+        0.7053703703703704,
+        -0.00037037037037035425,
+        0.7527777777777778,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "16-10",
+      "url": "/earth/clouds-native/16-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        32504,
+        20312,
+        34552,
+        21608
+      ],
+      "bounds_uv": [
+        0.7524074074074074,
+        -0.00037037037037035425,
+        0.7998148148148149,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "17-10",
+      "url": "/earth/clouds-native/17-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        34536,
+        20312,
+        36584,
+        21608
+      ],
+      "bounds_uv": [
+        0.7994444444444444,
+        -0.00037037037037035425,
+        0.8468518518518519,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "18-10",
+      "url": "/earth/clouds-native/18-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        36568,
+        20312,
+        38616,
+        21608
+      ],
+      "bounds_uv": [
+        0.8464814814814815,
+        -0.00037037037037035425,
+        0.8938888888888888,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "19-10",
+      "url": "/earth/clouds-native/19-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        38600,
+        20312,
+        40648,
+        21608
+      ],
+      "bounds_uv": [
+        0.8935185185185185,
+        -0.00037037037037035425,
+        0.9409259259259259,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "20-10",
+      "url": "/earth/clouds-native/20-10.webp",
+      "runtime_bytes": 4780,
+      "runtime_sha256": "baac33f975abbf9c4c04c7fb1116cd77c288dc3d4f839a1efc981276e989a015",
+      "runtime_dimensions": [
+        2048,
+        1296
+      ],
+      "pixel_box": [
+        40632,
+        20312,
+        42680,
+        21608
+      ],
+      "bounds_uv": [
+        0.9405555555555556,
+        -0.00037037037037035425,
+        0.9879629629629629,
+        0.05962962962962959
+      ]
+    },
+    {
+      "id": "21-10",
+      "url": "/earth/clouds-native/21-10.webp",
+      "runtime_bytes": 1314,
+      "runtime_sha256": "adb62576ba7b1637bcdfbbcf99102e6c4dd85c7cfd79fa3f1c690b26b936cdaa",
+      "runtime_dimensions": [
+        544,
+        1296
+      ],
+      "pixel_box": [
+        42664,
+        20312,
+        43208,
+        21608
+      ],
+      "bounds_uv": [
+        0.9875925925925926,
+        -0.00037037037037035425,
+        1.0001851851851853,
+        0.05962962962962959
+      ]
+    }
+  ]
+}

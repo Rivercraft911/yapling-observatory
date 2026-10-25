@@ -33,7 +33,8 @@ import { earthGeometry, earthDepthRange } from './geometry';
 import { SpacecraftFollow } from './SpacecraftFollow';
 import { FollowLink } from './FollowLink';
 import regionalImagery from './regional-lod.json';
-import regionalClouds from './regional-cloud.json';
+import cloudImagery from './cloud-tiles.json';
+import { CloudTileLayer, cloudTileBudget, readCloudTile } from './CloudTiles';
 import type { FollowStatus } from './SpacecraftFollow';
 import {
   displayBracket,
@@ -124,12 +125,7 @@ export class EarthScene {
   private regionalBitmap: ImageBitmap | null = null;
   private regionalAbort: AbortController | null = null;
   private regionalFailed = false;
-  private regionalCloudTexture: Texture | null = null;
-  private regionalCloudBitmap: ImageBitmap | null = null;
-  private regionalCloudAbort: AbortController | null = null;
-  private regionalCloudFailed = false;
-  private regionalCloudUnusedSince = 0;
-  private regionalCloudNeededSince = 0;
+  private cloudTiles: CloudTileLayer | null = null;
   private regionalUnusedSince = 0;
   private regionalNeededSince = 0;
   private snapshot: RunSnapshot | null = null;
@@ -193,11 +189,10 @@ export class EarthScene {
     canvas.dataset.regionalImageryBounds = JSON.stringify(regionalImagery.bounds_deg);
     canvas.dataset.regionalImageryEpoch = regionalImagery.acquisition_epoch;
     canvas.dataset.regionalImagerySha256 = regionalImagery.runtime_sha256;
-    canvas.dataset.regionalCloudState = 'global-only';
-    canvas.dataset.regionalCloudRevision = regionalClouds.revision;
-    canvas.dataset.regionalCloudBounds = JSON.stringify(regionalClouds.bounds_deg);
-    canvas.dataset.regionalCloudEpoch = regionalClouds.acquisition_epoch;
-    canvas.dataset.regionalCloudSha256 = regionalClouds.runtime_sha256;
+    canvas.dataset.cloudTileState = 'global-only';
+    canvas.dataset.cloudTileRevision = cloudImagery.revision;
+    canvas.dataset.cloudTileEpoch = cloudImagery.acquisition_epoch;
+    canvas.dataset.cloudTileBudget = String(cloudTileBudget(this.renderer.capabilities));
     canvas.dataset.imageryProvenanceUrl = '/earth/asset-provenance.json';
     this.scene.add(this.history, this.satellite, this.station, this.losSolid, this.losDashed);
     this.history.visible = false;
@@ -246,7 +241,15 @@ export class EarthScene {
       texture.anisotropy = Math.min(this.renderer.capabilities.getMaxAnisotropy(), 16);
       texture.needsUpdate = true;
     });
-    this.appearance = createEarthAppearance(textures[0], textures[1], textures[2]);
+    const tileBudget = cloudTileBudget(this.renderer.capabilities);
+    this.appearance = createEarthAppearance(textures[0], textures[1], textures[2], tileBudget);
+    this.cloudTiles = new CloudTileLayer(
+      tileBudget,
+      (tiles) => this.appearance?.setCloudTiles(tiles),
+      this.renderer.domElement.dataset,
+      (asset, signal) =>
+        readCloudTile(asset, signal, this.renderer.capabilities.getMaxAnisotropy()),
+    );
     const surface = new Mesh(earthGeometry(), this.appearance.surface);
     const clouds = new Mesh(earthGeometry(8000), this.appearance.clouds);
     clouds.renderOrder = 1;
@@ -676,7 +679,11 @@ export class EarthScene {
       !document.hidden &&
       this.host.clientWidth > 0 &&
       this.host.clientHeight > 0;
-    this.updateRegionalClouds(desired, weight, now);
+    this.cloudTiles?.update(
+      camera.position,
+      !document.hidden && this.host.clientWidth > 0 && this.host.clientHeight > 0 ? weight : 0,
+      now,
+    );
     if (!desired) {
       this.regionalNeededSince = 0;
       this.regionalAbort?.abort();
@@ -740,9 +747,9 @@ export class EarthScene {
     return bitmap;
   }
 
-  private createRegionalTexture(bitmap: ImageBitmap, cloudMask: boolean) {
+  private createRegionalTexture(bitmap: ImageBitmap) {
     const texture = new Texture(bitmap);
-    texture.colorSpace = cloudMask ? NoColorSpace : SRGBColorSpace;
+    texture.colorSpace = SRGBColorSpace;
     texture.flipY = false;
     texture.wrapS = ClampToEdgeWrapping;
     texture.wrapT = ClampToEdgeWrapping;
@@ -754,77 +761,6 @@ export class EarthScene {
     return texture;
   }
 
-  private updateRegionalClouds(desired: boolean, weight: number, now: number) {
-    if (!this.appearance) return;
-    if (!desired) {
-      this.regionalCloudNeededSince = 0;
-      this.regionalCloudAbort?.abort();
-      this.appearance.setRegionalCloudOpacity(0);
-      this.renderer.domElement.dataset.regionalCloudMix = '0';
-      if (!this.regionalCloudUnusedSince) this.regionalCloudUnusedSince = now;
-      if (this.regionalCloudTexture && now - this.regionalCloudUnusedSince > 15000)
-        this.releaseRegionalClouds();
-      return;
-    }
-    this.regionalCloudUnusedSince = 0;
-    if (!this.regionalCloudNeededSince) this.regionalCloudNeededSince = now;
-    if (
-      !this.regionalCloudTexture &&
-      !this.regionalCloudAbort &&
-      !this.regionalCloudFailed &&
-      now - this.regionalCloudNeededSince > 250 &&
-      this.renderer.capabilities.maxTextureSize >= 2048
-    )
-      void this.loadRegionalClouds();
-    this.appearance.setRegionalCloudOpacity(this.regionalCloudTexture ? weight : 0);
-    this.renderer.domElement.dataset.regionalCloudMix = this.regionalCloudTexture
-      ? weight.toFixed(3)
-      : '0';
-  }
-
-  private async loadRegionalClouds() {
-    const controller = new AbortController();
-    this.regionalCloudAbort = controller;
-    this.renderer.domElement.dataset.regionalCloudState = 'loading';
-    let bitmap: ImageBitmap | null = null;
-    try {
-      bitmap = await this.readRegionalBitmap(regionalClouds, controller, 'image/png');
-      if (!bitmap) return;
-      const texture = this.createRegionalTexture(bitmap, true);
-      this.regionalCloudTexture = texture;
-      this.regionalCloudBitmap = bitmap;
-      const b = regionalClouds.bounds_deg;
-      this.appearance?.setRegionalCloudMap(texture, [
-        (b.west + 180) / 360,
-        (b.south + 90) / 180,
-        (b.east + 180) / 360,
-        (b.north + 90) / 180,
-      ]);
-      this.renderer.domElement.dataset.regionalCloudState = 'ready';
-    } catch (error) {
-      bitmap?.close();
-      if (!controller.signal.aborted && !this.disposed) {
-        this.regionalCloudFailed = true;
-        this.renderer.domElement.dataset.regionalCloudState = 'unavailable';
-        this.renderer.domElement.dataset.regionalCloudError =
-          error instanceof Error ? error.message : 'Regional clouds unavailable';
-      }
-    } finally {
-      if (this.regionalCloudAbort === controller) this.regionalCloudAbort = null;
-      if (controller.signal.aborted && !this.disposed && !this.regionalCloudTexture)
-        this.renderer.domElement.dataset.regionalCloudState = 'global-only';
-    }
-  }
-
-  private releaseRegionalClouds() {
-    this.appearance?.setRegionalCloudMap(null);
-    this.regionalCloudTexture?.dispose();
-    this.regionalCloudBitmap?.close();
-    this.regionalCloudTexture = null;
-    this.regionalCloudBitmap = null;
-    this.renderer.domElement.dataset.regionalCloudState = 'global-only';
-  }
-
   private async loadRegionalImagery() {
     const controller = new AbortController();
     this.regionalAbort = controller;
@@ -833,7 +769,7 @@ export class EarthScene {
     try {
       bitmap = await this.readRegionalBitmap(regionalImagery, controller, 'image/jpeg');
       if (!bitmap) return;
-      const texture = this.createRegionalTexture(bitmap, false);
+      const texture = this.createRegionalTexture(bitmap);
       this.regionalTexture = texture;
       this.regionalBitmap = bitmap;
       const b = regionalImagery.bounds_deg;
@@ -920,9 +856,8 @@ export class EarthScene {
     this.follow.dispose();
     this.followLink.dispose();
     this.regionalAbort?.abort();
-    this.regionalCloudAbort?.abort();
     this.releaseRegionalImagery();
-    this.releaseRegionalClouds();
+    this.cloudTiles?.dispose();
     this.clearHistory();
     this.earthMeshes.forEach((mesh) => mesh.geometry.dispose());
     this.appearance?.dispose();
