@@ -24,6 +24,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import type { AssetInfo, Quaternion, Variant } from './types';
 import { createRenderer } from './graphics/renderer';
 import { createSpacecraftDisplay } from './graphics/spacecraftDisplay';
+import { inspectionCameraPose, sphereFramingDistance } from './graphics/workbenchCamera';
 import {
   isVisiblePart,
   setStarTrackerVisibility,
@@ -44,6 +45,7 @@ type CameraView = {
   maxDistance: number;
 };
 type Handle = {
+  resetView: () => void;
   frame: () => void;
   focus: () => void;
   setMode: (mode: Mode) => void;
@@ -125,9 +127,15 @@ export function Workbench({
     setRevision(asset?.revision || 'Revision unverified');
     const scene = new Scene();
     scene.background = new Color('#171c1e');
-    const camera = new PerspectiveCamera(38, 1, 0.0003, 100);
-    // glTF -Z is the patch/front face; this is independent of the live body pose.
-    camera.position.set(0.43, 0.3, -0.57);
+    const camera = new PerspectiveCamera(
+      38,
+      Math.max(host.clientWidth, 1) / Math.max(host.clientHeight, 1),
+      0.0003,
+      100,
+    );
+    const inspectionView = inspectionCameraPose(preview);
+    camera.position.copy(inspectionView.position);
+    camera.up.copy(inspectionView.up);
     const savedView = cameraViews.current[preview];
     if (savedView) {
       camera.position.copy(savedView.position);
@@ -197,7 +205,7 @@ export function Workbench({
       controls.target.copy(sphere.center);
       camera.position
         .copy(sphere.center)
-        .addScaledVector(direction, (r / Math.sin((camera.fov * Math.PI) / 360)) * 1.14);
+        .addScaledVector(direction, sphereFramingDistance(camera, r));
       controls.minDistance = Math.max(0.006, r * 0.12);
       controls.update();
     }
@@ -216,6 +224,17 @@ export function Workbench({
     }
     handle.current = {
       setModules: applyModules,
+      resetView: () => {
+        controls.enableDamping = false;
+        controls.update();
+        controls.enableDamping = true;
+        controls.target.set(0, 0, 0);
+        camera.position.copy(inspectionView.position);
+        selected = null;
+        setSelection(modelLabel);
+        frameObject(root);
+        flyTargetDistance = camera.position.distanceTo(controls.target);
+      },
       frame: () => {
         selected = null;
         setSelection(modelLabel);
@@ -335,10 +354,7 @@ export function Workbench({
     };
     const pointerMove = (event: PointerEvent) => {
       if (!dragging || currentMode !== 'fly') return;
-      const yaw = new ThreeQuaternion().setFromAxisAngle(
-        new Vector3(0, 1, 0),
-        -event.movementX * 0.004,
-      );
+      const yaw = new ThreeQuaternion().setFromAxisAngle(camera.up, -event.movementX * 0.004);
       const pitch = new ThreeQuaternion().setFromAxisAngle(
         new Vector3(1, 0, 0),
         -event.movementY * 0.004,
@@ -440,6 +456,7 @@ export function Workbench({
       canvas.dataset.thermalOverlay = temperatures.current ? 'lumped-temperature' : 'off';
       canvas.dataset.cameraPosition = JSON.stringify(camera.position.toArray());
       canvas.dataset.cameraTarget = JSON.stringify(controls.target.toArray());
+      canvas.dataset.cameraUp = JSON.stringify(camera.up.toArray());
       canvas.dataset.navigationMode = currentMode;
       renderer.render(scene, camera);
       animation = requestAnimationFrame(animate);
@@ -525,6 +542,12 @@ export function Workbench({
               Fly
             </button>
           </div>
+          <button
+            onClick={() => handle.current?.resetView()}
+            title="Restore the initial camera view. Orientation replay keeps following the run."
+          >
+            Reset view
+          </button>
           <button onClick={() => handle.current?.frame()} title="Frame all spacecraft geometry">
             Frame all
           </button>

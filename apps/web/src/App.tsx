@@ -236,7 +236,11 @@ export default function App() {
         available: false,
       }
     : assets.variants[modelVariant];
-  const followsMission = spacecraftSection !== 'geometry' || followAttitude;
+  const followsMission = followAttitude;
+  const changeCutaway = (enabled: boolean) => {
+    setCutaway(enabled);
+    if (enabled) setFollowAttitude(false);
+  };
   const missionTemperatures = useMemo(
     () =>
       Object.fromEntries(
@@ -255,7 +259,9 @@ export default function App() {
   const showTimeline =
     view === 'earth' ||
     view === 'results' ||
-    (view === 'spacecraft' ? !independentStudy && followsMission : antennaFollowsRun);
+    (view === 'spacecraft'
+      ? !independentStudy && (spacecraftSection !== 'geometry' || followsMission)
+      : antennaFollowsRun);
   const stopped =
     !!snapshot?.run.result?.summary.end_reason &&
     snapshot.run.result.summary.end_reason !== 'requested_duration';
@@ -737,7 +743,7 @@ export default function App() {
                       onClick={() => {
                         setIndependentStudy(null);
                         setSpacecraftSection(section);
-                        if (section === 'hardware' && cutawayAsset?.available) setCutaway(true);
+                        if (section === 'hardware' && cutawayAsset?.available) changeCutaway(true);
                       }}
                     >
                       {section === 'geometry'
@@ -777,6 +783,27 @@ export default function App() {
                       <div className="study-scope">
                         Shared mission · configure here, watch on Earth
                       </div>
+                      <label className="spacecraft-follow">
+                        <input
+                          type="checkbox"
+                          checked={cutaway}
+                          disabled={!cutawayAsset?.available}
+                          onChange={(event) => changeCutaway(event.target.checked)}
+                        />
+                        Cutaway
+                      </label>
+                      <label
+                        className="spacecraft-follow"
+                        title="Replay the computed spacecraft orientation at the timeline time. Off holds the inspection pose; plots still follow the timeline."
+                      >
+                        <input
+                          type="checkbox"
+                          checked={followAttitude}
+                          disabled={!snapshot}
+                          onChange={(event) => setFollowAttitude(event.target.checked)}
+                        />
+                        Replay orientation
+                      </label>
                       {spacecraftSection === 'power' ? (
                         <MissionPowerControls config={scenario} edit={mission.edit} />
                       ) : spacecraftSection === 'thermal' ? (
@@ -840,7 +867,7 @@ export default function App() {
                     variant={modelVariant}
                     asset={modelAsset}
                     cutaway={cutaway}
-                    onCutaway={setCutaway}
+                    onCutaway={changeCutaway}
                     cutawayAvailable={cutawayAsset?.available === true}
                     starTrackerVisible={starTrackerVisible}
                     onStarTrackerVisible={setStarTrackerVisible}

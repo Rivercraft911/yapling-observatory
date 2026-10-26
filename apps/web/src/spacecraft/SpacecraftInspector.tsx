@@ -95,14 +95,17 @@ export function SpacecraftInspector({
           </label>
         ) : null}
         {!cutaway || cutawayAvailable ? (
-          <label className="spacecraft-follow">
+          <label
+            className="spacecraft-follow"
+            title="Show the computed spacecraft orientation at the shared timeline time. Turn off for a fixed inspection pose; simulation results stay unchanged."
+          >
             <input
               type="checkbox"
               checked={followAttitude}
               disabled={!hasRun}
               onChange={(event) => onFollowAttitude(event.target.checked)}
             />
-            Follow run attitude
+            Replay orientation
           </label>
         ) : null}
       </fieldset>
