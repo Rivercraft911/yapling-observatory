@@ -43,15 +43,29 @@ export function MissionHardware({
   }, []);
   return (
     <>
+      <Select
+        label="Earth field"
+        value={config.magnetic_model || 'igrf14_degree1'}
+        options={[
+          { value: 'igrf14_degree13', label: 'IGRF-14 · degree 13' },
+          { value: 'igrf14_degree1', label: 'IGRF-14 · dipole only' },
+        ]}
+        onChange={(value) =>
+          edit((draft) => {
+            if (value === 'igrf14_degree1') delete draft.magnetic_model;
+            else draft.magnetic_model = 'igrf14_degree13';
+          })
+        }
+      />
       <div className="mission-field-model">
-        <span>Earth field</span>
+        <span>2025–2030 · internal field</span>
         <a
           href="https://www.ncei.noaa.gov/products/international-geomagnetic-reference-field"
           target="_blank"
           rel="noreferrer"
-          title="IGRF-14 degree 1 only: a tilted dipole using 2025 coefficients and 2025–2030 secular variation. Higher harmonics and external disturbance fields are omitted."
+          title="IGRF-14 internal field, with 2025–2030 secular variation. External disturbance fields and magnetic sensor errors are omitted."
         >
-          IGRF-14 · n = 1 ↗
+          NOAA ↗
         </a>
       </div>
       <fieldset>

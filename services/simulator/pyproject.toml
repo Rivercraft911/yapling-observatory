@@ -25,3 +25,5 @@ addopts = "-q"
 [tool.setuptools.package-data]
 "cubesat_sim.power" = ["*.json"]
 "cubesat_sim.mission" = ["*.json"]
+
+"cubesat_sim.geomagnetism" = ["*.json", "*.txt"]

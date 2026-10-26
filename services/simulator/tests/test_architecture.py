@@ -11,7 +11,7 @@ import cubesat_sim
 import pytest
 
 PACKAGE = Path(cubesat_sim.__file__).parent
-DOMAINS = ("geometry", "attitude", "orbit", "rf", "operations", "power", "thermal", "mission")
+DOMAINS = ("geometry", "attitude", "orbit", "rf", "operations", "power", "thermal", "geomagnetism", "mission")
 DOMAIN_IMPORTS = {
     "geometry": {"geometry"},
     "attitude": {"attitude", "geometry"},
@@ -20,7 +20,8 @@ DOMAIN_IMPORTS = {
     "operations": {"operations"},
     "power": {"power", "thermal", "geometry"},
     "thermal": {"thermal"},
-    "mission": {"mission", "mission_models", "models", "geometry", "orbit", "attitude", "rf", "operations", "power", "thermal"},
+    "geomagnetism": {"geomagnetism"},
+    "mission": {"mission", "mission_models", "models", "geometry", "orbit", "attitude", "rf", "operations", "power", "thermal", "geomagnetism"},
 }
 TRANSPORT_OR_UI = {
     "fastapi", "starlette", "uvicorn", "httpx", "requests", "flask", "django",
@@ -159,7 +160,7 @@ assert not (set(sys.modules) & BLOCKED)
 
 def test_run_source_hashes_cover_numerical_domains_and_match_source_bytes():
     from cubesat_sim.run_manifest import source_code_hashes
-    expected = {"cubesat_sim/" + path.relative_to(PACKAGE).as_posix() for path in numerical_paths(include_mission=False)}
+    expected = {"cubesat_sim/" + path.relative_to(PACKAGE).as_posix() for path in numerical_paths(include_mission=False) if path.relative_to(PACKAGE).parts[0] != "geomagnetism"}
     expected.update("cubesat_sim/" + name for name in ("__init__.py", "core.py", "models.py", "antenna_models.py", "run_manifest.py", "physics.py"))
     hashes = source_code_hashes()
     assert set(hashes) == expected

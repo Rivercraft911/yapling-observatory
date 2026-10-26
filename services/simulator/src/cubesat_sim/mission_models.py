@@ -294,6 +294,7 @@ class MissionScenario(MissionModel):
     downlink: Link
     schedule: Schedule = Schedule()
     radio_delivery: RadioDeliveryConfig | None = None
+    magnetic_model: Literal["igrf14_degree1", "igrf14_degree13"] | None = None
     spacecraft: MissionSpacecraft = MissionSpacecraft()
     conops: MissionConops = MissionConops()
     power: MissionPower
@@ -307,6 +308,8 @@ class MissionScenario(MissionModel):
         values = self.model_dump(mode="json")
         if self.radio_delivery is None:
             values.pop("radio_delivery", None)
+        if self.magnetic_model is None:
+            values.pop("magnetic_model", None)
         encoded = json.dumps(
             values,
             sort_keys=True,

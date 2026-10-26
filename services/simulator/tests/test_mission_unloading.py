@@ -29,6 +29,7 @@ NEW_GNC_FIELDS = {
 def mission(duration=60, enabled=True):
     data = default_mission_scenario().model_dump(mode="json")
     data["duration_s"] = duration
+    data["magnetic_model"] = None
     data["spacecraft"]["magnetic_unloading_enabled"] = enabled
     data["conops"]["auto_ground_tracking"] = False
     for wheel, rpm in zip(data["spacecraft"]["wheels"], (3000, -2000, 1000)):

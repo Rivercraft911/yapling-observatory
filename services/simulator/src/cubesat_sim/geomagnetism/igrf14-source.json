@@ -1,0 +1,23 @@
+{
+  "title": "IGRF-14 coefficient file",
+  "creator": "International Association of Geomagnetism and Aeronomy (IAGA)",
+  "source_url": "https://www.ngdc.noaa.gov/IAGA/vmod/coeffs/igrf14coeffs.txt",
+  "release_doi": "https://doi.org/10.5281/zenodo.14218973",
+  "release_version": "v2, 25 November 2024",
+  "retrieved_utc_date": "2026-10-26",
+  "file": "igrf14coeffs.txt",
+  "sha256": "8f8d88403028fc4ee92c4f38d97b46e0a87e2cfc496045b43c9e26c1d6b0903c",
+  "md5": "3606931c15c9234d9ba8e2e91b729cb0",
+  "modifications": "None. The official coefficient file is bundled byte-for-byte.",
+  "license": "Creative Commons Attribution 4.0 International",
+  "license_id": "CC-BY-4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "license_evidence": "IAGA primary Zenodo record 14218973 API: metadata.license.id = cc-by-4.0; its TXT checksum matches the NOAA file.",
+  "citation": "Beggan et al. (2026), International geomagnetic reference field: the fourteenth generation, Earth Planets Space 78, 127. https://doi.org/10.1186/s40623-025-02360-0",
+  "supported_epoch": "2025 main field plus 2025\u20132030 linear secular variation",
+  "main_field_degree": 13,
+  "secular_variation_degree": 8,
+  "reference_radius_m": 6371200.0,
+  "terms_note": "The NOAA page explicitly identifies Geomag 7.0 software as public domain. That notice is not used as a blanket license for all IAGA/BGS material. The coefficient file is attributed under the primary IAGA release CC BY 4.0 terms.",
+  "retrieved_local_date": "2026-10-25 America/Los_Angeles"
+}

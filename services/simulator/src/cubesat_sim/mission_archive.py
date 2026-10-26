@@ -200,6 +200,8 @@ def _scenario(raw):
     projected = _typed_projection(raw, model.model_dump(mode="json"))
     if model.radio_delivery is None:
         projected.pop("radio_delivery", None)
+    if model.magnetic_model is None:
+        projected.pop("magnetic_model", None)
     return model, projected
 
 

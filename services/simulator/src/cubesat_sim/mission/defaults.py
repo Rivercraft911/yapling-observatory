@@ -136,6 +136,7 @@ def default_mission_scenario():
     return MissionScenario.model_validate(
         dict(
             orbit=orbit_preset(epoch),
+            magnetic_model="igrf14_degree13",
             uplink=legacy.uplink.model_dump(mode="json"),
             downlink=legacy.downlink.model_dump(mode="json")
             | dict(tx_power_w=tx.pa_output_w, tx_feed_loss_db=tx.feed_loss_db),

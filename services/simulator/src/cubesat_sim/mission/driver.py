@@ -34,6 +34,7 @@ from ..attitude.actuators import (
 )
 from ..attitude.kinematics import rotate, conjugate, boresight_reference
 from ..geometry.vectors import add, cross, dot, scale, norm
+from ..geomagnetism.igrf14 import field_ecef_t_at_utc, model_metadata as igrf_metadata
 from ..operations.schedule import active_direction
 from ..rf.link_budget import evaluate_link_budget
 from ..rf.pattern_provenance import harmonic_pattern_records
@@ -90,9 +91,11 @@ def _source_hashes():
         "operations",
         "power",
         "thermal",
+        "geomagnetism",
     ):
         paths.update((package / domain).rglob("*.py"))
         paths.update((package / domain).rglob("*.json"))
+        paths.update((package / domain).rglob("*.txt"))
     return {
         "cubesat_sim/"
         + p.relative_to(package).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -104,6 +107,8 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
     if not isinstance(config, MissionScenario):
         raise TypeError("Validated MissionScenario required")
     source_hashes_at_start = _source_hashes()
+    full_magnetic_field = config.magnetic_model == "igrf14_degree13"
+    field_evaluator = field_ecef_t_at_utc if full_magnetic_field else magnetic_field_ecef_t
     dt = config.clocks.dynamics_step_s
     count = round(config.duration_s / dt)
     control_stride = round(config.clocks.controller_period_s / dt)
@@ -244,7 +249,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         mode, stage_id, window = operation_at(config, orbit.time_s, geo["visible"])
         target = target_direction(config, geo, sun, mode, window, orbit)
         visibility = sun_visibility(orbit.position_m, sun, power.earth_radius_m)
-        field_ecef = magnetic_field_ecef_t(
+        field_ecef = field_evaluator(
             geo["satellite_position_ecef_m"], config.epoch_utc, orbit.time_s
         )
         field = ecef_to_inertial(field_ecef, config.epoch_utc, orbit.time_s)
@@ -957,7 +962,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             earth_fixed="GMST-rotated WGS84 approximate; UTC=UT1; no EOP/precession/nutation/polar motion",
             quaternion="Hamilton scalarfirst q_B_from_I",
             sun=FRAME_VERSION,
-            magnetic=MAGNETIC_MODEL,
+            magnetic=("IGRF14-degree13-2025-SV" if full_magnetic_field else MAGNETIC_MODEL),
         ),
         time=dict(
             elapsed_scale="SI seconds; POSIX UTC labels; no leap second dynamics",
@@ -982,7 +987,10 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         sources=[
             dict(
                 url=IGRF_URL,
-                scope="degree1 2025+SV reference only; fulldegree13 not implemented",
+                scope=(
+                    "IGRF-14 degree 13 internal field, 2025 coefficients with degree 8 secular variation through 2030"
+                    if full_magnetic_field else "IGRF-14 degree 1 reference, 2025 coefficients with secular variation through 2030"
+                ),
             ),
             dict(
                 url="https://www.ngdc.noaa.gov/stp/space-weather/online-publications/stp_sii/spades/algorithm-theoretic-basis-documents/atbds_mag/atbd_mag07_coordinate-systems_v1-3.pdf",
@@ -993,7 +1001,10 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         warnings=[
             "Provisional mass/inertia, loads, coil/wheel electrical properties, thermal materials/contacts and initial conditions; no hardware validation.",
             "First-order mean-J2 SSO starting estimate used as OSCULATING initial elements; not exactSSO or operational ephemeris. No drag/lunisolar perturbations.",
-            "Degree1-only IGRF14 reference omits degree2..13 and external magnetic disturbances; not an IGRF accuracy claim.",
+            (
+                "Full degree 13 IGRF-14 internal main field with degree 8 secular variation. External disturbance fields and local spacecraft fields are omitted; no magnetic sensor model."
+                if full_magnetic_field else "Degree1-only IGRF14 reference omits degree2..13 and external magnetic disturbances; not an IGRF accuracy claim."
+            ),
             "Free-roll instantaneous minimum-rotation guidance, optional full angular-rate damping, zero target-rate feedforward; actual rigid-body dynamics and actuator limits determine pointing.",
             "MTQ quadratic axis watts are an explicit example assumption. No cellOCV/current/voltage/temperaturecapacity or hardware brownout dynamics.",
             "Uniform spherical Earth albedo/IR and hard geometric eclipse; held environment flux, fixed deployed panels, no selfshadow or geographic weather.",
@@ -1001,6 +1012,8 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             "Power demand that cannot be served terminates at last valid shared-state prefix; postbrownout dynamics are not modeled.",
         ],
     )
+    if full_magnetic_field:
+        manifest["geomagnetic_model"] = igrf_metadata()
     if electrical:
         manifest["battery_electrical"] = electrical_model_metadata() | dict(
             configuration=electrical.model_dump(mode="json"),
@@ -1119,7 +1132,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         events.sort(key=lambda event: event["time_s"])
     if config.duration_s > 86400:
         manifest["warnings"].append(
-            "Week/month results extend the same approximate fixed-epoch frame, central/J2 gravity, degree-one magnetic field and provisional hardware models. No drag, orbit determination, calibrated receiver reliability or mission-lifetime accuracy is established."
+            "Week/month results extend the same approximate fixed-epoch frame, central/J2 gravity, selected internal magnetic field and provisional hardware models. No drag, orbit determination, calibrated receiver reliability or mission-lifetime accuracy is established."
         )
     if progress:
         progress(
