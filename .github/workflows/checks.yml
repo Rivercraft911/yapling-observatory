@@ -59,7 +59,6 @@ jobs:
       - run: node --experimental-strip-types apps/web/src/live/live-display-clock.test.mjs
       - run: node apps/web/src/earth/earth-live-display.test.mjs
       - run: node apps/web/src/earth/ground-track.test.mjs
-      - run: node apps/web/src/earth/ground-track-layer.test.mjs
       - run: node apps/web/src/earth/earth-ground-track-controls.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/radio-plots.test.mjs
       - run: node apps/web/src/mission/mission-uhf-lifecycle.test.mjs

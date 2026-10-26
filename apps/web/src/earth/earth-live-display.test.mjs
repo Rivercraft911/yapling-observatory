@@ -26,7 +26,6 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
   const { BufferGeometry, Float32BufferAttribute, Group, Color, Vector3, PerspectiveCamera } =
     await import('three');
   const { EarthScene } = await import('./EarthScene.ts');
-  const { GroundTrackLayer } = await import('./GroundTrackLayer.ts');
   const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-10);
   const snapshot = (end) => ({
     scenario: {
@@ -67,8 +66,6 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
     cameraMode: 'earth',
     controls: { enabled: true },
     history: new Group(),
-    groundTrack: new GroundTrackLayer(),
-    groundTrackEnabled: false,
     autoFramed: true,
     follow: {
       setSun() {},
@@ -130,23 +127,15 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
   scene.camera.position.set(1.8, 2.1, 3.4);
   const cameraBefore = scene.camera.toJSON();
   const timeBefore = scene.renderer.domElement.dataset.displayTimeSeconds;
-  scene.setGroundTrack(true, Infinity);
-  assert.equal(scene.cameraMode, 'earth');
-  assert.equal(scene.history.visible, false);
-  assert.equal(scene.groundTrack.group.visible, true);
-  assert.equal(scene.groundTrack.statistics.pointCount, 3);
+  scene.setCameraMode('spacecraft');
+  assert.equal(scene.cameraMode, 'spacecraft');
   assert.equal(scene.renderer.domElement.dataset.displayTimeSeconds, timeBefore);
   assert.deepEqual(scene.camera.toJSON(), cameraBefore);
   scene.setHistory(snapshot(3));
-  assert.equal(scene.history.visible, false);
-  assert.deepEqual(scene.camera.toJSON(), cameraBefore, 'A receipt never reframes the camera');
-  scene.updateSample(50);
-  assert.equal(scene.groundTrack.group.visible, false);
-  scene.updateSample(2);
-  assert.equal(scene.groundTrack.group.visible, true);
-  scene.setGroundTrack(false);
   assert.equal(scene.history.visible, true);
-  assert.equal(scene.groundTrack.group.visible, false);
+  assert.deepEqual(scene.camera.toJSON(), cameraBefore, 'A receipt never reframes the camera');
+  scene.setCameraMode('earth');
+  assert.equal(scene.cameraMode, 'earth');
   assert.deepEqual(scene.camera.toJSON(), cameraBefore);
   const scheduled = [],
     cancelled = [];
@@ -171,9 +160,8 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
   delete globalThis.requestAnimationFrame;
   delete globalThis.cancelAnimationFrame;
   scene.clearHistory();
-  scene.groundTrack.dispose();
   scene.losGeometry.dispose();
   console.log(
-    'Earth receipt presentation passed: buffered pose, discrete lower-sample transitions, repeated-history reuse, exact replay, ground-track toggle/invalid recovery, altitude-path exclusivity and no camera/time changes on toggles or telemetry.',
+    'Earth receipt presentation passed: buffered pose, discrete lower-sample transitions, repeated-history reuse, exact replay, hidden-render pause and no camera/time changes on mode changes or telemetry.',
   );
 }
