@@ -1,3 +1,4 @@
+import type { MissionPresetId } from './MissionPresetSelect';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, cloneScenario } from '../api';
 import {
@@ -100,6 +101,13 @@ export function useMission() {
   );
   const loadDaylightDemo = useCallback(
     () => loadStartingMission('/api/mission/demo/daytime-pass'),
+    [loadStartingMission],
+  );
+  const loadPreset = useCallback(
+    (preset: MissionPresetId) =>
+      loadStartingMission(
+        preset === 'terminator' ? '/api/mission/demo/terminator' : '/api/mission/demo/daytime-pass',
+      ),
     [loadStartingMission],
   );
   useEffect(() => {
@@ -374,6 +382,7 @@ export function useMission() {
     cancel,
     reload,
     loadDaylightDemo,
+    loadPreset,
     openArchive,
     saveArchive,
     canSave: !!snapshot?.run.result && snapshot.run.status === 'complete',

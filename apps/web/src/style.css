@@ -1746,3 +1746,32 @@ legend > span:last-child:not(:first-child) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.mission-preset-select {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0 16px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.mission-preset-select select {
+  width: 100%;
+  min-width: 0;
+}
+.earth-mode-toggle button[aria-pressed='true'] {
+  color: #f1e7e1;
+  border-bottom-color: #d44453;
+}
+
+.earth-mode-toggle {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  border-left: 1px solid var(--rule);
+  padding-left: 10px;
+}
+.earth-mode-toggle + .reset-layout {
+  margin-left: 4px;
+}

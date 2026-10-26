@@ -9,6 +9,7 @@ import { SpacecraftInspector } from './spacecraft/SpacecraftInspector';
 import { advanceDisplayTime } from './graphics/displayInterpolation';
 import type { DynamicsSession } from './systems/dynamicsTypes';
 import type { PowerSession } from './systems/powerTypes';
+import { useLiveMission } from './live/useLiveMission';
 import { useMission } from './mission/useMission';
 import { MissionInspector } from './mission/MissionInspector';
 import { MissionHardware } from './mission/MissionHardware';
@@ -20,6 +21,9 @@ import { setMissionDuration } from './mission/missionDuration';
 import { Field } from './controls/RadioControls';
 import { missionDisplaySnapshot } from './mission/displaySnapshot';
 import './systems/systems.css';
+const LiveWorkspace = lazy(() =>
+  import('./live/LiveWorkspace').then((m) => ({ default: m.LiveWorkspace })),
+);
 const Workbench = lazy(() => import('./Workbench').then((m) => ({ default: m.Workbench })));
 const DynamicsLab = lazy(() =>
   import('./systems/DynamicsLab').then((m) => ({ default: m.DynamicsLab })),
@@ -27,7 +31,7 @@ const DynamicsLab = lazy(() =>
 const PowerLab = lazy(() => import('./systems/PowerLab').then((m) => ({ default: m.PowerLab })));
 const EarthView = lazy(() => import('./EarthView').then((m) => ({ default: m.EarthView })));
 const AntennaLab = lazy(() => import('./AntennaLab').then((m) => ({ default: m.AntennaLab })));
-type WorkspaceView = 'earth' | 'spacecraft' | 'antenna' | 'results';
+type WorkspaceView = 'live' | 'earth' | 'spacecraft' | 'antenna' | 'results';
 const workspaceViews: { id: WorkspaceView; label: string }[] = [
   { id: 'earth', label: 'Earth' },
   { id: 'spacecraft', label: 'Spacecraft' },
@@ -38,6 +42,7 @@ const EMPTY: number[] = [];
 
 export default function App() {
   const mission = useMission();
+  const live = useLiveMission();
   const scenario = mission.config;
   const snapshot = useMemo(() => missionDisplaySnapshot(mission.snapshot), [mission.snapshot]);
   const run = mission.run,
@@ -261,7 +266,7 @@ export default function App() {
     view === 'results' ||
     (view === 'spacecraft'
       ? !independentStudy && (spacecraftSection !== 'geometry' || followsMission)
-      : antennaFollowsRun);
+      : view === 'antenna' && antennaFollowsRun);
   const stopped =
     !!snapshot?.run.result?.summary.end_reason &&
     snapshot.run.result.summary.end_reason !== 'requested_duration';
@@ -295,22 +300,24 @@ export default function App() {
         <div className="brand">
           <img className="brand-mark" src="/brand/ssi-mark.svg" alt="" />
           <span className="brand-name">
-            Stanford SSI Link Workspace<small>SATELLITE SYSTEMS</small>
+            Yapling Observatory<small>STANFORD SSI</small>
           </span>
         </div>
         <div className="header-right">
           <span className="local-indicator" />
           LOCAL
           <span className="header-divider" />
-          {view === 'earth' || view === 'results'
-            ? 'COUPLED MISSION'
-            : view === 'spacecraft'
-              ? independentStudy
-                ? 'INDEPENDENT STUDY'
-                : spacecraftSection === 'geometry'
-                  ? 'MODEL PREVIEW'
-                  : 'COUPLED MISSION'
-              : 'ANTENNA REFERENCE'}
+          {view === 'live'
+            ? 'LIVE MISSION'
+            : view === 'earth' || view === 'results'
+              ? 'COUPLED MISSION'
+              : view === 'spacecraft'
+                ? independentStudy
+                  ? 'INDEPENDENT STUDY'
+                  : spacecraftSection === 'geometry'
+                    ? 'MODEL PREVIEW'
+                    : 'COUPLED MISSION'
+                : 'ANTENNA REFERENCE'}
           {(view === 'earth' ||
             view === 'results' ||
             (view === 'spacecraft' && !independentStudy)) && (
@@ -335,7 +342,7 @@ export default function App() {
         className="workspace"
         ref={workspaceRef}
         style={
-          view === 'results'
+          view === 'results' || view === 'live'
             ? { gridTemplateColumns: 'minmax(0,1fr)' }
             : compact
               ? undefined
@@ -359,13 +366,25 @@ export default function App() {
               {workspaceViews.map((item) => (
                 <button
                   key={item.id}
-                  aria-pressed={view === item.id}
-                  className={view === item.id ? 'active' : ''}
+                  aria-pressed={view === item.id || (view === 'live' && item.id === 'earth')}
+                  className={
+                    view === item.id || (view === 'live' && item.id === 'earth') ? 'active' : ''
+                  }
                   onClick={() => setView(item.id)}
                 >
                   {item.label}
                 </button>
               ))}
+              {(view === 'earth' || view === 'live') && (
+                <div className="earth-mode-toggle" role="group" aria-label="Earth simulation mode">
+                  <button aria-pressed={view === 'earth'} onClick={() => setView('earth')}>
+                    Replay
+                  </button>
+                  <button aria-pressed={view === 'live'} onClick={() => setView('live')}>
+                    Live{live.active ? ' ●' : ''}
+                  </button>
+                </div>
+              )}
               <button
                 className="reset-layout"
                 onClick={resetLayout}
@@ -391,6 +410,27 @@ export default function App() {
                     displayTime={displayTime}
                     asset={assets.variants[selectedVariant]}
                     variant={selectedVariant}
+                  />
+                ) : view === 'live' ? (
+                  <LiveWorkspace
+                    live={live}
+                    config={scenario}
+                    assets={assets}
+                    busy={busy || mission.loading || mission.importing}
+                    layout={{
+                      compact,
+                      panelWidth: actualPanelWidth,
+                      panelMax,
+                      sceneFraction,
+                      onPanelWidth: setPanelWidth,
+                      onSceneFraction: setSceneFraction,
+                    }}
+                    onPreset={mission.loadPreset}
+                    onOpenResults={async (file) => {
+                      const ok = await mission.openArchive(file);
+                      if (ok) setView('results');
+                      return ok;
+                    }}
                   />
                 ) : view === 'results' ? (
                   <ResultsWorkspace
@@ -664,19 +704,21 @@ export default function App() {
           )}
           <footer className="instrument-footer">
             <span>
-              {view === 'spacecraft'
-                ? independentStudy
-                  ? independentStudy === 'gnc'
-                    ? 'GNC · INDEPENDENT DYNAMICS STUDY'
-                    : `${independentStudy.toUpperCase()} · INDEPENDENT STUDY · ${powerSession.result?.manifest.model_version || 'NOT RUN'}`
-                  : spacecraftSection === 'geometry'
-                    ? `${cutaway ? 'LAYOUT STUDY' : 'MODEL'} ${modelAsset?.revision || '—'}`
-                    : `${mission.snapshot?.imported ? 'IMPORTED RUN' : 'MISSION RUN'} ${displayedId || '—'} · ${times.length} SAMPLES`
-                : view === 'antenna'
-                  ? 'ANTENNA REFERENCE'
-                  : snapshot
-                    ? `${mission.snapshot?.imported ? 'IMPORTED RUN' : 'RUN'} ${displayedId} · ${times.length} SAMPLES · Δt ${snapshot.scenario.step_s} s`
-                    : 'NO COMPUTED HISTORY'}
+              {view === 'live'
+                ? 'LIVE · CONTINUOUS NUMERICAL STATE'
+                : view === 'spacecraft'
+                  ? independentStudy
+                    ? independentStudy === 'gnc'
+                      ? 'GNC · INDEPENDENT DYNAMICS STUDY'
+                      : `${independentStudy.toUpperCase()} · INDEPENDENT STUDY · ${powerSession.result?.manifest.model_version || 'NOT RUN'}`
+                    : spacecraftSection === 'geometry'
+                      ? `${cutaway ? 'LAYOUT STUDY' : 'MODEL'} ${modelAsset?.revision || '—'}`
+                      : `${mission.snapshot?.imported ? 'IMPORTED RUN' : 'MISSION RUN'} ${displayedId || '—'} · ${times.length} SAMPLES`
+                  : view === 'antenna'
+                    ? 'ANTENNA REFERENCE'
+                    : snapshot
+                      ? `${mission.snapshot?.imported ? 'IMPORTED RUN' : 'RUN'} ${displayedId} · ${times.length} SAMPLES · Δt ${snapshot.scenario.step_s} s`
+                      : 'NO COMPUTED HISTORY'}
               {(view === 'earth' ||
                 view === 'results' ||
                 (view === 'spacecraft' && !independentStudy)) &&
@@ -685,25 +727,27 @@ export default function App() {
                 : ''}
             </span>
             <span>
-              {view === 'earth' || view === 'results'
-                ? mission.snapshot?.scenario.radio_delivery
-                  ? 'Assumed receiver · modeled frame payload'
-                  : 'Ideal threshold capacity · receiver not modeled'
-                : view === 'antenna'
-                  ? 'Analytical patterns · nominal geometry'
-                  : independentStudy === 'gnc'
-                    ? 'Supplied target and magnetic field · illustrative actuators'
-                    : independentStudy
-                      ? 'Prescribed CONOPS · provisional thermal inputs'
-                      : spacecraftSection !== 'geometry'
-                        ? 'Shared orbit, attitude, CONOPS, power and thermal history'
-                        : cutaway
-                          ? 'Visual layout study'
-                          : 'Concept geometry'}
+              {view === 'live'
+                ? 'Commands apply at controller boundaries'
+                : view === 'earth' || view === 'results'
+                  ? mission.snapshot?.scenario.radio_delivery
+                    ? 'Assumed receiver · modeled frame payload'
+                    : 'Ideal threshold capacity · receiver not modeled'
+                  : view === 'antenna'
+                    ? 'Analytical patterns · nominal geometry'
+                    : independentStudy === 'gnc'
+                      ? 'Supplied target and magnetic field · illustrative actuators'
+                      : independentStudy
+                        ? 'Prescribed CONOPS · provisional thermal inputs'
+                        : spacecraftSection !== 'geometry'
+                          ? 'Shared orbit, attitude, CONOPS, power and thermal history'
+                          : cutaway
+                            ? 'Visual layout study'
+                            : 'Concept geometry'}
             </span>
           </footer>
         </div>
-        {!compact && view !== 'results' && (
+        {!compact && view !== 'results' && view !== 'live' && (
           <PaneDivider
             orientation="vertical"
             reverse
@@ -715,7 +759,7 @@ export default function App() {
             onReset={() => setPanelWidth(310)}
           />
         )}
-        {view !== 'results' && (
+        {view !== 'results' && view !== 'live' && (
           <aside
             className={`controls ${view !== 'earth' ? 'contextual-controls' : ''}`}
             aria-label={
@@ -758,31 +802,37 @@ export default function App() {
                     </button>
                   ))}
                 </nav>
-                <details className="mission-study-menu" open={!!independentStudy}>
-                  <summary>Independent studies</summary>
-                  <div className="mission-mode-selector" aria-label="Independent study">
-                    {(['power', 'thermal', 'gnc'] as const).map((study) => (
-                      <button
-                        key={study}
-                        aria-pressed={independentStudy === study}
-                        onClick={() => setIndependentStudy(study)}
-                      >
-                        {study === 'gnc' ? 'GNC' : study[0].toUpperCase() + study.slice(1)}
-                      </button>
-                    ))}
-                    {independentStudy && (
-                      <button onClick={() => setIndependentStudy(null)}>Mission ↩</button>
-                    )}
-                  </div>
-                </details>
+                {spacecraftSection !== 'power' && (
+                  <details className="mission-study-menu" open={!!independentStudy}>
+                    <summary>Independent studies</summary>
+                    <div className="mission-mode-selector" aria-label="Independent study">
+                      {(['thermal', 'gnc'] as const).map((study) => (
+                        <button
+                          key={study}
+                          aria-pressed={independentStudy === study}
+                          onClick={() => setIndependentStudy(study)}
+                        >
+                          {study === 'gnc' ? 'GNC' : study[0].toUpperCase() + study.slice(1)}
+                        </button>
+                      ))}
+                      {independentStudy && (
+                        <button onClick={() => setIndependentStudy(null)}>Mission ↩</button>
+                      )}
+                    </div>
+                  </details>
+                )}
                 {independentStudy ? (
                   <div ref={setSystemsInspector} />
                 ) : spacecraftSection !== 'geometry' ? (
                   scenario ? (
                     <>
-                      <div className="study-scope">
-                        Shared mission · configure here, watch on Earth
-                      </div>
+                      <button
+                        className="text-button"
+                        title="These inputs are shared with Earth. Existing results keep their original configuration."
+                        onClick={() => setView('earth')}
+                      >
+                        Use on Earth ↗
+                      </button>
                       <label className="spacecraft-follow">
                         <input
                           type="checkbox"
