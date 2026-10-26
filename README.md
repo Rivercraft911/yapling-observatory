@@ -15,7 +15,7 @@ python3 scripts/dev.py
 
 Open the printed localhost address. Ctrl-C stops both processes. The launcher accepts `--api-port` and `--web-port`.
 
-Open **Results** for full-width selectable charts or UTC daily/pass tables. It shares the mission timeline and comparison history; unresolved payload stays unavailable.
+Open **Results** for six overview charts, up to twelve selected plots in one to three columns, or UTC daily/pass tables. Results has its own chart preferences; Earth keeps its compact plots. Both share the mission timeline and comparison history. Unresolved payload stays unavailable.
 
 Use **File → Save run** to keep a completed mission, including its original inputs, history and source identities. **Open run…** restores it paused for replay or comparison. Saving uses the computed run even when the controls contain unrun edits. Imported runs are labeled; invalid files leave the current work intact. Archives support up to 64 MiB and 20,001 samples. Their checksum checks file integrity, not the physical validity or authorship of the result.
 
@@ -27,7 +27,7 @@ The spacecraft view includes an optional cutaway with a removable tracker. Space
 
 The main mission starts with an editable 24-hour, 550 km dusk-ascending SSO example. Edit a, e, i, Ω, ω and ν directly; LTAN and Ω stay linked at the entered epoch. Choose RK4 or velocity Verlet separately from central or central-plus-J2 gravity. The SSO preset uses a first-order mean-J2 estimate as osculating initial elements. It is a planning case, not a flight ephemeris.
 
-The mission couples rigid-body dynamics, limited wheels and magnetorquers, RF geometry, Sun exposure, battery energy and lumped thermals. The provisional default has three example reaction wheels and an enabled magnetorquer; a magnetic-only comparison preset remains available. Optional magnetic momentum unloading uses the available field-perpendicular torque while the wheels maintain pointing. The starting case leaves it off; GNC controls expose the time constant and initial wheel speeds for comparisons. Coil draw and actuator heat enter the same mission power balance. Ground passes interrupt Sun pointing; manual windows add imaging or detumble. The default reduced-attitude controller leaves roll angle free and damps body rates. Hardware, mass, inertia, electrical curves and thermal contacts remain provisional. Magnetic field uses an IGRF-14 degree-one reference, with no full-field accuracy claim. A run that reaches a numerical or power limit stops and reports its last valid common state.
+The mission couples rigid-body dynamics, limited wheels and magnetorquers, RF geometry, Sun exposure, battery energy and lumped thermals. The provisional default has three example reaction wheels and an enabled magnetorquer; a magnetic-only comparison preset remains available. Optional magnetic momentum unloading uses the available field-perpendicular torque while the wheels maintain pointing. The starting case leaves it off; GNC controls expose the time constant and initial wheel speeds for comparisons. Coil draw and actuator heat enter the same mission power balance. Ground passes interrupt Sun pointing; manual windows add imaging or detumble. The default reduced-attitude controller leaves roll angle free and damps body rates. Hardware, mass, inertia, electrical curves and thermal contacts remain provisional. New missions use the full degree-13 IGRF-14 internal magnetic field. GNC also offers the earlier dipole-only reference. Neither includes external magnetic disturbances or sensor errors. A run that reaches a numerical or power limit stops and reports its last valid common state.
 
 The default clocks are 1 s dynamics, 2 s controller, 10 s thermal/environment and 30 s output. The [bounded refinement CLI](services/simulator/src/cubesat_sim/validation/README.md) compares dynamics, orbit substeps, controller period, thermal/environment, Earth quadrature and output sampling. Thermal integration and environment hold currently share one clock. Adjacent differences are diagnostics, not error bounds or a flight-validity claim.
 
@@ -76,6 +76,9 @@ node --experimental-strip-types apps/web/src/graphics/thermal-overlay.test.mjs
 node --experimental-strip-types apps/web/src/mission/mission-requests.test.mjs
 node apps/web/src/mission/shared-spacecraft.test.mjs
 node --experimental-strip-types apps/web/src/plots/battery-plots.test.mjs
+node --experimental-strip-types apps/web/src/plots/gnc-plots.test.mjs
+node --experimental-strip-types apps/web/src/plots/plot-preferences.test.mjs
+node --experimental-strip-types apps/web/src/plots/trace-formatting.test.mjs
 ```
 
 Tests cover physical reference cases, numerical regressions and dependency boundaries. The GitHub workflow is configured to run the same checks. Use `npm --prefix apps/web run format` after frontend edits.
