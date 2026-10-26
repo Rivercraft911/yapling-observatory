@@ -55,8 +55,8 @@ class Scene {
   }
   setThermalView() {}
   setGroundTargetPicker() {}
-  setGroundTrack(...value) {
-    calls.push(['groundtrack', ...value]);
+  setRenderingVisible(value) {
+    calls.push(['rendering', value]);
   }
   dispose() {
     calls.push(['dispose']);
@@ -78,6 +78,7 @@ vm.runInNewContext(compiled, {
     if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'fragment' };
     if (name === './earth/EarthScene') return { EarthScene: Scene };
     if (name === './earth.css') return {};
+    if (name === './earth/GroundTrackWorkspace') return { GroundTrackWorkspace: 'flat-map' };
     if (name === './mission/linkDisplay') return { linkDisplayState: () => 'BELOW MASK' };
     throw new Error(`Unexpected import ${name}`);
   },
@@ -103,7 +104,8 @@ const find = (node, predicate) => {
 };
 const button = (tree, label) =>
   find(tree, (node) => node.type === 'button' && text(node) === label);
-const lastTrack = () => calls.filter(([kind]) => kind === 'groundtrack').at(-1);
+const lastRendering = () => calls.filter(([kind]) => kind === 'rendering').at(-1);
+const map = (tree) => find(tree, (node) => node.type === 'flat-map');
 assert.equal(button(render(), 'Ground track').props.disabled, true);
 snapshot = {
   scenario: { epoch_utc: '2026-10-25T23:59:59Z', antenna_variant: 'dipole' },
@@ -114,14 +116,18 @@ let tree = render();
 button(tree, 'Ground track').props.onClick();
 tree = render();
 assert.equal(button(tree, 'Ground track').props['aria-pressed'], true);
-assert.deepEqual(lastTrack(), ['groundtrack', true, 10800]);
+assert.deepEqual(lastRendering(), ['rendering', false]);
+assert.equal(map(tree).props.windowSeconds, 10800);
+assert.equal(map(tree).props.snapshot, snapshot);
+assert.equal(button(tree, 'Globe'), undefined);
 const window = find(
   tree,
   (node) => node.type === 'select' && node.props['aria-label'] === 'Ground-track window',
 );
 window.props.onChange({ target: { value: 'all' } });
 tree = render();
-assert.deepEqual(lastTrack(), ['groundtrack', true, Infinity]);
+assert.equal(map(tree).props.windowSeconds, Infinity);
+assert.deepEqual(lastRendering(), ['rendering', false]);
 const cameraCalls = calls.filter(([kind]) => kind === 'camera').length;
 sampleIndex = 1;
 tree = render();
@@ -144,15 +150,18 @@ assert.equal(
 );
 button(tree, 'Follow spacecraft').props.onClick();
 tree = render();
-assert.deepEqual(lastTrack(), ['groundtrack', false, Infinity]);
+assert.deepEqual(lastRendering(), ['rendering', true]);
+assert.equal(map(tree), undefined);
 assert.equal(button(tree, 'Follow spacecraft').props['aria-pressed'], true);
 button(tree, 'Ground track').props.onClick();
 tree = render();
-assert.deepEqual(lastTrack(), ['groundtrack', true, Infinity]);
+assert.equal(map(tree).props.windowSeconds, Infinity);
+assert.deepEqual(lastRendering(), ['rendering', false]);
 button(tree, 'Earth').props.onClick();
 tree = render();
-assert.deepEqual(lastTrack(), ['groundtrack', false, Infinity]);
+assert.deepEqual(lastRendering(), ['rendering', true]);
+assert.equal(map(tree), undefined);
 assert.equal(button(tree, 'Earth').props['aria-pressed'], true);
 console.log(
-  'Ground-track controls passed: explicit modes, window selection, stable renderer/camera on telemetry, unchanged Run and UTC day rollover.',
+  'Ground-track controls passed: flat map routing, hidden GPU pause/resume, window selection, stable renderer/camera on telemetry, unchanged Run and UTC day rollover.',
 );

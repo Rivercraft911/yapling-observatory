@@ -648,8 +648,20 @@ export class EarthScene {
     element.style.transform = `translate(${(screen.x * 0.5 + 0.5) * this.host.clientWidth}px,${(-screen.y * 0.5 + 0.5) * this.host.clientHeight}px)`;
   }
 
+  private renderingVisible = true;
+  setRenderingVisible(visible: boolean) {
+    if (this.renderingVisible === visible || this.disposed) return;
+    this.renderingVisible = visible;
+    if (visible) {
+      this.lastFrame = 0;
+      this.frame = requestAnimationFrame(this.animate);
+    } else {
+      cancelAnimationFrame(this.frame);
+    }
+  }
+
   private animate = (now: number) => {
-    if (this.disposed) return;
+    if (this.disposed || !this.renderingVisible) return;
     // Resizing clears the drawing buffer. Do it only in the frame that redraws it.
     this.frameSize.apply((width, height) => {
       this.camera.aspect = width / height;

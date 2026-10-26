@@ -407,6 +407,7 @@ export default function App() {
                 {view === 'earth' ? (
                   <EarthView
                     snapshot={snapshot}
+                    coverageScenario={mission.snapshot?.scenario ?? null}
                     sampleIndex={index}
                     displayTime={displayTime}
                     asset={assets.variants[selectedVariant]}

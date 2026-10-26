@@ -63,3 +63,7 @@ jobs:
       - run: node apps/web/src/earth/earth-ground-track-controls.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/radio-plots.test.mjs
       - run: node apps/web/src/mission/mission-uhf-lifecycle.test.mjs
+      - run: node apps/web/src/earth/ground-coverage-lifecycle.test.mjs
+      - run: node --experimental-strip-types apps/web/src/controls/ground-dish-controls.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/flat-ground-track.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/flat-map-controls.test.mjs

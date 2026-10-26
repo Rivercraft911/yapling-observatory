@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AssetInfo, RunSnapshot, Variant } from './types';
+import type { AssetInfo, RunSnapshot, Scenario, Variant } from './types';
+import type { MissionConfig } from './mission/missionTypes';
+import { GroundTrackWorkspace } from './earth/GroundTrackWorkspace';
 import { EarthScene } from './earth/EarthScene';
 import type { EarthCameraMode } from './earth/EarthScene';
 import type { FollowStatus } from './earth/SpacecraftFollow';
@@ -10,6 +12,7 @@ import { linkDisplayState } from './mission/linkDisplay';
 export interface EarthViewProps {
   snapshot: RunSnapshot | null;
   sampleIndex: number;
+  coverageScenario?: MissionConfig | Scenario | null;
   displayTime?: DisplayTimeSource;
   asset?: AssetInfo;
   variant?: Variant;
@@ -18,6 +21,7 @@ export interface EarthViewProps {
 export function EarthView({
   snapshot,
   sampleIndex,
+  coverageScenario = null,
   displayTime,
   asset,
   variant,
@@ -94,9 +98,11 @@ export function EarthView({
     };
   }, [retry]);
   useEffect(() => {
-    scene.current?.setHistory(snapshot);
-    scene.current?.updateSample(sampleIndex);
-  }, [snapshot, sampleIndex]);
+    if (!groundTrack) {
+      scene.current?.setHistory(snapshot);
+      scene.current?.updateSample(sampleIndex);
+    }
+  }, [snapshot, sampleIndex, groundTrack]);
   useEffect(() => {
     scene.current?.setDisplayTimeSource(displayTime);
   }, [displayTime]);
@@ -110,18 +116,18 @@ export function EarthView({
     scene.current?.setThermalView(thermalView);
   }, [thermalView, retry]);
   useEffect(() => {
-    scene.current?.setGroundTrack(groundTrack && cameraMode === 'earth', trackWindow);
-  }, [groundTrack, cameraMode, trackWindow, retry]);
+    scene.current?.setRenderingVisible(!groundTrack);
+  }, [groundTrack, retry]);
   useEffect(() => {
     scene.current?.setGroundTargetPicker(
-      pickingTarget && onGroundTarget && cameraMode === 'earth'
+      pickingTarget && onGroundTarget && cameraMode === 'earth' && !groundTrack
         ? (position) => {
             setPickingTarget(false);
             targetCallback.current?.(position);
           }
         : null,
     );
-  }, [pickingTarget, !!onGroundTarget, cameraMode, retry]);
+  }, [pickingTarget, !!onGroundTarget, cameraMode, groundTrack, retry]);
   const samples = snapshot?.run.result?.samples;
   const state = linkDisplayState(samples, sampleIndex);
   const time = samples?.time_s[sampleIndex] ?? 0;
@@ -141,8 +147,16 @@ export function EarthView({
       ? 'Loading spacecraft'
       : '';
   return (
-    <section className="earth-view" aria-label="Earth and pass view">
+    <section className="earth-view" data-flat={groundTrack} aria-label="Earth and pass view">
       <div className="earth-render-host" ref={host} />
+      {groundTrack && snapshot && (
+        <GroundTrackWorkspace
+          snapshot={snapshot}
+          scenario={coverageScenario}
+          sampleIndex={sampleIndex}
+          windowSeconds={trackWindow}
+        />
+      )}
       <div className="earth-title">
         <span>
           {follow
@@ -201,13 +215,13 @@ export function EarthView({
           <small />
         </span>
       </div>
-      {pending && !error && (
+      {!groundTrack && pending && !error && (
         <div className="earth-message">
           <span className="spinner" />
           {pending}
         </div>
       )}
-      {(error || followError) && (
+      {!groundTrack && (error || followError) && (
         <div className="earth-message error">
           <span>{error || followError}</span>
           {error ? (
@@ -223,26 +237,6 @@ export function EarthView({
           <i />
           <span>80 °C</span>
           <small>gray = unmapped</small>
-        </div>
-      )}
-      {!follow && groundTrack && (
-        <div
-          className="earth-track-legend"
-          aria-label="Ground-track legend"
-          title="Up/down triangles mark sampled AOS/LOS bounds; rings mark sampled pass extrema. Clipped edges do not create AOS/LOS markers. Up to 64 markers nearest the shown time are displayed. These are pass locations, not coverage areas. RF samples require visible geometry, the active radio direction and nonnegative returned margin; receiver delivery is not implied. Missing selected-mode margins stay unresolved."
-        >
-          <span>
-            <i className="track" />
-            Track
-          </span>
-          <span>
-            <i className="contact" />
-            Above mask
-          </span>
-          <span>
-            <i className="rf" />
-            RF samples
-          </span>
         </div>
       )}
       <div className="earth-footer">
@@ -262,9 +256,10 @@ export function EarthView({
               className={!follow && groundTrack ? 'active' : ''}
               aria-pressed={!follow && groundTrack}
               disabled={!samples}
-              title="Surface-projected Run samples with Durand visibility and sampled RF opportunities. Camera and display settings do not change the simulation."
+              title="Flat world map with returned ground tracks and conditional MODCOD coverage around Durand."
               onClick={() => {
                 setGroundTrack(true);
+                setPickingTarget(false);
                 setCameraMode('earth');
               }}
             >
@@ -302,7 +297,7 @@ export function EarthView({
             <button onClick={() => scene.current?.resetFollow()} disabled={!samples}>
               Frame SC
             </button>
-          ) : (
+          ) : !groundTrack ? (
             <>
               <button onClick={() => scene.current?.fitPass()} disabled={!samples}>
                 Fit pass
@@ -321,7 +316,7 @@ export function EarthView({
                 </button>
               )}
             </>
-          )}
+          ) : null}
         </div>
         {follow && samples?.thermal && (
           <button
@@ -332,7 +327,7 @@ export function EarthView({
             {thermalView ? 'Materials' : 'Temperature'}
           </button>
         )}
-        <div className="earth-credit">
+        <div className="earth-credit" hidden={groundTrack}>
           <a
             href="/earth/NOTICE.txt"
             target="_blank"

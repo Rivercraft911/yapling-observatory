@@ -390,3 +390,92 @@
     font-size: 9px;
   }
 }
+
+.earth-view[data-flat='true'] .earth-render-host {
+  visibility: hidden;
+}
+.earth-view[data-flat='true'] .earth-locator,
+.earth-view[data-flat='true'] .earth-sun-cue,
+.earth-credit[hidden] {
+  display: none;
+}
+.ground-coverage-controls {
+  position: absolute;
+  top: 108px;
+  left: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font: 10px var(--mono);
+  color: #c6beb7;
+}
+.ground-coverage-controls select,
+.ground-coverage-controls input {
+  width: auto;
+  background: #171718e8;
+  border: 1px solid #4a4244;
+  border-radius: 2px;
+  color: #e2ddd7;
+  font: inherit;
+  padding: 4px 6px;
+}
+.ground-coverage-controls input {
+  width: 66px;
+}
+.ground-coverage-controls label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.ground-coverage-assumptions {
+  position: relative;
+}
+.ground-coverage-assumptions summary {
+  cursor: pointer;
+  color: #a69d97;
+}
+.ground-coverage-assumptions > div {
+  position: absolute;
+  top: 24px;
+  left: 0;
+  z-index: 4;
+  width: min(380px, 65vw);
+  max-height: 190px;
+  overflow: auto;
+  padding: 12px;
+  background: #171718f5;
+  border: 1px solid #4a4244;
+  font: 11px/1.5 var(--sans);
+}
+.ground-coverage-assumptions p {
+  margin: 8px 0 0;
+}
+@media (max-width: 760px) {
+  .ground-coverage-controls {
+    left: 18px;
+    right: 18px;
+    gap: 6px;
+    font-size: 9px;
+  }
+  .ground-coverage-controls input {
+    width: 52px;
+  }
+}
+.earth-view[data-flat='true'] .earth-view-tools {
+  max-width: 100%;
+}
+@media (max-width: 760px) {
+  .earth-view[data-flat='true'] .earth-camera-modes button {
+    padding-inline: 6px;
+  }
+}
+.ground-coverage-retry {
+  padding: 4px 6px;
+  border: 1px solid #78505b;
+  border-radius: 2px;
+  background: #2b1d23;
+  color: #e6bdc1;
+  font: inherit;
+}

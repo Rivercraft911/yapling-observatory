@@ -217,6 +217,7 @@ export function LiveWorkspace({
       >
         <EarthView
           snapshot={snapshot}
+          coverageScenario={session?.final_snapshot?.scenario ?? session?.initial_scenario ?? null}
           sampleIndex={index}
           displayTime={displayTime}
           asset={

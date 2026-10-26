@@ -148,6 +148,28 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
   assert.equal(scene.history.visible, true);
   assert.equal(scene.groundTrack.group.visible, false);
   assert.deepEqual(scene.camera.toJSON(), cameraBefore);
+  const scheduled = [],
+    cancelled = [];
+  globalThis.requestAnimationFrame = (callback) => {
+    scheduled.push(callback);
+    return scheduled.length + 20;
+  };
+  globalThis.cancelAnimationFrame = (id) => cancelled.push(id);
+  scene.renderingVisible = true;
+  scene.frame = 7;
+  scene.animate = () => {};
+  scene.setRenderingVisible(false);
+  scene.setRenderingVisible(false);
+  assert.deepEqual(cancelled, [7], 'Flat map cancels the hidden GPU frame once');
+  scene.setRenderingVisible(true);
+  scene.setRenderingVisible(true);
+  assert.equal(scheduled.length, 1, 'Returning to Earth schedules only one animation loop');
+  assert.equal(scene.lastFrame, 0, 'Hidden duration must not become a camera delta');
+  scene.disposed = true;
+  scene.setRenderingVisible(false);
+  assert.equal(cancelled.length, 1, 'Disposed scenes never schedule or cancel new frames');
+  delete globalThis.requestAnimationFrame;
+  delete globalThis.cancelAnimationFrame;
   scene.clearHistory();
   scene.groundTrack.dispose();
   scene.losGeometry.dispose();
