@@ -117,6 +117,11 @@ export class SpacecraftFollow {
   private environment: ReturnType<PMREMGenerator['fromScene']>;
   private readonly radial = new Vector3(0, 0, 1);
   private readonly sunDirection = new Vector3(1, 2, 2).normalize();
+  private readonly shadowSunBody = new Vector3();
+  private readonly shadowUpBody = new Vector3(0, 1, 0);
+  private readonly shadowBodyFromDisplay = new Quaternion();
+  private readonly shadowRotation = new Quaternion();
+  private readonly shadowDirection = new Vector3();
   private readonly earthRotation = new Quaternion();
   private orbitalRadiusM = 6928137;
   private readonly raycaster = new Raycaster();
@@ -158,6 +163,9 @@ export class SpacecraftFollow {
     this.scene.add(this.poseRoot, this.marker, this.sun, this.sun.target);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(1024, 1024);
+    // r183's extra PCF taps rotate per screen pixel. Zero radius retains
+    // hardware bilinear filtering without that moving noise pattern.
+    this.sun.shadow.radius = 0;
     this.sun.shadow.autoUpdate = false;
     this.sun.shadow.bias = -0.00005;
     this.sun.shadow.normalBias = 0.00012;
@@ -239,6 +247,7 @@ export class SpacecraftFollow {
     if (!this.poseRoot.quaternion.equals(pose)) this.sun.shadow.needsUpdate = true;
     this.poseRoot.quaternion.copy(pose);
     this.poseRoot.updateMatrixWorld(true);
+    this.orientSunShadow();
   }
 
   setSun(directionDisplay: readonly number[], visibility = 1) {
@@ -266,13 +275,31 @@ export class SpacecraftFollow {
     camera.right = camera.top = extent;
     camera.near = distance - extent;
     camera.far = distance + extent;
-    camera.up.set(
-      Math.abs(this.sunDirection.y) > 0.99 ? 1 : 0,
-      Math.abs(this.sunDirection.y) > 0.99 ? 0 : 1,
-      0,
-    );
+    this.orientSunShadow();
     camera.updateProjectionMatrix();
     this.sun.shadow.needsUpdate = true;
+  }
+
+  private orientSunShadow() {
+    const direction = this.shadowDirection
+      .copy(this.sunDirection)
+      .applyQuaternion(this.shadowBodyFromDisplay.copy(this.poseRoot.quaternion).invert());
+    if (this.shadowSunBody.lengthSq() === 0) {
+      this.shadowUpBody.set(
+        Math.abs(direction.y) < 0.9 ? 0 : 1,
+        Math.abs(direction.y) < 0.9 ? 1 : 0,
+        0,
+      );
+    } else {
+      this.shadowUpBody.applyQuaternion(
+        this.shadowRotation.setFromUnitVectors(this.shadowSunBody, direction),
+      );
+    }
+    // Transport in body coordinates: a roll about the Sun must not resample
+    // otherwise unchanged shadows. No world-axis threshold changes the basis.
+    this.shadowUpBody.addScaledVector(direction, -this.shadowUpBody.dot(direction)).normalize();
+    this.shadowSunBody.copy(direction);
+    this.sun.shadow.camera.up.copy(this.shadowUpBody).applyQuaternion(this.poseRoot.quaternion);
   }
 
   private updateEarthFill() {

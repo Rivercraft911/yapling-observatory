@@ -106,6 +106,11 @@ if (typeof BUNDLED_ORBITAL_LIGHTING_TEST === 'undefined') {
     scene: new Scene(),
     sun: new DirectionalLight(),
     sunDirection: new Vector3(1, 0, 0),
+    shadowSunBody: new Vector3(),
+    shadowUpBody: new Vector3(0, 1, 0),
+    shadowBodyFromDisplay: new Quaternion(),
+    shadowRotation: new Quaternion(),
+    shadowDirection: new Vector3(),
     radial: new Vector3(0, 1, 0),
     viewport: new Vector3(),
     earthRotation: new Quaternion(),
@@ -160,6 +165,61 @@ if (typeof BUNDLED_ORBITAL_LIGHTING_TEST === 'undefined') {
     }
   }
   const restored = new LifecycleFollow({ domElement: canvas });
+  assert.equal(
+    restored.sun.shadow.radius,
+    0,
+    'Use deterministic hardware PCF without screen-pixel jitter',
+  );
+  assert.equal(
+    restored.sun.shadow.mapSize.x,
+    1024,
+    'Shadow memory remains bounded at the approved size',
+  );
+  const stable = new LifecycleFollow({ domElement: new EventTarget() });
+  stable.radius = 0.4;
+  const basis = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -Math.PI / 2);
+  const point = new Vector3(0.15, 0.05, 0.025);
+  const setDisplayPose = (pose) => {
+    const bodyFromInertial = basis.clone().invert().multiply(pose.clone().invert()).multiply(basis);
+    stable.setPose(
+      [bodyFromInertial.w, bodyFromInertial.x, bodyFromInertial.y, bodyFromInertial.z],
+      0,
+      0,
+      0,
+    );
+  };
+  const shadowPoint = () => {
+    stable.scene.updateMatrixWorld(true);
+    stable.sun.shadow.updateMatrices(stable.sun);
+    return point
+      .clone()
+      .applyMatrix4(stable.poseRoot.matrixWorld)
+      .applyMatrix4(stable.sun.shadow.matrix);
+  };
+  setDisplayPose(new Quaternion());
+  stable.setSun([0, 0, 1]);
+  const originalShadowPoint = shadowPoint();
+  for (const degrees of [0.001, 0.1, 1, 10, 90, 179, 180, 270, 360]) {
+    setDisplayPose(
+      new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), (degrees * Math.PI) / 180),
+    );
+    assert.ok(
+      shadowPoint().distanceTo(originalShadowPoint) < 1e-12,
+      'Roll about the Sun preserves body-to-shadow coordinates when illumination is invariant',
+    );
+  }
+  setDisplayPose(new Quaternion());
+  const nearPoleSun = (y) => [Math.sqrt((1 - y * y) / 2), y, Math.sqrt((1 - y * y) / 2)];
+  stable.setSun(nearPoleSun(0.99 - 1e-7));
+  const beforePole = shadowPoint();
+  stable.setSun(nearPoleSun(0.99 + 1e-7));
+  assert.ok(
+    shadowPoint().distanceTo(beforePole) * 1024 < 0.01,
+    'A tiny Sun change cannot trigger a shadow-camera basis switch',
+  );
+  stable.dispose();
+  // Keep the restoration allocation counts local to the follower under test.
+  generations.splice(1);
   restored.setPosition([0, 0, 6928137]);
   restored.setSun([0, 1, 0], 1);
   restored.setPose([1, 0, 0, 0], 0, 0, 0);
@@ -201,6 +261,6 @@ if (typeof BUNDLED_ORBITAL_LIGHTING_TEST === 'undefined') {
   assert.equal(generations.length, 2, 'Disposed followers cannot recreate GPU resources');
   assert.equal(generations[1].environmentDisposals, 1, 'Disposal is idempotent');
   console.log(
-    'Orbital lighting checks passed: bounded linear frame, single display transform, failure/disposal cleanup, Earth-facing phase fill, returned eclipse, shadow extent/invalidation and paused context restoration. GPU appearance remains separately reviewed.',
+    'Orbital lighting checks passed: bounded linear frame, single display transform, failure/disposal cleanup, Earth-facing phase fill, returned eclipse, stable body-relative shadow grid, shadow extent/invalidation and paused context restoration. GPU appearance remains separately reviewed.',
   );
 }
