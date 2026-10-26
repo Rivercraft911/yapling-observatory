@@ -72,12 +72,14 @@ export interface MissionConfig {
     derivative_nm_s_per_rad: Vector3;
     body_boresight: Vector3;
     free_roll: boolean;
+    pointing_reference?: 'instantaneous_zero_rate' | 'moving_boresight' | null;
     roll_rate_damping: boolean;
     bdot_gain_am2_s_t: number;
     actuator_heat_node_id: string;
   };
   conops: {
     auto_ground_tracking: boolean;
+    ground_tracking_min_elevation_deg?: number | null;
     default_mode: 'sun_pointing' | 'detumble';
     windows: MissionWindow[];
   };
@@ -100,6 +102,7 @@ export interface MissionConfig {
     spacecraft_receive_w: number;
     radio_idle_w: number;
     transmit_radiation_efficiency: number;
+    analytical_efficiency_semantics?: 'pattern_times_additional_v1' | null;
     solar_irradiance_w_m2: number;
     earth_radius_m: number;
     earth_albedo: number;

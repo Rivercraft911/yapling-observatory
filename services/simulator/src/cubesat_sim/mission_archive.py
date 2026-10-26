@@ -198,6 +198,10 @@ def _scenario(raw):
     except (ValueError, TypeError, ArithmeticError) as error:
         raise ArchiveError("Archive scenario is unsupported or invalid") from error
     projected = _typed_projection(raw, model.model_dump(mode="json"))
+    if model.conops.ground_tracking_min_elevation_deg is None:
+        projected["conops"].pop("ground_tracking_min_elevation_deg", None)
+    if model.spacecraft.pointing_reference is None:
+        projected["spacecraft"].pop("pointing_reference", None)
     if model.radio_delivery is None:
         projected.pop("radio_delivery", None)
     if model.magnetic_model is None:

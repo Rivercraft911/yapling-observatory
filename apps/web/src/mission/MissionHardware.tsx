@@ -166,6 +166,24 @@ export function MissionHardware({
             })
           }
         />
+        <div title="Moving target includes the target direction's angular rate and acceleration. Stationary reference retains the earlier zero-rate guidance for comparisons.">
+          <Select
+            label="Pointing reference"
+            value={craft.pointing_reference || 'instantaneous_zero_rate'}
+            options={[
+              { value: 'moving_boresight', label: 'Moving target' },
+              { value: 'instantaneous_zero_rate', label: 'Stationary reference' },
+            ]}
+            onChange={(value) =>
+              edit((draft) => {
+                draft.spacecraft.pointing_reference = value as NonNullable<
+                  typeof craft.pointing_reference
+                >;
+                if (value === 'moving_boresight') draft.spacecraft.free_roll = true;
+              })
+            }
+          />
+        </div>
         <label
           className="spacecraft-follow"
           title="Magnetic wheel momentum unloading during wheel PD. Saved intent is retained when hardware or controller authority is unavailable."
@@ -210,10 +228,18 @@ export function MissionHardware({
               )}
           </div>
         ) : null}
-        <label className="spacecraft-follow">
+        <label
+          className="spacecraft-follow"
+          title={
+            craft.pointing_reference === 'moving_boresight'
+              ? 'Moving-target guidance controls the boresight and leaves roll free.'
+              : undefined
+          }
+        >
           <input
             type="checkbox"
             checked={craft.free_roll}
+            disabled={craft.pointing_reference === 'moving_boresight'}
             onChange={(e) =>
               edit((d) => {
                 d.spacecraft.free_roll = e.target.checked;

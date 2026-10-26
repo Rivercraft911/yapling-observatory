@@ -74,3 +74,43 @@ def inertial_to_ecef(vector, epoch_utc, elapsed_s=0.0):
 
 def ecef_to_inertial(vector, epoch_utc, elapsed_s=0.0):
     return matvec(rz(gmst_rad(epoch_utc, elapsed_s)), vector)
+
+
+def sun_direction_derivatives_inertial(epoch_utc, elapsed_s=0.0):
+    """Analytical derivatives of this module's approximate Sun direction.
+
+    Obliquity and midnight-century coefficients are held exactly as in
+    sun_direction_inertial; no external ephemeris accuracy is implied.
+    """
+    epoch = utc_datetime(epoch_utc)
+    midnight = epoch.replace(hour=0, minute=0, second=0, microsecond=0)
+    t0 = (midnight.timestamp() / 86400 + 2440587.5 - 2451545) / 36525
+    hours = (epoch - midnight).total_seconds() / 3600 + elapsed_s / 3600
+    anomaly = math.radians((357.528 + 35999.050 * t0 + 0.04107 * hours) % 360)
+    base_rate = math.radians(0.04107) / 3600
+    first = math.radians(1.915 - 0.0048 * t0)
+    second = math.radians(0.020)
+    longitude = math.radians(
+        280.460 + 36000.772 * t0 + 0.04107 * hours
+        + (1.915 - 0.0048 * t0) * math.sin(anomaly)
+        + 0.020 * math.sin(2 * anomaly)
+    )
+    obliquity = math.radians(23.439 - 0.013 * t0)
+    longitude_rate = base_rate * (
+        1 + first * math.cos(anomaly) + 2 * second * math.cos(2 * anomaly)
+    )
+    longitude_acceleration = -base_rate**2 * (
+        first * math.sin(anomaly) + 4 * second * math.sin(2 * anomaly)
+    )
+    direction = sun_direction_inertial(epoch_utc, elapsed_s)
+    tangent = (
+        -math.sin(longitude),
+        math.cos(obliquity) * math.cos(longitude),
+        math.sin(obliquity) * math.cos(longitude),
+    )
+    derivative = tuple(longitude_rate * v for v in tangent)
+    second_derivative = tuple(
+        longitude_acceleration * v - longitude_rate**2 * u
+        for v, u in zip(tangent, direction)
+    )
+    return direction, derivative, second_derivative

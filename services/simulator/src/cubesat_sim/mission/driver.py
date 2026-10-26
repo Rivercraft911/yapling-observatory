@@ -64,7 +64,7 @@ from .environment import (
     MAGNETIC_MODEL,
     IGRF_URL,
 )
-from .geometry import geometry_at, operation_at, target_direction
+from .geometry import geometry_at, operation_at, target_direction, target_motion
 from .defaults import orbit_metadata
 from .reporting import MissionReporter
 
@@ -246,16 +246,16 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
     def state_geometry():
         geo = geometry_at(config, orbit, attitude)
         sun = sun_direction_inertial(config.epoch_utc, orbit.time_s)
-        mode, stage_id, window = operation_at(config, orbit.time_s, geo["visible"])
+        mode, stage_id, window = operation_at(config, orbit.time_s, geo["visible"], geo["elevation_deg"])
         target = target_direction(config, geo, sun, mode, window, orbit)
         visibility = sun_visibility(orbit.position_m, sun, power.earth_radius_m)
         field_ecef = field_evaluator(
             geo["satellite_position_ecef_m"], config.epoch_utc, orbit.time_s
         )
         field = ecef_to_inertial(field_ecef, config.epoch_utc, orbit.time_s)
-        return geo, sun, mode, stage_id, target, visibility, field
+        return geo, sun, mode, stage_id, target, visibility, field, window
 
-    def update_control(geo, sun, mode, target, field):
+    def update_control(geo, sun, mode, target, field, window):
         nonlocal forcing, requested, allocation_residual, field_previous, field_previous_time, mtq_saturated, control_status
         nonlocal unloading_status, unloading_requested, unloading_allocated, unloading_command_time_s
         field_body = rotate(attitude.q_body_from_inertial_wxyz, field)
@@ -306,6 +306,16 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
                     )
                 )
             )
+            if config.spacecraft.pointing_reference == "moving_boresight":
+                motion = target_motion(
+                    config, geo, mode, window, orbit,
+                    orbit_config.gravity.acceleration_m_s2(orbit.position_m),
+                )
+                reference = AttitudeReference(
+                    reference.q_reference_from_inertial_wxyz,
+                    motion.omega_inertial_rad_s,
+                    motion.alpha_inertial_rad_s2,
+                )
             output = quaternion_pd(
                 body,
                 attitude,
@@ -392,7 +402,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
 
     def append_sample():
         nonlocal maximum_pointing, maximum_rate, maximum_elevation
-        geo, sun, mode, stage_id, target, visibility, field = state_geometry()
+        geo, sun, mode, stage_id, target, visibility, field, window = state_geometry()
         pointing = math.degrees(
             math.acos(
                 max(
@@ -589,7 +599,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
     for tick in range(count):
         if tick % 16 == 0 and cancelled and cancelled():
             raise InterruptedError("Mission cancelled")
-        geo, sun, mode, stage_id, target, visibility, field = state_geometry()
+        geo, sun, mode, stage_id, target, visibility, field, window = state_geometry()
         maximum_elevation = max(maximum_elevation, geo["elevation_deg"])
         maximum_rate = max(maximum_rate, norm(attitude.omega_body_rad_s))
         maximum_pointing = max(
@@ -625,7 +635,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         if tick % control_stride == 0 or (
             events and events[-1]["time_s"] == orbit.time_s
         ):
-            update_control(geo, sun, mode, target, field)
+            update_control(geo, sun, mode, target, field, window)
         # The inertial field follows the common orbit clock even between controller updates.
         forcing = AttitudeForcing(
             forcing.wheel_motor_torques_nm, forcing.magnetic_dipole_body_am2, field
@@ -1005,13 +1015,30 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
                 "Full degree 13 IGRF-14 internal main field with degree 8 secular variation. External disturbance fields and local spacecraft fields are omitted; no magnetic sensor model."
                 if full_magnetic_field else "Degree1-only IGRF14 reference omits degree2..13 and external magnetic disturbances; not an IGRF accuracy claim."
             ),
-            "Free-roll instantaneous minimum-rotation guidance, optional full angular-rate damping, zero target-rate feedforward; actual rigid-body dynamics and actuator limits determine pointing.",
+            (
+                "Moving-boresight reduced-attitude guidance uses zero-twist target angular rate and acceleration with optional full rate-error damping. Instantaneous mode switches require physical acquisition slews; actuator limits and sampled control remain. No optimal tracking or polarization-roll guarantee."
+                if config.spacecraft.pointing_reference == "moving_boresight"
+                else "Free-roll instantaneous minimum-rotation guidance, optional full angular-rate damping, zero target-rate feedforward; actual rigid-body dynamics and actuator limits determine pointing."
+            ),
             "MTQ quadratic axis watts are an explicit example assumption. No cellOCV/current/voltage/temperaturecapacity or hardware brownout dynamics.",
             "Uniform spherical Earth albedo/IR and hard geometric eclipse; held environment flux, fixed deployed panels, no selfshadow or geographic weather.",
             "Ideal threshold radio capacity only, not delivered packets, acquisition, mount servos or hardware receiver performance.",
             "Power demand that cannot be served terminates at last valid shared-state prefix; postbrownout dynamics are not modeled.",
         ],
     )
+    if config.spacecraft.pointing_reference == "moving_boresight":
+        manifest["pointing_reference"] = dict(
+            model="moving_boresight_zero_twist_v1",
+            angular_rate="omega_I = rho cross rho_dot / dot(rho,rho)",
+            angular_acceleration="alpha_I = rho cross rho_ddot / dot(rho,rho) - 2*dot(rho,rho_dot)/dot(rho,rho)*omega_I",
+            roll_policy="Zero reference twist about target; roll angle is free. Optional damping acts on full angular-rate error.",
+            clocks="Reference evaluated at controller updates and operation events; motor/dipole commands held between updates.",
+            limits="Truth state and approximate mission ephemeris; no estimator, anticipatory acquisition, bounded trajectory optimization or polarization roll constraint.",
+        )
+        manifest["sources"].extend([
+            dict(url="https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/cspice/dvhat_c.html", locator="Particulars and Example1", scope="Unit LOS derivative and angular sky rate; zero-twist vector formula derived from udot=omega cross u"),
+            dict(url="https://hanspeterschaub.info/basilisk/_downloads/60d29bf47a58b1d4a34f79e83abf922a/Basilisk-attTrackingError-20190220.pdf", locator="rev1.1 (2019-02-20),sections1.3-1.5,equations11-15", scope="Moving reference rate/acceleration rotation into body axes and angular-rate tracking error"),
+        ])
     if full_magnetic_field:
         manifest["geomagnetic_model"] = igrf_metadata()
     if electrical:

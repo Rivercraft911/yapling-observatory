@@ -37,6 +37,36 @@ export function MissionConopsControls({
           />
           Track ground passes
         </label>
+        {config.conops.auto_ground_tracking && (
+          <div title="Start and end automatic ground pointing at this station elevation. The station mask remains a separate RF gate; actual link closure still depends on computed antenna gain, polarization and margin.">
+            <Field
+              label="Acquisition elevation"
+              unit="deg"
+              value={
+                config.conops.ground_tracking_min_elevation_deg ??
+                config.station.minimum_elevation_deg
+              }
+              min={0}
+              max={89}
+              step={1}
+              onChange={(value) =>
+                edit((draft) => {
+                  draft.conops.ground_tracking_min_elevation_deg = value;
+                })
+              }
+            />
+            <button
+              className="text-button"
+              onClick={() =>
+                edit((draft) => {
+                  delete draft.conops.ground_tracking_min_elevation_deg;
+                })
+              }
+            >
+              Use station mask
+            </button>
+          </div>
+        )}
       </fieldset>
       {config.conops.windows.map((window, index) => (
         <fieldset key={window.window_id}>
@@ -90,7 +120,8 @@ export function MissionConopsControls({
               })
             }
           />
-          {(window.mode === 'imaging' || window.mode === 'ground_tracking') && (
+          {window.mode === 'ground_tracking' && <small>Configured ground station</small>}
+          {window.mode === 'imaging' && (
             <>
               <Field
                 label="φ target"

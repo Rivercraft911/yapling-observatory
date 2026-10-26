@@ -46,6 +46,7 @@ def static_field_mission(monkeypatch, duration=60):
         initial_q_body_from_inertial_wxyz=(1, 0, 0, 0),
         proportional_nm_per_rad=(0, 0, 0), derivative_nm_s_per_rad=(0, 0, 0),
         magnetic_unloading_time_constant_s=100,
+        pointing_reference="instantaneous_zero_rate",
     )
     data["clocks"].update(dynamics_step_s=1, controller_period_s=1,
                            thermal_step_s=1, output_step_s=1)

@@ -143,6 +143,7 @@ def default_mission_scenario():
             | dict(tx_power_w=tx.pa_output_w, tx_feed_loss_db=tx.feed_loss_db),
             spacecraft=dict(
                 **actuator_presets()["wheels_and_magnetic"],
+                pointing_reference="moving_boresight",
                 initial_q_body_from_inertial_wxyz=boresight_reference(
                     (1, 0, 0, 0), (0, 1, 0), sun_direction_inertial(epoch)
                 ),

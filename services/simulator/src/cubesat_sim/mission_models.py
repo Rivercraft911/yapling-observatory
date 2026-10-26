@@ -114,6 +114,7 @@ class MissionSpacecraft(MissionModel):
     derivative_nm_s_per_rad: tuple[float, float, float] = (3e-4, 3e-4, 3e-4)
     body_boresight: tuple[float, float, float] = (0, 1, 0)
     free_roll: bool = True
+    pointing_reference: Literal["instantaneous_zero_rate", "moving_boresight"] | None = None
     roll_rate_damping: bool = True
     bdot_gain_am2_s_t: float = Field(default=20000, ge=0)
     magnetic_unloading_enabled: bool = False
@@ -136,6 +137,8 @@ class MissionSpacecraft(MissionModel):
         self.rigid_body()
         normalize_quaternion(self.initial_q_body_from_inertial_wxyz)
         validate_unit_vector(self.body_boresight)
+        if self.pointing_reference == "moving_boresight" and not self.free_roll:
+            raise ValueError("Moving boresight reference requires free_roll")
         PDConfig(self.proportional_nm_per_rad, self.derivative_nm_s_per_rad)
         if any(not math.isfinite(v) for v in self.initial_omega_body_rad_s):
             raise ValueError("Finite initial rates required")
@@ -161,6 +164,7 @@ class MissionWindow(MissionModel):
 
 class MissionConops(MissionModel):
     auto_ground_tracking: bool = True
+    ground_tracking_min_elevation_deg: float | None = Field(default=None, ge=0, le=89)
     default_mode: Literal["sun_pointing", "detumble"] = "sun_pointing"
     windows: tuple[MissionWindow, ...] = Field(default=(), max_length=256)
 
@@ -306,6 +310,10 @@ class MissionScenario(MissionModel):
 
     def identity(self):
         values = self.model_dump(mode="json")
+        if self.conops.ground_tracking_min_elevation_deg is None:
+            values["conops"].pop("ground_tracking_min_elevation_deg", None)
+        if self.spacecraft.pointing_reference is None:
+            values["spacecraft"].pop("pointing_reference", None)
         if self.radio_delivery is None:
             values.pop("radio_delivery", None)
         if self.magnetic_model is None:
