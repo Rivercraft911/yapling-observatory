@@ -115,6 +115,7 @@ for (const layout of ['compact', 'results']) {
   const actuators = plots.find((plot) => plot.props.title === 'Actuator electrical power');
   assert(actuators, `${layout}: Power preset includes actuator electrical draw`);
   assert.equal(actuators.props.unit, 'W');
+  assert.equal(actuators.props.description, definition.description);
   assert.deepEqual(
     actuators.props.traces.map((trace) => trace.values),
     [

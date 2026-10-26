@@ -401,6 +401,7 @@ function PlotDockContent({
               key={definition.id}
               title={definition.title}
               unit={definition.unit}
+              description={definition.description}
               minimumSpan={definition.minimumSpan}
               stepped={definition.stepped}
               times={times}
