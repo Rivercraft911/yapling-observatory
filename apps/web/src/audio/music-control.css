@@ -1,0 +1,25 @@
+.music-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #aaa29e;
+  cursor: pointer;
+}
+.music-control:hover,
+.music-control:focus-visible {
+  border-color: #56474b;
+  background: #252123;
+  color: #eee7e1;
+}
+.music-control[aria-pressed='true'] {
+  color: #837b78;
+}
+.music-control[data-playing='true'] {
+  color: var(--accent-bright, #bf555d);
+}

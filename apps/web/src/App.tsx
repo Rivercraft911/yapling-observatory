@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { api } from './api';
 import type { Assets, RadioCatalog, Variant, RunSnapshot } from './types';
 import { PaneDivider } from './Resizer';
+import { MusicControl } from './audio/MusicControl';
 import { closestIndex, formatValue } from './plots/TracePlot';
 import { PlotDock } from './plots/PlotDock';
 import { clampTimeRange, sampleTimeDomain, type TimeRange } from './plots/timeWindow';
@@ -306,6 +307,7 @@ export default function App() {
           </span>
         </div>
         <div className="header-right">
+          <MusicControl />
           <span className="local-indicator" />
           LOCAL
           <span className="header-divider" />

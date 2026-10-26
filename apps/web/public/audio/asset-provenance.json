@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "checked_at_utc": "2026-10-26T23:31:35.904614+00:00",
+  "collection": {
+    "title": "Kevin MacLeod's Kerbal Space Program collection",
+    "source_url": "https://incompetech.com/music/royalty-free/most/kerbalspaceprogram.php",
+    "download_url": "https://incompetech.com/music/royalty-free/most/kspost.zip"
+  },
+  "license_evidence": "The author's current per-track page generates a CC BY 4.0 attribution block for each listed ISRC. The current licensing page also generates CC BY 4.0 credits.",
+  "tracks": [
+    {
+      "id": "brittle-rille",
+      "title": "Brittle Rille",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1200047",
+      "file": "kevin-macleod/brittle-rille.mp3",
+      "bytes": 9605907,
+      "sha256": "8e9ec2ef289e393dba35b4465fdf1201702fca3c80caa30e72820bd69f4196c4",
+      "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1200047",
+      "archive_member": "KSP OST/Brittle Rille.mp3",
+      "archive_member_crc32": "27aaf8d6",
+      "catalog_duration": "00:03:49",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "modifications": "None. Original MP3 member bytes extracted from the author's KSP archive; no re-encoding or tag edits."
+    },
+    {
+      "id": "frozen-star",
+      "title": "Frozen Star",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1100356",
+      "file": "kevin-macleod/frozen-star.mp3",
+      "bytes": 9292222,
+      "sha256": "60bc457ea174ecbea8f4759499d0b245576eb28f58dd16c9c1e32dc68d5f65a6",
+      "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100356",
+      "archive_member": "KSP OST/Frozen Star.mp3",
+      "archive_member_crc32": "ed64e683",
+      "catalog_duration": "00:03:41",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "modifications": "None. Original MP3 member bytes extracted from the author's KSP archive; no re-encoding or tag edits."
+    },
+    {
+      "id": "impact-lento",
+      "title": "Impact Lento",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1100619",
+      "file": "kevin-macleod/impact-lento.mp3",
+      "bytes": 8863005,
+      "sha256": "e64a6b1bfe9ab67a8bdcab957be4f6e4a2deb953ab35dc38b18aaa34266804f6",
+      "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100619",
+      "archive_member": "KSP OST/06 Impact Lento.mp3",
+      "archive_member_crc32": "cb8b47df",
+      "catalog_duration": "00:03:31",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "modifications": "None. Original MP3 member bytes extracted from the author's KSP archive; no re-encoding or tag edits."
+    }
+  ]
+}
