@@ -117,6 +117,8 @@ vec2 cloudUv(vec3 p){
  vec3 n=normalize(vec3(p.x,p.y/.9966471893,p.z));return vec2(atan(-n.z,n.x)/6.283185307+.5,asin(clamp(n.y,-1.,1.))/3.141592654+.5);
 }
 vec2 cloudUvDelta(vec2 delta){delta.x-=floor(delta.x+.5);return delta;}
+// Extend derivative inputs to the tangent neighborhood; misses still never contribute color/depth.
+float cloudFootprintDistance(float distance,float closest,bool hit){return hit?distance:max(0.,closest);}
 vec4 cloudSegments(vec3 origin,vec3 ray){
  vec2 outer=atmosphereIntersection(origin,ray,cloudTop);
  float start=max(0.,outer.x),end=outer.y;
@@ -220,12 +222,13 @@ void main(){
  }
  vec4 spans=cloudSegments(origin,ray);
  float occupiedLength=spans.y-spans.x+spans.w-spans.z;
- vec3 entry=origin+ray*max(spans.x,min(.5*occupiedLength,2./earthRadiusKm));
+ float entryDistance=max(spans.x,min(.5*occupiedLength,2./earthRadiusKm));
+ vec3 entry=origin+ray*cloudFootprintDistance(entryDistance,-dot(origin,ray),occupiedLength>0.);
  vec2 uv=cloudUv(entry),dx=cloudUvDelta(dFdx(uv)),dy=cloudUvDelta(dFdy(uv));
  float pixelKm=max(length(dFdx(entry)*earthAxes),length(dFdy(entry)*earthAxes))*earthRadiusKm;
  vec2 shellHit=atmosphereIntersection(origin,ray,1.+8./earthRadiusKm);
  float shellDistance=shellHit.x>0.?shellHit.x:shellHit.y;
- vec3 shellPoint=origin+ray*max(0.,shellDistance);
+ vec3 shellPoint=origin+ray*cloudFootprintDistance(max(0.,shellDistance),-dot(origin,ray),shellHit.y>0.);
  vec2 shellUv=cloudUv(shellPoint);
  vec2 shellDx=cloudUvDelta(dFdx(shellUv)),shellDy=cloudUvDelta(dFdy(shellUv));
  if(spans.y-spans.x+spans.w-spans.z<=0.)discard;

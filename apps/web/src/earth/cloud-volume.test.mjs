@@ -419,6 +419,112 @@ for (const shellAlpha of [0, 0.02, 0.5, 1]) {
     }
   }
 }
+// Derivative helper invocations beyond the limb must approach the true tangent,
+// not the intersection miss sentinel or camera origin. Valid ray endpoints stay exact.
+const footprintDistance = scalar('cloudFootprintDistance', 'distance,closest,hit');
+const shaderUv = new Function(
+  'vec3',
+  'vec2',
+  'normalize',
+  'atan',
+  'asin',
+  'clamp',
+  `return p=>{${functionBody(cloudVolumeFragment, 'cloudUv').replace('vec3 n=', 'const n=')}}`,
+)(
+  (x, y, z) => ({ x, y, z }),
+  vec2,
+  (p) => {
+    const length = Math.hypot(p.x, p.y, p.z);
+    return { x: p.x / length, y: p.y / length, z: p.z / length };
+  },
+  Math.atan2,
+  Math.asin,
+  clamp,
+);
+const shaderDelta = new Function(
+  'delta',
+  'floor',
+  functionBody(cloudVolumeFragment, 'cloudUvDelta'),
+);
+const chooseShellDistance = new Function(
+  'shellHit',
+  `return ${cloudVolumeFragment.match(/float shellDistance=([^;]+);/)[1]};`,
+);
+const shellVisibility = new Function(
+  'shellDistance',
+  'ground',
+  `return ${cloudVolumeFragment.match(/if\((shellDistance>0\.&&\(ground\.x<=0\.\|\|shellDistance<ground\.x\))\)/)[1]};`,
+);
+const horizonCamera = new PerspectiveCamera(34, 2243 / 847, 0.1, 6);
+horizonCamera.position.set(3, 0, 0);
+horizonCamera.lookAt(0, 0, 0);
+horizonCamera.updateMatrixWorld();
+const shellRadius = 1 + 8 / radiusKm;
+const tangentNdc =
+  Math.tan(Math.asin(shellRadius / 3)) / (Math.tan((17 * Math.PI) / 180) * horizonCamera.aspect);
+const horizonSample = (ndc) => {
+  const ray = new Vector3(ndc, 0, 0.5)
+    .unproject(horizonCamera)
+    .sub(horizonCamera.position)
+    .normalize();
+  const hit = intersect(horizonCamera.position.toArray(), ray.toArray(), shellRadius);
+  const distance = chooseShellDistance(hit);
+  const valid = hit.y > 0;
+  const extended = footprintDistance(
+    Math.max(0, distance),
+    -horizonCamera.position.dot(ray),
+    valid,
+  );
+  if (valid)
+    assert.equal(extended, distance, 'Hit samples must keep their original endpoint/depth');
+  else
+    assert.equal(
+      shellVisibility(distance, intersect(horizonCamera.position.toArray(), ray.toArray(), 1)),
+      false,
+    );
+  const oldPoint = horizonCamera.position.clone().addScaledVector(ray, Math.max(0, distance));
+  const newPoint = horizonCamera.position.clone().addScaledVector(ray, extended);
+  return { valid, oldUv: shaderUv(oldPoint), newUv: shaderUv(newPoint) };
+};
+const uvSpan = (a, b) => Math.hypot(...shaderDelta(vec2(b.x - a.x, b.y - a.y), Math.floor));
+const left = horizonSample(tangentNdc - 1 / 2243);
+const right = horizonSample(tangentNdc + 1 / 2243);
+assert.equal(left.valid, true);
+assert.equal(right.valid, false);
+assert.ok(uvSpan(left.oldUv, right.oldUv) > 20 * uvSpan(left.newUv, right.newUv));
+let previousSpan = 1;
+for (const epsilon of [1e-3, 1e-5, 1e-7, 1e-9]) {
+  const inside = horizonSample(tangentNdc - epsilon);
+  const outside = horizonSample(tangentNdc + epsilon);
+  const span = uvSpan(inside.newUv, outside.newUv);
+  assert.ok(span < previousSpan);
+  assert.ok(uvSpan(inside.oldUv, outside.oldUv) > 0.2);
+  previousSpan = span;
+}
+assert.ok(previousSpan < 0.00002);
+assert.equal(
+  footprintDistance(0, 2.8, false),
+  2.8,
+  'An empty volume footprint extends to closest approach',
+);
+assert.equal(
+  footprintDistance(0.0002, 2.8, true),
+  0.0002,
+  'Inside-layer positive footprint stays unchanged',
+);
+assert.equal(
+  footprintDistance(0, -2, false),
+  0,
+  'Rays pointing away do not extend behind the camera',
+);
+assert.match(
+  cloudVolumeFragment,
+  /cloudFootprintDistance\(entryDistance,-dot\(origin,ray\),occupiedLength>0\.\)/,
+);
+assert.match(
+  cloudVolumeFragment,
+  /cloudFootprintDistance\(max\(0\.,shellDistance\),-dot\(origin,ray\),shellHit\.y>0\.\)/,
+);
 console.log(
   'Cloud volume checks passed: bounded shared noise, actual optical-depth/profile calibration, outside/inside/below/limb ray intervals, continuous shell fallback and material/resource contract. GPU appearance and frame timing remain separate.',
 );
