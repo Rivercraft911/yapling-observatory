@@ -30,7 +30,7 @@ const emptyTimes: number[] = [];
 const compactPresets: { label: string; values: PlotId[] }[] = [
   { label: 'Link', values: plotLayouts.compact.defaults },
   { label: 'GNC', values: ['pointing', 'wheel_speed', 'wheel_capacity'] },
-  { label: 'Power', values: ['power', 'battery_soc', 'battery_current'] },
+  { label: 'Power', values: ['power', 'battery_soc', 'actuator_power'] },
   { label: 'Thermal', values: ['temperatures', 'dissipation', 'internal_heat'] },
   { label: 'Battery', values: ['battery_soc', 'battery_voltage', 'battery_current'] },
 ];
@@ -58,14 +58,7 @@ const resultsPresets: { label: string; values: PlotId[] }[] = [
   },
   {
     label: 'Power',
-    values: [
-      'power',
-      'battery_soc',
-      'energy',
-      'battery_current',
-      'battery_voltage',
-      'actuator_power',
-    ],
+    values: ['power', 'actuator_power', 'energy', 'battery_soc'],
   },
   {
     label: 'Thermal',

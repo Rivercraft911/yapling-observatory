@@ -488,12 +488,14 @@ export const plotDefinitions: PlotDefinition[] = [
   },
   {
     id: 'actuator_power',
-    title: 'Actuator power',
+    title: 'Actuator electrical power',
     unit: 'W',
-    description: 'Actual actuator electrical input and dissipated heat.',
+    description:
+      'Returned combined, wheel and magnetorquer electrical draw over the preceding dynamics interval.',
     read: (s) => [
-      { label: 'Electrical', values: s.power?.actuator_bus_w || [] },
-      { label: 'Heat', values: s.power?.actuator_heat_w || [] },
+      { label: 'Total', values: s.power?.actuator_bus_w || [] },
+      { label: 'Wheels', values: s.power?.component_electrical_w?.wheels || [] },
+      { label: 'MTQ', values: s.power?.component_electrical_w?.magnetorquers || [] },
     ],
   },
   {
