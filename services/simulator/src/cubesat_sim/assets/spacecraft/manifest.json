@@ -1,0 +1,42 @@
+{
+  "dipole": {
+    "path": "spacecraft-v03-dipole.glb",
+    "revision": "v03",
+    "sha256": "988d43abeed22273a9fcd3330daf94f24de196e6e5bbf25370276c5df6394ee7",
+    "label": "Straight dipole",
+    "fallback": false,
+    "bytes": 4746612
+  },
+  "turnstile": {
+    "path": "spacecraft-v03-turnstile.glb",
+    "revision": "v03",
+    "sha256": "d13080a250d686093f4c2a051a0acdd0da99e5f058b43dbfef5dde7a2d037c3d",
+    "label": "Turnstile",
+    "fallback": false,
+    "bytes": 4976072
+  },
+  "v45": {
+    "path": "spacecraft-v03-v45.glb",
+    "revision": "v03",
+    "sha256": "90f9a90488acbe48e3e418070eab295a1de5a65140ce127ab1ed5afc3b912061",
+    "label": "45° tape",
+    "fallback": false,
+    "bytes": 4746628
+  },
+  "cutaway": {
+    "path": "spacecraft-v04-r04-cutaway.glb",
+    "revision": "v04-r04",
+    "sha256": "aa1f5372b26f355f75d3108760f96eb151dfb42ea6a776b7b20c7ac1e5bcad59",
+    "label": "1U side-access cutaway study",
+    "fallback": false,
+    "bytes": 5088292
+  },
+  "v45_outward": {
+    "path": "spacecraft-v03-outward-v.glb",
+    "revision": "v03-outward-01",
+    "sha256": "bc83d1ddc8efbd42baaa29b2e15c680e879d6e3e1b5522d7a3e1cc35aa0d01e4",
+    "label": "Outward V tape layout study",
+    "fallback": false,
+    "bytes": 4834192
+  }
+}

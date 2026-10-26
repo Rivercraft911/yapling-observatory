@@ -1,0 +1,33 @@
+Spacecraft runtime concept models
+Published derivatives reviewed 2026-10-26
+
+These five self-contained GLB exports were independently authored for Yapling
+Observatory from parametric Blender geometry. The project maintainer authorized
+public distribution of these runtime visuals and supplied the embedded SSI/SATS
+artwork. The model exports retain their original bytes; manifest.json records
+each filename, revision, byte count and SHA-256 identity.
+
+spacecraft-v03-dipole.glb       v03              Straight dipole exterior
+spacecraft-v03-turnstile.glb    v03              Turnstile exterior
+spacecraft-v03-v45.glb          v03              Upward V tape exterior
+spacecraft-v04-r04-cutaway.glb  v04-r04          Side-service cutaway study
+spacecraft-v03-outward-v.glb    v03-outward-01   Outward V tape exterior study
+
+The v03 exterior was built from authored primitives and the supplied SATS
+triangulation. The outward V and cutaway are authored derivatives of that
+exterior. Manufacturer drawings, the Stanford Sapling range-test photograph,
+and OreSat tracker material were inspected as dimensional or appearance
+references. No supplier CAD, OreSat board artwork, reference photographs or
+reference-image textures are included in these runtime exports. Original CAD,
+source artwork, builders and research records remain outside this distribution.
+
+Units are metres. Body +Y is patch-forward and +Z is top. Exported glTF
+coordinates are [x_body, z_body, -y_body], with Y up and patch-forward -Z.
+Petal animation, where present, is an authored hinge sweep. Geometry and
+materials are appearance concepts, with no verified flight fit, tolerances,
+deployment dynamics, RF pattern, optical coverage or selected flight hardware.
+Rendering must not supply numerical properties to the engineering models.
+
+SSI/SATS and Stanford names and marks remain subject to their owners' rights.
+Their inclusion identifies the supplied team artwork; it does not imply
+endorsement or grant general permission to reuse those names or marks.

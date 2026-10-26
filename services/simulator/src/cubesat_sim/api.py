@@ -33,6 +33,7 @@ from .models import FrozenModel, Scenario, RadioProfile, default_scenario
 
 ASSET_VARIANTS = ("dipole", "turnstile", "v45")
 ASSET_PREVIEWS = ("cutaway", "v45_outward")
+DEFAULT_MODEL_MANIFEST = Path(__file__).parent / "assets" / "spacecraft" / "manifest.json"
 
 
 class RunRequest(FrozenModel):
@@ -40,21 +41,22 @@ class RunRequest(FrozenModel):
 
 
 def asset_entries(keys=ASSET_VARIANTS):
-    """Only an operator-configured private manifest selects filesystem paths."""
+    """Serve bundled models unless an operator explicitly replaces the manifest."""
     manifest_path = os.environ.get("CUBESAT_MODEL_MANIFEST")
     manifest = {}
     error = None
     try:
-        if not manifest_path:
-            raise ValueError("Model manifest is not configured")
-        source = Path(manifest_path)
+        if manifest_path == "":
+            raise ValueError("Model manifest path is empty")
+        source = (Path(manifest_path) if manifest_path is not None else DEFAULT_MODEL_MANIFEST).resolve(strict=True)
         if source.stat().st_size > 262144:
             raise ValueError("Model manifest exceeds size limit")
-        manifest = json.loads(source.read_text())
+        manifest = json.loads(source.read_text(encoding="utf-8"))
         if not isinstance(manifest, dict):
             raise ValueError("Model manifest must be an object")
     except (OSError, ValueError, TypeError):
-        error = "Local model manifest is unavailable or invalid"
+        manifest = {}
+        error = "Model manifest is unavailable or invalid"
     entries = {}
     for variant in keys:
         item = manifest.get(variant, {})
@@ -69,7 +71,15 @@ def asset_entries(keys=ASSET_VARIANTS):
             if not isinstance(item, dict) or not isinstance(item.get("path"), str):
                 raise ValueError("Variant is not configured")
             path = Path(item["path"])
-            if not path.is_absolute() or path.suffix.lower() != ".glb" or not path.is_file():
+            if path.is_absolute():
+                if manifest_path is None:
+                    raise ValueError("Bundled GLB paths must be relative")
+                path = path.resolve(strict=True)
+            else:
+                path = (source.parent / path).resolve(strict=True)
+                if not path.is_relative_to(source.parent):
+                    raise ValueError("Relative GLB paths must stay inside the manifest directory")
+            if path.suffix.lower() != ".glb" or not path.is_file():
                 raise ValueError("Configured GLB is unavailable")
             if not 20 <= path.stat().st_size <= 128*1024*1024:
                 raise ValueError("Configured GLB size is invalid")
@@ -81,7 +91,7 @@ def asset_entries(keys=ASSET_VARIANTS):
                 stream.seek(0)
                 digest = hashlib.file_digest(stream, "sha256").hexdigest()
             if digest != item["sha256"]:
-                raise ValueError("Configured GLB hash mismatch; refresh the private manifest")
+                raise ValueError("Configured GLB hash mismatch; refresh the model manifest")
             public["available"] = True
             public["bytes"] = path.stat().st_size
             entries[variant] = (public, path)

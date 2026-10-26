@@ -33,7 +33,6 @@ def main() -> int:
         return 1
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
-    env["CUBESAT_MODEL_MANIFEST"] = str(root / "private/model-development/web-models.json")
     env["VITE_API_TARGET"] = f"http://127.0.0.1:{args.api_port}"
     children: list[subprocess.Popen] = []
 

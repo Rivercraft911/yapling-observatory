@@ -23,6 +23,7 @@ testpaths = ["tests"]
 addopts = "-q"
 
 [tool.setuptools.package-data]
+"cubesat_sim" = ["assets/spacecraft/*.glb", "assets/spacecraft/*.json", "assets/spacecraft/*.txt"]
 "cubesat_sim.power" = ["*.json"]
 "cubesat_sim.mission" = ["*.json"]
 

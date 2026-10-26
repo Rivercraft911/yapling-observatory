@@ -68,7 +68,7 @@ def test_cutaway_is_hash_checked_read_only_and_not_a_scenario_variant(tmp_path, 
             manifest.write_text(json.dumps({"cutaway": invalid}))
             assert client.get("/api/assets/previews/cutaway.glb").status_code == 404
         monkeypatch.delenv("CUBESAT_MODEL_MANIFEST")
-        assert client.get("/api/assets").json()["previews"]["cutaway"]["available"] is False
+        assert client.get("/api/assets").json()["previews"]["cutaway"]["available"] is True
 
 
 def test_outward_preview_uses_its_own_allowlisted_hash_checked_entry(tmp_path, monkeypatch):
@@ -92,4 +92,4 @@ def test_outward_preview_uses_its_own_allowlisted_hash_checked_entry(tmp_path, m
             manifest.write_text(json.dumps({"v45_outward": invalid}))
             assert client.get("/api/assets/previews/v45_outward.glb").status_code == 404
         monkeypatch.delenv("CUBESAT_MODEL_MANIFEST")
-        assert client.get("/api/assets").json()["previews"]["v45_outward"]["available"] is False
+        assert client.get("/api/assets").json()["previews"]["v45_outward"]["available"] is True

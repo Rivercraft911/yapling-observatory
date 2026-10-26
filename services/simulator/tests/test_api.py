@@ -99,7 +99,7 @@ def test_asset_allowlist_identity_and_missing_metadata(tmp_path,monkeypatch):
         glb.write_bytes(data+b'x')
         assert client.get('/api/assets/spacecraft.glb?variant=dipole').status_code==409
         monkeypatch.delenv('CUBESAT_MODEL_MANIFEST')
-        assert client.get('/api/assets').json()['variants']['dipole']['available']is False
+        assert client.get('/api/assets').json()['variants']['dipole']['available']is True
 
 
 def test_actual_request_body_byte_limit_including_chunked():
