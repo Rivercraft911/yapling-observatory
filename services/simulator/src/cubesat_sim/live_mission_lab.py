@@ -5,6 +5,7 @@ from pydantic import Field, model_validator
 
 from .geometry.ground_target import ground_target_from_ecef
 from .mission_models import MissionModel, MissionScenario, PointingIntent
+from .mission.numerics import NumericalStepIntent
 
 router = APIRouter(prefix='/api/live', tags=['live-mission'])
 
@@ -81,6 +82,16 @@ async def command_live(live_id: str, body: PointingIntent, request: Request):
     job = session(request, live_id)
     try:
         request.app.state.live_jobs.command(job, body)
+    except ValueError as error:
+        raise HTTPException(409, str(error)) from error
+    return response(request, job) | {'command_id': body.command_id, 'receipt': 'queued'}
+
+
+@router.post('/{live_id}/numerics', status_code=202)
+async def numerical_live(live_id: str, body: NumericalStepIntent, request: Request):
+    job = session(request, live_id)
+    try:
+        request.app.state.live_jobs.numerical_command(job, body)
     except ValueError as error:
         raise HTTPException(409, str(error)) from error
     return response(request, job) | {'command_id': body.command_id, 'receipt': 'queued'}

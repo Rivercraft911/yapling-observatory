@@ -12,7 +12,9 @@ import time
 import uuid
 
 from .mission_archive import export_archive
+from .worker_sources import frozen_worker_options
 from .mission_models import MissionScenario, PointingIntent, mission_execution_limits
+from .mission.numerics import NumericalStepIntent, NumericalStepCommand, numerical_step_options, step_at
 
 MAX_BYTES = 64 * 1024 * 1024
 ACTIVE = {'starting', 'running', 'paused', 'stopping'}
@@ -30,6 +32,9 @@ class LiveSession:
     lease_until: float = 0
     intents: dict = field(default_factory=dict)
     accepted: dict = field(default_factory=dict)
+    numerical_intents: dict = field(default_factory=dict)
+    accepted_numerical: dict = field(default_factory=dict)
+    rejected_numerical: dict = field(default_factory=dict)
     events: deque = field(default_factory=lambda: deque(maxlen=2048))
     latest_sequence: int = 0
     sample_count: int = 0
@@ -59,7 +64,8 @@ class LiveMissionJobManager:
             return
         value = dict(speed=job.speed, paused=job.paused, stop=job.stop,
                      resume_generation=job.resume_generation, lease_until=job.lease_until,
-                     commands=[intent.model_dump(mode='json') for intent in job.intents.values()])
+                     commands=[intent.model_dump(mode='json') for intent in job.intents.values()],
+                     numerical_steps=[intent.model_dump(mode='json') for intent in job.numerical_intents.values()])
         path = job.base / 'control.json'
         temporary = path.with_suffix('.partial')
         temporary.write_text(json.dumps(value, allow_nan=False, separators=(',', ':')))
@@ -68,6 +74,7 @@ class LiveMissionJobManager:
     def create(self, scenario, speed=1):
         if any(job.status in ACTIVE for job in self.sessions.values()):
             raise ValueError('One LIVE session may be active at a time')
+        scenario = MissionScenario.model_validate(scenario.model_dump(mode='json') | dict(pointing_target_diagnostics='ecef_v1'))
         limits = mission_execution_limits(scenario)
         if limits['estimated_work_units'] > limits['maximum_work_units']:
             raise ValueError('Mission exceeds the numerical work budget')
@@ -102,6 +109,13 @@ class LiveMissionJobManager:
         next_sequence = selected[-1]['sequence'] if selected else after_sequence
         identity, digest = job.scenario.identity()
         terminal = job.status not in ACTIVE
+        numerical_config = self._numerical_config(job)
+        computed = job.progress.get('computed_time_s', 0)
+        options = numerical_step_options(numerical_config, computed) if not terminal else [
+            dict(dynamics_step_s=step, allowed=False, reason='LIVE session is complete')
+            for step in (0.25, 0.5, 1.0, 2.0)
+        ]
+        pending_numerical = set(job.numerical_intents) - set(job.accepted_numerical) - set(job.rejected_numerical)
         return dict(
             live_id=job.live_id, status=job.status,
             initial_scenario=job.scenario.model_dump(mode='json'),
@@ -112,6 +126,11 @@ class LiveMissionJobManager:
             requested_duration_s=job.scenario.duration_s,
             speed=job.speed, paused=job.paused or job.progress.get('paused', False),
             lease_expired=job.progress.get('lease_expired', False),
+            numerical_step_s=step_at(numerical_config, computed), numerical_step_options=options,
+            pending_numerical_steps=0 if terminal else len(pending_numerical),
+            unapplied_numerical_step_ids=sorted(pending_numerical) if terminal else [],
+            numerical_step_acks=[dict(sequence=e['sequence'], command=e['value']) for e in selected if e['kind'] == 'numerical_step'],
+            numerical_step_errors=[dict(sequence=e['sequence'], **e['value']) for e in selected if e['kind'] == 'numerical_step_rejection'],
             pending_commands=0 if terminal else len(set(job.intents) - set(job.accepted)),
             unapplied_command_ids=sorted(set(job.intents) - set(job.accepted)) if terminal else [],
             next_sequence=next_sequence, latest_sequence=job.latest_sequence,
@@ -155,6 +174,35 @@ class LiveMissionJobManager:
         job.intents[intent.command_id] = intent
         self._write_control(job)
 
+    def _numerical_config(self, job):
+        commands = {command.command_id: command for command in job.scenario.numerical_step_commands or ()}
+        commands.update({key: NumericalStepCommand.model_validate(value) for key, value in job.accepted_numerical.items()})
+        if not commands:
+            return job.scenario
+        return job.scenario.model_copy(update=dict(numerical_step_commands=tuple(sorted(
+            commands.values(), key=lambda command: command.effective_time_s))))
+
+    def numerical_command(self, job, intent):
+        if job.status not in ACTIVE or job.stop:
+            raise ValueError('LIVE session is not accepting numerical commands')
+        intent = intent if type(intent) is NumericalStepIntent else NumericalStepIntent.model_validate(intent)
+        existing = job.numerical_intents.get(intent.command_id)
+        if existing:
+            if existing != intent:
+                raise ValueError('command_id already identifies a different numerical intent')
+            return
+        archived = job.scenario.numerical_step_commands or ()
+        if intent.command_id in {command.command_id for command in archived}:
+            raise ValueError('command_id already exists in the initial numerical timeline')
+        if len(job.numerical_intents) + len(archived) >= 128:
+            raise ValueError('LIVE numerical timeline is limited to 128 commands')
+        options = numerical_step_options(self._numerical_config(job), job.progress.get('computed_time_s', 0))
+        selected = next(item for item in options if item['dynamics_step_s'] == intent.dynamics_step_s)
+        if not selected['allowed']:
+            raise ValueError(selected['reason'])
+        job.numerical_intents[intent.command_id] = intent
+        self._write_control(job)
+
     def _drain(self, job):
         path = job.base / 'telemetry.jsonl'
         if not path.exists():
@@ -173,15 +221,19 @@ class LiveMissionJobManager:
                 if not line.endswith(b'\n'):
                     break
                 event = json.loads(line)
-                if event['sequence'] != job.latest_sequence + 1 or event['kind'] not in ('sample', 'command'):
+                if event['sequence'] != job.latest_sequence + 1 or event['kind'] not in ('sample', 'command', 'numerical_step', 'numerical_step_rejection'):
                     raise ValueError('LIVE journal sequence is invalid')
                 job.events.append(event)
                 job.latest_sequence = event['sequence']
                 if event['kind'] == 'sample':
                     job.sample_count += 1
                     job.last_sample_time_s = event['value']['time_s']
-                else:
+                elif event['kind'] == 'command':
                     job.accepted[event['value']['command_id']] = event['value']
+                elif event['kind'] == 'numerical_step':
+                    job.accepted_numerical[event['value']['command_id']] = event['value']
+                else:
+                    job.rejected_numerical[event['value']['command_id']] = event['value']
                 read += len(line)
                 job.journal_offset = stream.tell()
 
@@ -241,7 +293,7 @@ class LiveMissionJobManager:
     def _finalize(self, job, result):
         final_scenario = MissionScenario.model_validate(result['manifest']['scenario'])
         before, after = job.scenario.model_dump(mode='json'), final_scenario.model_dump(mode='json')
-        for key in ('pointing_commands', 'stop_time_s'):
+        for key in ('pointing_commands', 'stop_time_s', 'numerical_step_commands'):
             before.pop(key, None)
             after.pop(key, None)
         if before != after:
@@ -259,12 +311,14 @@ class LiveMissionJobManager:
         communication = None
         try:
             base = job.base
+            worker_options = frozen_worker_options(base)
             spawning = asyncio.create_task(asyncio.create_subprocess_exec(
                 sys.executable, '-m', 'cubesat_sim.live_mission_worker',
                 str(base / 'scenario.json'), str(base / 'result.json'),
                 str(base / 'progress.json'), str(base / 'control.json'), str(base / 'telemetry.jsonl'),
                 stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
                 start_new_session=True,
+                **worker_options,
             ))
             try:
                 job.process = await asyncio.shield(spawning)

@@ -14,7 +14,7 @@ from cubesat_sim.rf.spherical_harmonics import reference_profiles
 def overhead_case(efficiency):
     default = default_mission_scenario()
     data = default.model_dump(mode="json")
-    data["duration_s"] = 60
+    data.update(duration_s=60, uhf_beacon=None)
     position = elements_to_cartesian(default.orbit.elements, default.orbit.mu_m3_s2).position_m
     x, y, z = inertial_to_ecef(position, default.epoch_utc, 0)
     assert abs(z) < 1e-8

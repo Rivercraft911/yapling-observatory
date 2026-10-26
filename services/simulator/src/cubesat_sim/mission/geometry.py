@@ -125,3 +125,12 @@ def target_motion(config, geometry, mode, window, orbit, satellite_acceleration_
         add(target_velocity, scale(orbit.velocity_m_s, -1)),
         add(target_acceleration, scale(satellite_acceleration_m_s2, -1)),
     )
+
+
+def pointing_target_ecef(geometry, mode, window):
+    """Accepted finite ground target in ECEF metres; no Sun endpoint invented."""
+    if mode == "ground_tracking":
+        return geometry["station_position_ecef_m"]
+    if mode == "imaging" and window and window.target_latitude_deg is not None:
+        return geodetic_ecef(window.target_latitude_deg, window.target_longitude_deg, 0)
+    return None

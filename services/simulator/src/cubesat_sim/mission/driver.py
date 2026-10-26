@@ -12,6 +12,7 @@ import math
 from pathlib import Path
 import platform
 from ..mission_models import MissionScenario, PointingCommand, mission_execution_limits
+from .numerics import NumericalStepCommand, planned_dynamics_ticks, step_segments, rejection_reason
 from ..orbit.elements import elements_to_cartesian
 from ..orbit.two_body import CartesianState, TwoBodyConfig, step as orbit_step
 from ..attitude.dynamics import (
@@ -50,6 +51,9 @@ from ..power.battery_electrical import (
 )
 from ..power.radio import transmit_power
 from ..power.loads import load_ledger
+from ..power.segmented import BatteryLoadSegment, advance_segmented_battery
+from ..power.heat import total_dissipation_w
+from .uhf_beacon import UhfBeaconAccumulator
 from ..power.models import ComponentLoad
 from ..thermal.models import NodeForcing
 from ..thermal.network import advance_thermal, thermal_rates
@@ -66,7 +70,7 @@ from .environment import (
     MAGNETIC_MODEL,
     IGRF_URL,
 )
-from .geometry import geometry_at, operation_at, target_direction, target_motion
+from .geometry import geometry_at, operation_at, target_direction, target_motion, pointing_target_ecef
 from .defaults import orbit_metadata
 from .reporting import MissionReporter
 from .runtime import RuntimeDirective
@@ -113,7 +117,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
     full_magnetic_field = config.magnetic_model == "igrf14_degree13"
     field_evaluator = field_ecef_t_at_utc if full_magnetic_field else magnetic_field_ecef_t
     dt = config.clocks.dynamics_step_s
-    count = round(config.duration_s / dt)
+    count = planned_dynamics_ticks(config)
     control_stride = round(config.clocks.controller_period_s / dt)
     thermal_stride = round(config.clocks.thermal_step_s / dt)
     output_stride = round(config.clocks.output_step_s / dt)
@@ -139,6 +143,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
         config.orbit.reference_radius_m,
         config.orbit.j2,
     )
+    initial_orbit_step_s = orbit_config.step_s
     initial = elements_to_cartesian(config.orbit.elements, config.orbit.mu_m3_s2)
     orbit = CartesianState(0.0, initial.position_m, initial.velocity_m_s)
     body = config.spacecraft.rigid_body()
@@ -203,6 +208,8 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
         from ..operations.radio_delivery import RadioDeliveryAccumulator
         radio_delivery = RadioDeliveryAccumulator(config.radio_delivery)
     reporting = MissionReporter(config.epoch_utc, delivery_enabled=radio_delivery is not None)
+    uhf = UhfBeaconAccumulator(config.uhf_beacon) if config.uhf_beacon is not None else None
+    last_uhf_interval = None
     samples = {}
     stage_energy = {}
     events = []
@@ -255,6 +262,8 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
             "actuator_heat_w",
         )
     }
+    if uhf is not None:
+        last_power["dissipated_power_w"] = 0.0
     last_components = {}
 
     def state_geometry():
@@ -603,8 +612,18 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
                 node_emitted_ir_w=dict(zip(nodes, rates.emitted_ir_w)),
             ),
         )
+        if config.pointing_target_diagnostics is not None:
+            row["pointing_target_ecef_m"] = pointing_target_ecef(geo, mode, window)
+        if uhf is not None:
+            previous_output_s = samples.get("time_s", [0.0])[-1]
+            row["uhf_beacon"] = uhf.sample(orbit.time_s, geo, previous_output_s, last_uhf_interval)
         if radio_delivery is not None:
-            row["radio_delivery"] = radio_delivery.sample()
+            row["radio_delivery"] = radio_delivery.sample(telemetry_context=dict(
+                active_direction=direction, radio_active=radio_active,
+                cn0_db_hz={d: links[d]["cn0_dbhz"] for d in ("uplink", "downlink")},
+                known_outage={d: links[d]["reason"] == "field_or_polarization_null"
+                              for d in ("uplink", "downlink")},
+            ))
         if store:
             _append(samples, row)
             if runtime is not None:
@@ -618,16 +637,20 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
         "magnetorquers",
         *[load.component_id for profile in power.mode_loads for load in profile.loads],
     }
+    if uhf is not None:
+        component_ids.add("uhf_beacon")
     progress_stride = max(1, round(10 / dt), math.ceil(count / 10000))
-    for tick in range(count):
+    while completed_ticks < count:
+        tick = completed_ticks
+        grid_tick = round(orbit.time_s / dt)
         if tick % 16 == 0 and cancelled and cancelled():
             raise InterruptedError("Mission cancelled")
-        if config.stop_time_s is not None and tick >= round(config.stop_time_s / dt):
+        if config.stop_time_s is not None and orbit.time_s >= config.stop_time_s:
             end_reason = "user_stop"
             events.append(dict(time_s=orbit.time_s, type="terminated", reason=end_reason))
             break
         if runtime is not None:
-            directive = runtime.before_step(orbit.time_s, tick % control_stride == 0)
+            directive = runtime.before_step(orbit.time_s, grid_tick % control_stride == 0)
             if directive is not None and not isinstance(directive, RuntimeDirective):
                 raise TypeError("Runtime before_step must return RuntimeDirective or None")
             if directive is not None and directive.stop:
@@ -637,26 +660,61 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
                 end_reason = "user_stop"
                 events.append(dict(time_s=orbit.time_s, type="terminated", reason=end_reason))
                 break
-            if directive is not None and directive.commands:
-                if tick % control_stride:
-                    raise ValueError("Runtime pointing commands require a controller boundary")
+            if directive is not None and (directive.commands or directive.numerical_steps):
+                if grid_tick % control_stride:
+                    raise ValueError("Runtime commands require a controller boundary")
+                values = config.model_dump(mode="json")
+                numerical = tuple(NumericalStepCommand.model_validate(
+                    intent.model_dump(mode="json") | dict(effective_time_s=orbit.time_s)
+                ) for intent in directive.numerical_steps)
+                if numerical:
+                    callback = getattr(runtime, "on_numerical_step", None)
+                    if not callable(callback):
+                        raise ValueError("Numerical commands require an acknowledgment callback")
+                    combined = sorted((*(config.numerical_step_commands or ()), *numerical),
+                                      key=lambda command: command.effective_time_s)
+                    try:
+                        values = MissionScenario.model_validate(values | dict(
+                            numerical_step_commands=[c.model_dump(mode="json") for c in combined]
+                        )).model_dump(mode="json")
+                    except ValueError as error:
+                        rejected = getattr(runtime, "on_numerical_step_rejected", None)
+                        if not callable(rejected):
+                            raise
+                        for command in numerical:
+                            rejected(dict(command_id=command.command_id, effective_time_s=orbit.time_s,
+                                          error=rejection_reason(error)))
+                        numerical = ()
                 accepted = tuple(PointingCommand.model_validate(
                     intent.model_dump(mode="json") | dict(effective_time_s=orbit.time_s)
                 ) for intent in directive.commands)
-                combined = sorted(
-                    (*(config.pointing_commands or ()), *accepted),
-                    key=lambda command: command.effective_time_s,
-                )
-                config = MissionScenario.model_validate(
-                    config.model_dump(mode="json") | dict(
-                        pointing_commands=[command.model_dump(mode="json") for command in combined]
-                    )
-                )
+                if accepted:
+                    combined = sorted((*(config.pointing_commands or ()), *accepted),
+                                      key=lambda command: command.effective_time_s)
+                    values["pointing_commands"] = [c.model_dump(mode="json") for c in combined]
+                config = MissionScenario.model_validate(values)
+                count = planned_dynamics_ticks(config)
                 for command in accepted:
                     runtime.on_command(deepcopy(command.model_dump(mode="json")))
+                for command in numerical:
+                    callback(deepcopy(command.model_dump(mode="json")))
+        for command in config.numerical_step_commands or ():
+            if command.effective_time_s == orbit.time_s:
+                dt = command.dynamics_step_s
+                control_stride = round(config.clocks.controller_period_s / dt)
+                thermal_stride = round(config.clocks.thermal_step_s / dt)
+                output_stride = round(config.clocks.output_step_s / dt)
+                if telemetry_period is not None:
+                    telemetry_stride = max(1, round(telemetry_period / dt))
+                orbit_config = replace(orbit_config, step_s=dt / config.clocks.orbit_substeps)
+                progress_stride = max(1, round(10 / dt), math.ceil(count / 10000))
+                events.append(dict(time_s=orbit.time_s, type="numerical_step",
+                                   command=command.model_dump(mode="json")))
+        grid_tick = round(orbit.time_s / dt)
+        next_time_s = (grid_tick + 1) * dt
         command_cutoff_time_s = orbit.time_s
         for command in config.pointing_commands or ():
-            if round(command.effective_time_s / dt) == tick:
+            if round(command.effective_time_s / dt) == grid_tick:
                 events.append(dict(
                     time_s=orbit.time_s, type="pointing_command",
                     command=command.model_dump(mode="json"),
@@ -694,7 +752,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
                 )
             )
             previous_operation = operation
-        if tick % control_stride == 0 or (
+        if grid_tick % control_stride == 0 or (
             events and events[-1]["time_s"] == orbit.time_s
         ):
             update_control(geo, sun, mode, target, field, window)
@@ -702,7 +760,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
         forcing = AttitudeForcing(
             forcing.wheel_motor_torques_nm, forcing.magnetic_dipole_body_am2, field
         )
-        if tick % thermal_stride == 0:
+        if grid_tick % thermal_stride == 0:
             normals = tuple(
                 rotate(conjugate(attitude.q_body_from_inertial_wxyz), s.normal_body)
                 for s in power.surfaces
@@ -738,6 +796,9 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
             ),
         )
         ledgers = tuple(load_ledger(load) for load in loads)
+        mode_rf_export = sum(ledger.escaped_rf_w for ledger in ledgers[:-1])
+        if mode_rf_export:
+            escaped_rf += mode_rf_export
         current_derivative = derivative(body, attitude, forcing)
         if (
             dt
@@ -798,18 +859,37 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
             for panel in power.panels
         )
         potential_bus = sum(flow.bus_w for flow in potential)
-        battery = (
-            advance_electrical_battery(
-                power.battery,
-                soc,
-                potential_bus,
-                requested_w,
-                dt,
-                temperatures[nodes.index(electrical.heat_node_id)],
+        uhf_interval = uhf.interval(orbit.time_s, orbit.time_s + dt) if uhf is not None else None
+        if uhf_interval is not None:
+            segmented = advance_segmented_battery(
+                power.battery, stored_energy_j=energy, soc=soc, generated_bus_w=potential_bus,
+                temperature_k=temperatures[nodes.index(electrical.heat_node_id if electrical else power.storage_loss_heat_node_id)],
+                segments=tuple(BatteryLoadSegment(span, requested_w + (
+                    config.uhf_beacon.tx_electrical_w if active else config.uhf_beacon.idle_electrical_w
+                )) for span, active in uhf_interval.segments), duration_s=dt,
             )
-            if electrical
-            else advance_battery(power.battery, energy, potential_bus, requested_w, dt)
-        )
+            if not segmented.accepted:
+                end_reason = "power_unserved"
+                events.append(dict(time_s=orbit.time_s, type="terminated", reason=end_reason,
+                                   attempted_interval_s=dt, unserved_load_w=segmented.peak_unserved_load_w))
+                break
+            battery = segmented.battery
+            requested_w = segmented.requested_load_w
+            escaped_rf += uhf_interval.escaped_rf_w
+            last_uhf_interval = uhf_interval
+        else:
+            battery = (
+                advance_electrical_battery(
+                    power.battery,
+                    soc,
+                    potential_bus,
+                    requested_w,
+                    dt,
+                    temperatures[nodes.index(electrical.heat_node_id)],
+                )
+                if electrical
+                else advance_battery(power.battery, energy, potential_bus, requested_w, dt)
+            )
         if battery.unserved_load_w > 1e-9:
             end_reason = "power_unserved"
             events.append(
@@ -841,6 +921,8 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
         ] += battery.storage_loss_w
         for load, ledger in zip(loads, ledgers):
             heat[load.thermal_node_id] += ledger.heat_w
+        if uhf_interval is not None:
+            heat[config.uhf_beacon.thermal_node_id] += uhf_interval.heat_w
         heat[config.spacecraft.actuator_heat_node_id] += trial.wheel_heat_j / dt
         if mtq and mtq.enabled:
             heat[mtq.thermal_node_id] += mtq_w
@@ -915,6 +997,13 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
         last_components = {
             load.component_id: load.electrical_w for load in loads
         } | dict(wheels=max(0.0, wheel_w), magnetorquers=mtq_w)
+        if uhf_interval is not None:
+            last_components["uhf_beacon"] = uhf_interval.electrical_w
+            last_power["dissipated_power_w"] = total_dissipation_w(
+                [ledger.heat_w for ledger in ledgers], wheel_heat_w=trial.wheel_heat_j / dt,
+                magnetorquer_heat_w=mtq_w, regulator_heat_w=regulator,
+                storage_loss_w=battery.storage_loss_w, uhf_heat_w=uhf_interval.heat_w,
+            )
         if electrical:
             last_electrical = battery
         if tick == 0:
@@ -958,28 +1047,30 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
                 )
             return increments
         reporting.advance(
-            tick * dt, (tick + 1) * dt,
+            orbit.time_s, next_time_s,
             visible=geo["visible"], elevation_deg=geo["elevation_deg"],
             radio_active=radio_active, direction=direction,
             ideal_rates_bps={d: interval_links[d]["ideal_rate_bps"] for d in capacity},
             delivery_interval=delivery_interval if radio_delivery is not None else None,
         )
+        if uhf_interval is not None:
+            uhf.commit(uhf_interval, geo["visible"])
         energy = battery.stored_energy_j
         if electrical:
             soc = battery.soc
-        attitude = replace(trial.state, time_s=(tick + 1) * dt)
+        attitude = replace(trial.state, time_s=next_time_s)
         for _ in range(config.clocks.orbit_substeps):
             orbit = orbit_step(orbit, orbit_config)
-        orbit = replace(orbit, time_s=(tick + 1) * dt)
+        orbit = replace(orbit, time_s=next_time_s)
         completed_ticks = tick + 1
         maximum_quaternion_norm_error = max(
             maximum_quaternion_norm_error, trial.quaternion_norm_error_before_projection
         )
-        if completed_ticks % thermal_stride == 0:
+        if (grid_tick + 1) % thermal_stride == 0:
             flush_thermal()
-        if completed_ticks % output_stride == 0:
+        if (grid_tick + 1) % output_stride == 0:
             append_sample()
-        elif telemetry_stride is not None and completed_ticks % telemetry_stride == 0:
+        elif telemetry_stride is not None and (grid_tick + 1) % telemetry_stride == 0:
             append_sample(store=False)
         if progress and (
             completed_ticks % progress_stride == 0 or completed_ticks == count
@@ -988,7 +1079,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
                 dict(
                     completed_time_s=orbit.time_s,
                     requested_duration_s=config.duration_s,
-                    fraction=completed_ticks / count,
+                    fraction=(completed_ticks / count if config.numerical_step_commands is None else orbit.time_s / config.duration_s),
                     output_samples=len(samples.get("time_s", [])),
                     state="running",
                     reporting=reporting.snapshot(include_passes=False),
@@ -1037,7 +1128,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
         ),
         numerical_settings=config.clocks.model_dump(mode="json")
         | dict(
-            orbit_step_s=orbit_config.step_s,
+            orbit_step_s=initial_orbit_step_s,
             orbit_method=config.orbit.method,
             attitude_method="RK4",
             thermal_method="implicit_Euler_mean_held_forcing",
@@ -1083,13 +1174,18 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
             "Power demand that cannot be served terminates at last valid shared-state prefix; postbrownout dynamics are not modeled.",
         ],
     )
-    if config.pointing_commands is not None or config.stop_time_s is not None:
+    if config.numerical_step_commands is not None:
+        manifest["numerical_settings"]["dynamics_step_segments"] = step_segments(config, orbit.time_s)
+        manifest["numerical_settings"]["step_policy"] = "recorded_piecewise_fixed_steps_v1"
+    if config.pointing_target_diagnostics is not None:
+        manifest["pointing_target_diagnostics"] = "ECEF metres for the accepted ground target; null for Sun/detumble or unspecified imaging coordinates"
+    if config.pointing_commands is not None or config.stop_time_s is not None or config.numerical_step_commands is not None:
         manifest["runtime_control"] = dict(
             model="continuous_integrator_pointing_commands_v1",
             command_times="Core-stamped controller boundaries; same-time commands retain order and the last controls the mode. Auto restores configured CONOPS.",
             telemetry="Copied physical rows after the preceding accepted interval and before commands received at that boundary. Initial t=0 follows initial command acceptance and uses first-interval power unless stopped before any interval.",
             stopping="User stop preserves the common-state prefix, flushes partial thermal accumulation and records stop_time_s for exact production replay.",
-            clocks="Pacing and pause are I/O only; all numerical clocks remain the scenario clocks.",
+            clocks=("Pacing and pause are I/O only. Numerical step changes require recorded controller-boundary commands; controller/thermal/output periods remain fixed." if config.numerical_step_commands is not None else "Pacing and pause are I/O only; all numerical clocks remain the scenario clocks."),
         )
     if config.spacecraft.pointing_reference == "moving_boresight":
         manifest["pointing_reference"] = dict(
@@ -1197,6 +1293,14 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
         ),
         maximum_quaternion_projection_error=maximum_quaternion_norm_error,
     )
+    if uhf is not None:
+        summary["uhf_beacon"] = uhf.summary(orbit.time_s)
+        manifest["uhf_beacon"] = uhf.preview | dict(
+            configuration=config.uhf_beacon.model_dump(mode="json"),
+            coupling="Independent TX/RX waveform edges subdivide storage updates within held mechanical/PV/temperature intervals. Mean current/voltage/resistance are separate means; terminal power and I²R heat are integrated per segment.",
+            telemetry="Instantaneous TX flags can alias at output cadence. Output-interval duty and cumulative airtime/counts retain the schedule; power/heat samples are preceding dynamics-interval means. Contact airtime uses the shared left-held geometric visibility.",
+        )
+        manifest["warnings"].extend(uhf.preview["limits"])
     if radio_delivery is not None:
         summary["radio_delivery"] = radio_delivery.summary()
         manifest["radio_delivery"] = radio_delivery.metadata() | dict(

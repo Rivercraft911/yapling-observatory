@@ -71,6 +71,9 @@ def test_legacy_schema_is_preserved_after_projecting_explicit_extensions():
     assert link_properties["spacecraft_antenna"]["enum"].pop() == "spherical_harmonic"
     for name in ("SphericalHarmonicProfile", "HarmonicCoefficient", "HarmonicProvenance"):
         scenario["$defs"].pop(name)
+    schedule_properties = scenario["$defs"]["Schedule"]["properties"]
+    for direction in ("uplink", "downlink"):
+        assert schedule_properties.pop(f"{direction}_duration_s")["default"] is None
     assert scenario == schemas["scenario"]
     pattern = PatternRequest.model_json_schema()
     properties = pattern["properties"]

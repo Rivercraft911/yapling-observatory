@@ -11,6 +11,7 @@ import tempfile
 import time
 import uuid
 from .mission_models import MissionScenario, mission_execution_limits
+from .worker_sources import frozen_worker_options
 
 MAX_RESULT_BYTES = 64 * 1024 * 1024
 
@@ -117,6 +118,7 @@ class MissionJobManager:
                     destination = base / "result.json"
                     progress_path = base / "progress.json"
                     source.write_text(job.scenario.model_dump_json())
+                    worker_options = frozen_worker_options(base)
                     job.process = await asyncio.create_subprocess_exec(
                         sys.executable,
                         "-m",
@@ -127,6 +129,7 @@ class MissionJobManager:
                         stdout=asyncio.subprocess.DEVNULL,
                         stderr=asyncio.subprocess.PIPE,
                         start_new_session=True,
+                        **worker_options,
                     )
                     communicate = asyncio.create_task(job.process.communicate())
                     limits = mission_execution_limits(job.scenario)

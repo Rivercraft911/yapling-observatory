@@ -9,6 +9,7 @@ import time
 from .mission_models import MissionScenario, PointingIntent, mission_execution_limits
 from .mission.driver import run_mission
 from .mission.runtime import RuntimeDirective
+from .mission.numerics import NumericalStepIntent
 
 MAX_JOURNAL_BYTES = 64 * 1024 * 1024
 
@@ -40,6 +41,8 @@ class FileRuntime:
         self.resume_generation = -1
         self.stop = False
         self.commands = []
+        self.numerical_steps = []
+        self.issued_numerical = set()
         self.issued = set()
         self.sequence = 0
         self.computed_time_s = 0.0
@@ -63,6 +66,7 @@ class FileRuntime:
                 self.stop = control['stop']
                 self.lease_until = control['lease_until']
                 self.commands = control['commands']
+                self.numerical_steps = control.get('numerical_steps', [])
                 if control['resume_generation'] > self.resume_generation:
                     self.resume_generation = control['resume_generation']
                     self.lease_expired = False
@@ -105,8 +109,11 @@ class FileRuntime:
             pending = tuple(PointingIntent.model_validate(value) for value in self.commands
                             if value['command_id'] not in self.issued)
             self.issued.update(command.command_id for command in pending)
-            if pending:
-                return RuntimeDirective(commands=pending)
+            numerical = tuple(NumericalStepIntent.model_validate(value) for value in self.numerical_steps
+                              if value['command_id'] not in self.issued_numerical)
+            self.issued_numerical.update(command.command_id for command in numerical)
+            if pending or numerical:
+                return RuntimeDirective(commands=pending, numerical_steps=numerical)
         return None
 
     def emit(self, kind, value):
@@ -120,6 +127,14 @@ class FileRuntime:
 
     def on_command(self, command):
         self.emit('command', command)
+
+    def on_numerical_step(self, command):
+        self.emit('numerical_step', command)
+        self.publish(force=True)
+
+    def on_numerical_step_rejected(self, error):
+        self.emit('numerical_step_rejection', error)
+        self.publish(force=True)
 
     def on_telemetry(self, row):
         self.computed_time_s = row['time_s']

@@ -238,6 +238,7 @@ def overhead_config(duration=30):
 
 def test_initial_capacity_pin_and_pa_feed_radiated_power_planes():
     c = overhead_config()
+    c["uhf_beacon"] = None
     c["downlink"]["tx_feed_loss_db"] = 10
     c["power"]["transmit_radiation_efficiency"] = 0.5
     result = run_mission(validate(c))

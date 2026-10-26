@@ -15,7 +15,7 @@ from cubesat_sim.operations.radio_delivery_models import delivery_example
 @pytest.fixture(scope="module")
 def worker_record():
     data = default_mission_scenario().model_dump(mode="json")
-    data["duration_s"] = 60
+    data.update(duration_s=60, uhf_beacon=None)
     config = MissionScenario.model_validate(data)
     data["radio_delivery"] = delivery_example(config.uplink, config.downlink).model_dump(mode="json")
     config = MissionScenario.model_validate(data)

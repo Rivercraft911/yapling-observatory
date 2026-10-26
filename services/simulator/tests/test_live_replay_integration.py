@@ -88,8 +88,12 @@ def test_paused_stop_at_zero_does_not_apply_queued_command_or_advance_state():
             record = manager.record(job)
             assert record["unapplied_command_ids"] == ["never-applied"]
             assert record["pending_commands"] == 0
-            assert record["initial_scenario_hash"] == initial.identity()[1]
-            assert job.final_snapshot["run"]["scenario_hash"] != initial.identity()[1]
+            expected_inputs = initial.model_dump(mode="json") | dict(pointing_target_diagnostics="ecef_v1")
+            assert record["initial_scenario"] == expected_inputs
+            accepted_initial = MissionScenario.model_validate(expected_inputs)
+            assert (record["initial_scenario_id"], record["initial_scenario_hash"]) == accepted_initial.identity()
+            assert record["initial_scenario_hash"] != initial.identity()[1]
+            assert job.final_snapshot["run"]["scenario_hash"] != accepted_initial.identity()[1]
         finally:
             await manager.close()
 

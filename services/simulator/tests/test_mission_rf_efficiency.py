@@ -39,7 +39,8 @@ from cubesat_sim.rf.spherical_harmonics import reference_profiles, sphere_mean_g
 def config(additional=1, pattern="patch", peak=6):
     values = default_mission_scenario().model_dump(mode="json")
     values.update(
-        duration_s=4, magnetic_model="igrf14_degree1", antenna_variant="turnstile"
+        duration_s=4, magnetic_model="igrf14_degree1", antenna_variant="turnstile",
+        uhf_beacon=None,
     )
     values["clocks"].update(
         dynamics_step_s=1, controller_period_s=1, thermal_step_s=1, output_step_s=1

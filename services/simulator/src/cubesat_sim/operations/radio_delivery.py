@@ -84,6 +84,12 @@ class _Direction:
         self.last_completed_time = None
         self.last_completed_payload = 0
         self.last_completed_quality = False
+        self.last_cn0 = None
+        self.last_known_outage = False
+        self.useful_rates = {
+            mode_id: Fraction(layout.data_field_bits - profile.application_overhead_bits_per_frame) / layout.duration_s
+            for mode_id, layout in self.layouts.items()
+        }
 
     @property
     def mode(self):
@@ -112,7 +118,27 @@ class _Direction:
             self.profile.reacquisition_s if reacquiring else self.profile.acquisition_s)
         self._state("acquiring", time, cause)
 
-    def _desired(self, time):
+    def _desired(self, time, cn0=None, known_outage=False):
+        if self.profile.policy == "adaptive":
+            if cn0 is None or known_outage:
+                return self.mode_id
+            if self.reconfigure_until is not None and time < self.reconfigure_until:
+                return self.mode_id
+            eligible = []
+            for mode_id, mode in self.modes.items():
+                threshold = mode.decode_threshold_esn0_db
+                if threshold is None:
+                    continue
+                margin = cn0 - 10 * math.log10(mode.symbol_rate_sps) - threshold
+                if (margin >= self.profile.acquisition_margin_db
+                    or (mode_id == self.mode_id and self.state == "locked" and margin >= 0)):
+                    eligible.append(mode_id)
+            if not eligible:
+                return self.mode_id
+            best = max(eligible, key=lambda mode_id: self.useful_rates[mode_id])
+            if self.mode_id in eligible and self.useful_rates[self.mode_id] == self.useful_rates[best]:
+                return self.mode_id
+            return best
         index = bisect_right(self.schedule_times, time) - 1
         return self.schedule[index][1] if index >= 0 else self.profile.initial_mode_id
 
@@ -124,10 +150,10 @@ class _Direction:
         self.counters["mode_change_count"] += 1
         self.acquisition_started = self.loss_started = None
         self.reconfigure_until = time + _seconds(self.profile.mode_change_s)
-        self._state("reconfiguring", time, "scheduled_mode_change")
+        self._state("reconfiguring", time, "adaptive_mode_change" if self.profile.policy == "adaptive" else "scheduled_mode_change")
 
     def _normalize(self, time, cn0, known_outage):
-        desired = self._desired(time)
+        desired = self._desired(time, cn0, known_outage)
         if (desired != self.mode_id and not self.remaining
             and time >= self.last_mode_change + _seconds(self.profile.minimum_dwell_s)):
             self._change_mode(time, desired)
@@ -221,6 +247,7 @@ class _Direction:
             self._state("idle", start, "radio_not_scheduled")
 
     def advance(self, start, end, active, cn0, known_outage):
+        self.last_cn0, self.last_known_outage = cn0, known_outage
         if not active:
             self._idle(start)
             return
@@ -235,7 +262,7 @@ class _Direction:
             schedule_index = bisect_right(self.schedule_times, time)
             if schedule_index < len(self.schedule):
                 cuts.append(self.schedule[schedule_index][0])
-            if self._desired(time) != self.mode_id:
+            if self._desired(time, cn0, known_outage) != self.mode_id:
                 dwell_end = self.last_mode_change + _seconds(self.profile.minimum_dwell_s)
                 if dwell_end > time:
                     cuts.append(dwell_end)
@@ -268,10 +295,10 @@ class _Direction:
             time = boundary
         self._normalize(end, cn0, known_outage)
 
-    def sample(self, time):
+    def sample(self, time, telemetry_context=None):
         at_boundary = self.last_completed_time == time
         pending = int(bool(self.remaining))
-        return dict(
+        result = dict(
             **self.counters, delivery_available=self.delivery_available,
             receiver_state=self.state, locked=self.state == "locked",
             mode_id=self.mode_id,
@@ -287,6 +314,24 @@ class _Direction:
             boundary_unresolved_frames=int(at_boundary and self.last_completed_quality is None),
             boundary_unresolved_useful_bits=self.last_completed_payload if at_boundary and self.last_completed_quality is None else 0,
         )
+        if self.profile.policy == "adaptive":
+            threshold = self.mode.decode_threshold_esn0_db
+            active, cn0, outage = self.active, self.last_cn0, self.last_known_outage
+            if telemetry_context is not None:
+                active = (telemetry_context["radio_active"]
+                          and telemetry_context["active_direction"] == self.direction)
+                cn0 = telemetry_context["cn0_db_hz"][self.direction]
+                outage = telemetry_context["known_outage"][self.direction]
+            margin, rate = None, 0.0
+            if active and not outage:
+                if threshold is None or cn0 is None:
+                    rate = None
+                else:
+                    margin = cn0 - 10 * math.log10(self.mode.symbol_rate_sps) - threshold
+                    if self.state == "locked" and margin >= 0:
+                        rate = float(self.useful_rates[self.mode_id])
+            result.update(ready_payload_rate_bps=rate, selected_margin_db=margin)
+        return result
 
 
 class RadioDeliveryAccumulator:
@@ -304,6 +349,7 @@ class RadioDeliveryAccumulator:
         self.events_dropped = 0
         self._pending_events = []
         self.time = _ZERO
+        self._telemetry_context = None
         self.directions = {
             direction: _Direction(getattr(self.config, direction), direction, self._emit)
             for direction in DIRECTIONS
@@ -334,6 +380,7 @@ class RadioDeliveryAccumulator:
         if end <= self.time:
             raise ValueError("Delivery interval must advance time")
         self._pending_events = []
+        self._telemetry_context = None
         for direction, receiver in self.directions.items():
             receiver.advance(self.time, end, radio_active and active_direction == direction,
                              cn0_db_hz[direction], known_outage[direction])
@@ -345,14 +392,36 @@ class RadioDeliveryAccumulator:
         self.time = end
         return self.sample()
 
-    def sample(self):
-        return {direction: receiver.sample(self.time) for direction, receiver in self.directions.items()}
+    def sample(self, *, telemetry_context=None):
+        if telemetry_context is not None:
+            if (type(telemetry_context) is not dict
+                or set(telemetry_context) != {"active_direction", "radio_active", "cn0_db_hz", "known_outage"}):
+                raise ValueError("Complete current receiver telemetry context required")
+            direction = telemetry_context["active_direction"]
+            active = telemetry_context["radio_active"]
+            cn0 = telemetry_context["cn0_db_hz"]
+            outage = telemetry_context["known_outage"]
+            if direction not in DIRECTIONS or type(active) is not bool:
+                raise ValueError("Current receiver direction and Boolean activity required")
+            if type(cn0) is not dict or set(cn0) != set(DIRECTIONS):
+                raise ValueError("Current C/N0 is required for both directions")
+            if any(value is not None and (type(value) not in (int, float) or not math.isfinite(value))
+                   for value in cn0.values()):
+                raise ValueError("Current C/N0 must be finite or None")
+            if (type(outage) is not dict or set(outage) != set(DIRECTIONS)
+                or any(type(value) is not bool for value in outage.values())
+                or any(outage[d] and cn0[d] is not None for d in DIRECTIONS)):
+                raise ValueError("Current known-outage flags conflict with C/N0")
+            self._telemetry_context = dict(active_direction=direction, radio_active=active,
+                                          cn0_db_hz=dict(cn0), known_outage=dict(outage))
+        return {direction: receiver.sample(self.time, self._telemetry_context)
+                for direction, receiver in self.directions.items()}
 
     def summary(self):
         return self.sample()
 
     def metadata(self):
-        return dict(
+        result = dict(
             model_version=MODEL_VERSION,
             config=self.config.model_dump(mode="json"),
             sources=[dict(source=ETSI_SOURCE,
@@ -372,3 +441,14 @@ class RadioDeliveryAccumulator:
             ],
             events_dropped=self.events_dropped,
         )
+
+        if any(getattr(self.config, direction).policy == "adaptive" for direction in DIRECTIONS):
+            result["adaptive_policy"] = dict(
+                kind="ideal_current_channel", threshold_source=ETSI_SOURCE,
+                locator="EN302307-1 V1.4.1 Table13 printed p.36, normal64800-bit FECFRAME",
+                selection="Highest complete-frame useful bits/PLFRAME duration among known capture-feasible modes; a locked decoding current mode is retained below the capture margin. Equal-rate ties retain current mode.",
+                timing="Switches wait for configured minimum dwell and complete the current frame, then reconfigure and reacquire; no future-channel knowledge or delayed-feedback ACM.",
+                readiness="ready_payload_rate_bps is nominal selected-frame useful rate only while active, locked and currently above decode threshold;0 when inactive/known outage/not ready, null for unresolved current channel/threshold. A pending frame damaged earlier can still be lost at completion.",
+                margin="selected_margin_db is current selected-mode Es/N0 minus its decode threshold (including explicit reserve); null for inactive, known zero-signal or unresolved input.",
+            )
+        return result

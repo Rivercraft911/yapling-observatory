@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator, model_serializer
 from .models import Station, Link, Schedule
 from .operations.radio_delivery_models import RadioDeliveryConfig
+from .rf.uhf_beacon import UhfBeaconConfig, uhf_beacon_preview
 from .orbit.elements import OrbitElements
 from .orbit.gravity import EGM2008_MU_M3_S2, EGM2008_REFERENCE_RADIUS_M, EGM2008_J2
 from .attitude.actuators import WheelSpec, MagnetorquerSpec
@@ -22,6 +23,7 @@ from .power.models import (
 )
 from .thermal.models import ThermalNetwork
 from .mission.ephemeris import utc_datetime
+from .mission.numerics import NumericalStepIntent, NumericalStepCommand, planned_dynamics_ticks, validate_numerical_timeline, on_grid, step_at
 
 
 class MissionModel(BaseModel):
@@ -329,13 +331,24 @@ class MissionScenario(MissionModel):
     downlink: Link
     schedule: Schedule = Schedule()
     radio_delivery: RadioDeliveryConfig | None = None
+    uhf_beacon: UhfBeaconConfig | None = None
     magnetic_model: Literal["igrf14_degree1", "igrf14_degree13"] | None = None
     spacecraft: MissionSpacecraft = MissionSpacecraft()
     conops: MissionConops = MissionConops()
     pointing_commands: tuple[PointingCommand, ...] | None = Field(default=None, max_length=128)
     stop_time_s: float | None = Field(default=None, ge=0, strict=True)
+    numerical_step_commands: tuple[NumericalStepCommand, ...] | None = Field(default=None, max_length=128)
+    pointing_target_diagnostics: Literal["ecef_v1"] | None = None
     power: MissionPower
     provenance: tuple[str, ...] = ()
+
+    @model_serializer(mode="wrap")
+    def preserve_optional_runtime_shape(self, handler):
+        values = handler(self)
+        for name in ("numerical_step_commands", "pointing_target_diagnostics"):
+            if getattr(self, name) is None:
+                values.pop(name, None)
+        return values
 
     @property
     def epoch_utc(self):
@@ -351,6 +364,8 @@ class MissionScenario(MissionModel):
             values["conops"].pop("ground_tracking_min_elevation_deg", None)
         if self.spacecraft.pointing_reference is None:
             values["spacecraft"].pop("pointing_reference", None)
+        if self.uhf_beacon is None:
+            values.pop("uhf_beacon", None)
         if self.radio_delivery is None:
             values.pop("radio_delivery", None)
         if self.magnetic_model is None:
@@ -437,10 +452,12 @@ class MissionScenario(MissionModel):
         if self.pointing_commands is not None:
             object.__setattr__(self, "pointing_commands", tuple(canonical_commands))
         if self.stop_time_s is not None:
-            stop_tick = ticks(self.stop_time_s)
-            if stop_tick >= count:
+            if self.stop_time_s >= self.duration_s:
                 raise ValueError("Stop time must precede the requested mission horizon")
-            object.__setattr__(self, "stop_time_s", stop_tick * dt)
+            stop_step = step_at(self, self.stop_time_s) if self.numerical_step_commands else dt
+            if not on_grid(self.stop_time_s, stop_step):
+                raise ValueError("Stop time must lie on the recorded numerical grid")
+            object.__setattr__(self, "stop_time_s", round(self.stop_time_s / stop_step) * stop_step)
         extended = self.duration_s > 604800
         if extended and self.run_kind != "long_mission":
             raise ValueError("Requests longer than seven days require long_mission")
@@ -463,6 +480,12 @@ class MissionScenario(MissionModel):
             if w.end_s > self.duration_s or (i and w.start_s < windows[i - 1].end_s):
                 raise ValueError("CONOPS windows must not overlap or exceed mission")
         nodes = {n.node_id for n in self.power.thermal.nodes}
+        if self.uhf_beacon is not None:
+            preview = uhf_beacon_preview(self.uhf_beacon)
+            if not preview["mission_coupling_ready"]:
+                raise ValueError("UHF mission coupling requires: " + ", ".join(preview["missing_inputs"]))
+            if self.uhf_beacon.thermal_node_id not in nodes:
+                raise ValueError("UHF heat node must exist")
         if self.spacecraft.actuator_heat_node_id not in nodes or (
             self.spacecraft.magnetorquer
             and self.spacecraft.magnetorquer.thermal_node_id not in nodes
@@ -477,12 +500,17 @@ class MissionScenario(MissionModel):
             raise ValueError(
                 "Onboard transmitter electrical input cannot be less than exported downlink RF"
             )
+        if self.numerical_step_commands is not None:
+            validate_numerical_timeline(self)
+            limits = mission_execution_limits(self)
+            if limits["estimated_work_units"] > limits["maximum_work_units"]:
+                raise ValueError("Recorded numerical steps exceed the numerical work budget")
         return self
 
 
 def mission_execution_limits(config):
     """Resource policy, not a numerical fidelity preset or completion estimate."""
-    ticks = round(config.duration_s / config.clocks.dynamics_step_s)
+    ticks = planned_dynamics_ticks(config)
     environments = config.duration_s / config.clocks.thermal_step_s
     work = (
         ticks * (1 + len(config.spacecraft.wheels) + config.clocks.orbit_substeps)

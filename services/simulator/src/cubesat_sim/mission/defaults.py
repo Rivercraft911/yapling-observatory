@@ -7,6 +7,8 @@ from ..models import default_scenario
 from ..power.study import default_study_config, stage_templates
 from ..power.profiles import PLANNING_TRANSMITTER
 from ..power.battery_electrical import electrical_defaults
+from ..rf.uhf_beacon import default_uhf_beacon
+from ..operations.radio_delivery_models import delivery_example
 from ..orbit.elements import (
     OrbitElements,
     first_order_sso_inclination_deg,
@@ -134,7 +136,7 @@ def default_mission_scenario():
         )
     tx = PLANNING_TRANSMITTER
     epoch = "2026-10-25T00:00:00Z"
-    return MissionScenario.model_validate(
+    scenario = MissionScenario.model_validate(
         dict(
             orbit=orbit_preset(epoch),
             magnetic_model="igrf14_degree13",
@@ -189,6 +191,11 @@ def default_mission_scenario():
             ],
         )
     )
+
+    return MissionScenario.model_validate(scenario.model_dump(mode="json") | dict(
+        uhf_beacon=default_uhf_beacon(),
+        radio_delivery=delivery_example(scenario.uplink, scenario.downlink, preset="adaptive_psk").model_dump(mode="json"),
+    ))
 
 
 def actuator_presets():

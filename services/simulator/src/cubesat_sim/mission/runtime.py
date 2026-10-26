@@ -1,7 +1,7 @@
 """Optional I/O hooks around one continuous mission integrator.
 
-Pacing and queue transport belong to callers. These hooks cannot change clocks,
-replace state or inject computed telemetry. Commands are validated intents;
+Pacing and queue transport belong to callers. These hooks cannot replace state or inject computed telemetry.
+Explicit numerical changes are bounded, recorded controller-boundary commands. Commands are validated intents;
 the numerical driver stamps their accepted controller-boundary time.
 """
 
@@ -9,16 +9,22 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from ..mission_models import PointingIntent
+from .numerics import NumericalStepIntent
 
 
 @dataclass(frozen=True)
 class RuntimeDirective:
     commands: tuple[PointingIntent, ...] = ()
     stop: bool = False
+    numerical_steps: tuple[NumericalStepIntent, ...] = ()
 
     def __post_init__(self):
         if type(self.stop) is not bool:
             raise ValueError("Runtime stop must be Boolean")
+        object.__setattr__(self, "numerical_steps", tuple(
+            intent if type(intent) is NumericalStepIntent else NumericalStepIntent.model_validate(intent)
+            for intent in self.numerical_steps
+        ))
         object.__setattr__(self, "commands", tuple(
             intent if isinstance(intent, PointingIntent) and type(intent) is PointingIntent
             else PointingIntent.model_validate(intent)
@@ -43,4 +49,12 @@ class MissionRuntime(Protocol):
 
     def on_sample(self, row: dict) -> None:
         """A copied physical sample row, separate from a completed Run result."""
+        ...
+
+    def on_numerical_step(self, command: dict) -> None:
+        """Copied accepted numerical command, stamped by the core."""
+        ...
+
+    def on_numerical_step_rejected(self, error: dict) -> None:
+        """Optional rejection callback; no configuration/state mutation occurred."""
         ...

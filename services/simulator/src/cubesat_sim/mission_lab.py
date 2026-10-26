@@ -25,6 +25,8 @@ from .rf.mission_efficiency import (
     AnalyticalEfficiencySemantics,
 )
 from .operations.radio_delivery_models import delivery_example
+from .rf.uhf_beacon import UhfBeaconConfig, default_uhf_beacon, uhf_beacon_preview
+from .thermal.materials import thermal_material_profiles
 
 router = APIRouter(prefix="/api/mission", tags=["mission"])
 
@@ -46,14 +48,28 @@ class RadioPowerRequest(MissionModel):
 class DeliveryExampleRequest(MissionModel):
     uplink: Link
     downlink: Link
+    preset: Literal["current", "adaptive_psk"] = "current"
 
 
 @router.post("/delivery-example")
 def receiver_example(request: DeliveryExampleRequest):
     try:
-        return delivery_example(request.uplink, request.downlink).model_dump(
+        return delivery_example(request.uplink, request.downlink, preset=request.preset).model_dump(
             mode="json"
         )
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+
+@router.get("/uhf-beacon/default")
+def uhf_defaults():
+    return default_uhf_beacon()
+
+
+@router.post("/uhf-beacon/preview")
+def uhf_preview(request: UhfBeaconConfig):
+    try:
+        return uhf_beacon_preview(request)
     except ValueError as error:
         raise HTTPException(422, str(error)) from error
 
@@ -62,6 +78,11 @@ class OrbitRequest(MissionModel):
     orbit: MissionOrbit
     ltan_hours: float | None = Field(default=None, ge=0, lt=24)
     sso: bool = False
+
+
+@router.get("/thermal-materials")
+def thermal_materials():
+    return {"profiles": [profile.model_dump(mode="json") for profile in thermal_material_profiles()]}
 
 
 @router.get("/default")
@@ -74,6 +95,13 @@ def daytime_demo():
     from .mission.daytime_demo import daytime_overhead_demo
 
     return {"scenario": daytime_overhead_demo().model_dump(mode="json")}
+
+
+@router.get("/demo/terminator")
+def terminator_demo():
+    from .mission.terminator_demo import terminator_pass_demo
+
+    return {"scenario": terminator_pass_demo().model_dump(mode="json")}
 
 
 @router.post("/orbit")

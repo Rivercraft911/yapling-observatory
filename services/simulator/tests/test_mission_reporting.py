@@ -135,7 +135,7 @@ def test_invalid_gaps_and_implicit_delivery_counters_rejected():
 
 def test_driver_reports_do_not_depend_on_output_sampling_and_opt_out_is_unchanged():
     c = default_mission_scenario().model_dump(mode="json")
-    c["duration_s"] = 1200
+    c.update(duration_s=1200, radio_delivery=None)
     a = run_mission(MissionScenario.model_validate(c))
     c["clocks"]["output_step_s"] = 60
     b = run_mission(MissionScenario.model_validate(c))
@@ -237,7 +237,7 @@ def test_receiver_event_export_is_opt_in_stable_bounded_and_prefix_filtered(monk
             self.events = deepcopy(constructed_events)
     monkeypatch.setattr(delivery_module, "RadioDeliveryAccumulator", ConstructedAccumulator)
     c = default_mission_scenario().model_dump(mode="json")
-    c["duration_s"] = 30
+    c.update(duration_s=30, radio_delivery=None)
     baseline = run_mission(MissionScenario.model_validate(c))
     assert all(event["type"] != "radio_delivery" for event in baseline["events"])
     validated = MissionScenario.model_validate(c)
