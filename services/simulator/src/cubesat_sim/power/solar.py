@@ -53,7 +53,42 @@ def pv_generation(
     )
     absorbed = panel.solar_absorptivity * incident
     available = panel.efficiency * panel.electrical_derate * incident
-    terminal = available * extraction_fraction * panel.enabled
+    return _pv_flow(
+        incident, absorbed, available, panel.enabled,
+        extraction_fraction, regulator_efficiency,
+    )
+
+
+def pv_extraction(
+    panel: PVPanel,
+    potential: PVGeneration,
+    extraction_fraction=1,
+    regulator_efficiency=1,
+) -> PVGeneration:
+    """Apply extraction to this panel's already computed projection.
+
+    `potential` must be the immutable result returned by pv_generation for the
+    same panel and geometry. Available MPP power stays independent of enabled;
+    disconnecting a panel still leaves absorbed sunlight as panel heat.
+    """
+    if any(
+        not math.isfinite(value) or not 0 <= value <= 1
+        for value in (extraction_fraction, regulator_efficiency)
+    ):
+        raise ValueError("Extraction and regulator fractions must lie within[0,1]")
+    return _pv_flow(
+        potential.incident_solar_w,
+        potential.absorbed_solar_w,
+        potential.available_mpp_w,
+        panel.enabled,
+        extraction_fraction, regulator_efficiency,
+    )
+
+
+def _pv_flow(
+    incident, absorbed, available, enabled, extraction_fraction, regulator_efficiency
+):
+    terminal = available * extraction_fraction * enabled
     bus = terminal * regulator_efficiency
     heat, regulator = absorbed - terminal, terminal - bus
     return PVGeneration(

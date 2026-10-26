@@ -40,7 +40,7 @@ from ..operations.schedule import active_direction
 from ..rf.link_budget import evaluate_link_budget
 from ..rf.mission_efficiency import mission_downlink_efficiency
 from ..rf.pattern_provenance import harmonic_pattern_records
-from ..power.solar import pv_generation
+from ..power.solar import pv_generation, pv_extraction
 from ..power.battery import advance_battery, capacity_wh
 from ..power.battery_electrical import (
     advance_electrical_battery,
@@ -828,15 +828,8 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=
             else 0.0
         )
         pv = tuple(
-            pv_generation(
-                panel,
-                sun_body,
-                power.solar_irradiance_w_m2,
-                visibility,
-                extraction,
-                power.regulator_efficiency,
-            )
-            for panel in power.panels
+            pv_extraction(panel, flow, extraction, power.regulator_efficiency)
+            for panel, flow in zip(power.panels, potential)
         )
         heat = {node: 0.0 for node in nodes}
         for panel, flow in zip(power.panels, pv):
