@@ -131,6 +131,12 @@
   border-color: #a95562;
   background: #382329;
 }
+.earth-view-tools > button[aria-pressed='true'] {
+  color: #fff1ed;
+  background: #6d2632;
+  border-color: #ef6771;
+  box-shadow: inset 0 -2px #ef6771;
+}
 .earth-view-tools button:focus-visible {
   outline: 1px solid #ef6771;
   outline-offset: 3px;
