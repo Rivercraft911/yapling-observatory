@@ -5,8 +5,9 @@ replaced by their DC resistances, so this model has no relaxation state. All
 resistive loss is assigned immediately as heat; no RC or entropic heat is claimed.
 """
 
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
+from functools import lru_cache
 import hashlib
 import json
 import math
@@ -80,16 +81,32 @@ def _interpolate(values, soc):
     return values[index] + fraction * (values[index + 1] - values[index])
 
 
+@lru_cache(maxsize=8)
+def _knot_integral_terms(knots, values):
+    # Cache the original interpolation arithmetic, including endpoint rounding.
+    samples = tuple(_interpolate(values, point) for point in knots)
+    terms = tuple(
+        (b - a) * (left + right) / 2
+        for a, b, left, right in zip(knots, knots[1:], samples, samples[1:])
+    )
+    return samples, terms
+
+
 def _integral(values, start, end):
     if start == end:
         return 0.0
     if start > end:
         return -_integral(values, end, start)
-    cuts = [start, *[s for s in _SOC if start < s < end], end]
-    return math.fsum(
-        (b - a) * (_interpolate(values, a) + _interpolate(values, b)) / 2
-        for a, b in zip(cuts, cuts[1:])
-    )
+    first = bisect_right(_SOC, start)
+    last = bisect_left(_SOC, end)
+    if first == last:
+        return math.fsum(((end - start) * (
+            _interpolate(values, start) + _interpolate(values, end)
+        ) / 2,))
+    samples, terms = _knot_integral_terms(_SOC, tuple(values))
+    left = (_SOC[first] - start) * (_interpolate(values, start) + samples[first]) / 2
+    right = (end - _SOC[last - 1]) * (samples[last - 1] + _interpolate(values, end)) / 2
+    return math.fsum((left, *terms[first:last - 1], right))
 
 
 def _mean(values, start, end):
