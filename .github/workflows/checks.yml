@@ -20,6 +20,7 @@ jobs:
       - run: python -m pytest services/simulator/tests
       - run: npm --prefix apps/web run format:check
       - run: npm --prefix apps/web run build
+      - run: python3 scripts/check_third_party_notices.py --build
       - run: node --experimental-strip-types apps/web/src/earth/geodesy.test.mjs
       - run: node --experimental-strip-types apps/web/src/earth/follow-frames.test.mjs
       - run: node apps/web/src/earth/regional-lod.test.mjs
