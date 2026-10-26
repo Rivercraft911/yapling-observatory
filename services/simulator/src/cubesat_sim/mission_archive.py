@@ -9,6 +9,7 @@ import hashlib
 import json
 import math
 import re
+from datetime import datetime, timedelta
 
 from .mission_models import MissionScenario
 
@@ -37,11 +38,15 @@ BOOLEAN_SERIES = {
     "samples.visible", "samples.radio_active", "samples.uplink.valid", "samples.downlink.valid",
     "samples.gnc.wheel_saturated", "samples.gnc.magnetic_saturated",
     "samples.power.battery_temperature_outside_reference",
+    "samples.radio_delivery.uplink.locked", "samples.radio_delivery.downlink.locked",
+    "samples.radio_delivery.uplink.delivery_available", "samples.radio_delivery.downlink.delivery_available",
 }
 TEXT_SERIES = {
     "samples.elapsed_ns", "samples.active_direction", "samples.mode", "samples.stage_id",
     "samples.uplink.reason", "samples.downlink.reason", "samples.gnc.controller_status",
     "samples.gnc.unloading_status", "samples.power.battery_electrical_reason",
+    "samples.radio_delivery.uplink.receiver_state", "samples.radio_delivery.downlink.receiver_state",
+    "samples.radio_delivery.uplink.mode_id", "samples.radio_delivery.downlink.mode_id",
 }
 UNLOADING_FIELDS = {
     "wheel_momentum_body_nms", "wheel_momentum_norm_nms",
@@ -193,6 +198,8 @@ def _scenario(raw):
     except (ValueError, TypeError, ArithmeticError) as error:
         raise ArchiveError("Archive scenario is unsupported or invalid") from error
     projected = _typed_projection(raw, model.model_dump(mode="json"))
+    if model.radio_delivery is None:
+        projected.pop("radio_delivery", None)
     return model, projected
 
 
@@ -358,6 +365,163 @@ def _validate_samples(samples, model, summary):
     return len(times)
 
 
+
+def _validate_reporting(report, model, summary):
+    require(type(report) is dict and report.get("schema_version") == "1.0", "Unsupported mission report")
+    epoch = datetime.fromisoformat(model.epoch_utc.replace("Z", "+00:00"))
+    def stamp(seconds):
+        return (epoch + timedelta(seconds=seconds)).isoformat().replace("+00:00", "Z")
+    completed = summary["computed_duration_s"]
+    require(report.get("epoch_utc") == stamp(0) and report.get("computed_start_utc") == stamp(0)
+            and report.get("computed_end_utc") == stamp(completed), "Report UTC bounds conflict with run")
+    require(report.get("capacity_kind") == "ideal_threshold_capacity_not_packet_delivery", "Unsupported report capacity semantics")
+    require(report.get("delivery_kind") == ("explicit_receiver_frame_model" if model.radio_delivery else "not_modeled"), "Report delivery semantics conflict with scenario")
+    days, passes = report.get("days"), report.get("passes")
+    require(type(days) is list and len(days) <= 32, "Invalid daily report array")
+    require(type(passes) is list and len(passes) <= 10000, "Invalid pass report array")
+    def interval(row, *, endpoint=False):
+        require(type(row) is dict, "Report interval must be an object")
+        for name in ("start_s", "end_s"):
+            _number(row.get(name), "report."+name, minimum=0, maximum=completed)
+        start, end = row["start_s"], row["end_s"]
+        require(end > start or endpoint and end == start == completed, "Report intervals must have positive duration or a final midnight event")
+        length = end - start
+        require(row.get("start_utc") == stamp(start) and row.get("end_utc") == stamp(end), "Report timestamp conflicts with interval")
+        _number(row.get("computed_duration_s"), "report duration", minimum=0)
+        require(math.isclose(row["computed_duration_s"], length, abs_tol=1e-7), "Report duration conflicts with interval")
+        for name in ("geometric_visible_s", "scheduled_contact_s"):
+            _number(row.get(name), name, minimum=0, maximum=length+1e-7)
+        require(row["scheduled_contact_s"] <= row["geometric_visible_s"]+1e-7, "Scheduled contact exceeds geometric visibility")
+        scheduled = 0
+        for direction in ("uplink", "downlink"):
+            values = row.get(direction)
+            require(type(values) is dict, "Report direction is required")
+            for name in ("scheduled_s", "ideal_contact_s"):
+                _number(values.get(name), "report."+name, minimum=0, maximum=length+1e-7)
+            require(values["ideal_contact_s"] <= values["scheduled_s"]+1e-7, "Ideal contact exceeds scheduled direction")
+            scheduled += values["scheduled_s"]
+            _number(values.get("ideal_capacity_bits"), "reported capacity", minimum=0, nullable=True)
+            payload = values.get("delivered_useful_bits")
+            available = values.get("delivery_available")
+            if model.radio_delivery is None:
+                require(payload is None and available is None,
+                        "Unmodeled delivery and availability must remain unknown")
+            else:
+                require(type(available) is bool, "Reported delivery availability must be Boolean")
+                require(available == (payload is not None),
+                        "Reported delivery availability conflicts with unknown payload")
+                if available:
+                    _integer(payload, "reported frame payload", 0, 9007199254740991)
+            for name in ("receiver_locked_s", "receiver_ready_s"):
+                if model.radio_delivery is None:
+                    require(values.get(name) is None, "Unmodeled receiver time must remain unknown")
+                else:
+                    _number(values.get(name), "report."+name, minimum=0, maximum=length+1e-7)
+        require(math.isclose(scheduled, row["scheduled_contact_s"], abs_tol=1e-7), "Direction contact totals disagree")
+        return start, end
+    previous = 0.0
+    for index, day in enumerate(days):
+        endpoint = day.get("endpoint_only", False)
+        require(type(endpoint) is bool, "Report endpoint flag must be Boolean")
+        if endpoint:
+            require(index == len(days)-1 and model.radio_delivery is not None, "Endpoint-only day must finish a receiver run")
+            _integer(day.get("endpoint_frame_count"), "midnight endpoint frames", 1)
+        start, end = interval(day, endpoint=endpoint)
+        require(abs(start-previous) <= 1e-7, "Daily reports must cover a contiguous computed prefix")
+        date = (epoch + timedelta(seconds=start)).date().isoformat()
+        require(day.get("date_utc") == date, "Daily report has the wrong UTC date")
+        midnight = (epoch + timedelta(seconds=start)).replace(hour=0, minute=0, second=0, microsecond=0)
+        next_midnight = (midnight + timedelta(days=1)-epoch).total_seconds()
+        if endpoint:
+            require(start == end == (midnight-epoch).total_seconds(), "Endpoint-only report must be at UTC midnight")
+        require(end <= next_midnight, "Daily report crosses a UTC midnight")
+        partial = start != (midnight-epoch).total_seconds() or end != next_midnight
+        require(type(day.get("partial_day")) is bool and day["partial_day"] == partial, "Daily partial flag conflicts with UTC bounds")
+        for name in ("geometric_pass_count", "geometric_pass_entries"):
+            _integer(day.get(name), name, 0, 10000)
+        previous = end
+    require(abs(previous-completed) <= 1e-7, "Daily report does not cover the computed run")
+    previous = -1.0
+    for index, row in enumerate(passes):
+        start, end = interval(row)
+        require(start >= previous and row.get("pass_index") == index+1, "Passes must be ordered and non-overlapping")
+        require(type(row.get("start_clipped")) is bool and type(row.get("end_clipped")) is bool, "Pass clipping flags must be Boolean")
+        require(row["start_clipped"] == (start == 0), "Pass start clipping conflicts with run")
+        require(not row["end_clipped"] or end == completed, "Clipped pass must end at the computed boundary")
+        _number(row.get("max_elevation_deg"), "pass peak elevation", minimum=-90, maximum=90)
+        require(math.isclose(row.get("duration_s", -1), end-start, abs_tol=1e-7), "Pass duration conflicts with bounds")
+        previous = end
+    for day in days:
+        intersecting = [p for p in passes if p["start_s"] < day["end_s"] and p["end_s"] > day["start_s"]]
+        require(day["geometric_pass_count"] == len(intersecting), "Daily pass count disagrees with pass list")
+        entries = sum(not p["start_clipped"] and day["start_s"] <= p["start_s"] < day["end_s"] for p in intersecting)
+        require(day["geometric_pass_entries"] == entries, "Daily pass entries disagree with pass list")
+    for direction in ("uplink", "downlink"):
+        values = [day[direction]["ideal_capacity_bits"] for day in days]
+        total = summary["ideal_capacity_bits"][direction]
+        if total is not None:
+            require(all(value is not None for value in values), "Known capacity has unknown daily totals")
+            require(math.isclose(math.fsum(values), total, rel_tol=1e-9, abs_tol=0.01), "Daily capacity differs from run total")
+        if model.radio_delivery is not None:
+            receivers = summary.get("radio_delivery")
+            require(type(receivers) is dict and type(receivers.get(direction)) is dict,
+                    "Frame reports require a receiver summary")
+            receiver = receivers[direction]
+            require(type(receiver.get("delivery_available")) is bool,
+                    "Receiver summary availability must be Boolean")
+            _integer(receiver.get("delivered_useful_bits"), "receiver summary payload", 0, 9007199254740991)
+            for name, periods in (("Daily", days), ("Pass", passes)):
+                known = all(period[direction]["delivery_available"] for period in periods)
+                known_payload = sum(period[direction]["delivered_useful_bits"] for period in periods
+                                    if period[direction]["delivery_available"])
+                require(known_payload <= receiver["delivered_useful_bits"],
+                        name + " known frame payload exceeds the receiver's known delivered count")
+                if receiver["delivery_available"] and known:
+                    require(known_payload == receiver["delivered_useful_bits"],
+                            name + " frame payload differs from receiver total")
+
+def _validate_delivery(samples, summary, model):
+    columns, totals = samples.get("radio_delivery"), summary.get("radio_delivery")
+    if model.radio_delivery is None:
+        require(columns is None and totals is None, "Receiver results require an explicit model")
+        return
+    require(type(columns) is dict and type(totals) is dict, "Receiver histories and totals are required")
+    counters = ("frames_started", "delivered_frames", "lost_frames", "aborted_frames", "unresolved_frames",
+                "offered_useful_bits", "delivered_useful_bits", "lost_useful_bits", "unresolved_useful_bits",
+                "offered_data_field_bits", "delivered_data_field_bits", "acquisition_count", "lock_loss_count",
+                "lock_reset_count", "mode_change_count")
+    for direction in ("uplink", "downlink"):
+        values, total = columns.get(direction), totals.get(direction)
+        require(type(values) is dict and type(total) is dict, "Receiver direction is required")
+        modes = getattr(model.radio_delivery, direction).modes
+        ids = [mode.mode_id for mode in modes]
+        count = len(samples["time_s"])
+        for key in (*counters, "pending_frames", "pending_useful_bits", "mode_index"):
+            series = _column(samples, "radio_delivery."+direction+"."+key)
+            for value in series:
+                _integer(value, "receiver counter", 0, 9007199254740991)
+            if key in counters:
+                require(all(a <= b for a, b in zip(series, series[1:])), "Receiver cumulative counter decreases")
+        for key in ("locked", "delivery_available"):
+            _booleans(samples, "radio_delivery."+direction+"."+key)
+        _choice(samples, "radio_delivery."+direction+".receiver_state", {"idle", "acquiring", "locked", "reconfiguring", "unresolved"})
+        _choice(samples, "radio_delivery."+direction+".mode_id", set(ids))
+        for key, series in values.items():
+            require(key in total and series[-1] == total[key], "Receiver totals disagree with final sample")
+        for index in range(count):
+            require(values["mode_index"][index] < len(ids) and ids[values["mode_index"][index]] == values["mode_id"][index], "Receiver mode identity disagrees")
+            require(values["locked"][index] == (values["receiver_state"][index] == "locked"), "Receiver lock flag disagrees")
+            frames = sum(values[key][index] for key in ("delivered_frames", "lost_frames", "unresolved_frames", "pending_frames"))
+            bits = sum(values[key][index] for key in ("delivered_useful_bits", "lost_useful_bits", "unresolved_useful_bits", "pending_useful_bits"))
+            require(frames == values["frames_started"][index] and bits == values["offered_useful_bits"][index], "Receiver frame ledger does not close")
+            require(values["pending_frames"][index] <= 1, "Receiver has more than one pending frame")
+            require(values["aborted_frames"][index] <= values["lost_frames"][index], "Aborted frames exceed all lost frames")
+        for key in ("locked_time_s", "ready_time_s", "active_time_s", "reconfiguration_time_s", "partial_frame_elapsed_s"):
+            series = _column(samples, "radio_delivery."+direction+"."+key)
+            for time, value in zip(samples["time_s"], series):
+                _number(value, "receiver elapsed time", minimum=0, maximum=time+1e-7)
+
+
 def validate_snapshot(snapshot):
     _bounded_tree(snapshot)
     _keys(snapshot, {"scenario", "run"}, path="snapshot")
@@ -431,9 +595,12 @@ def validate_snapshot(snapshot):
     require(settings["orbit_step_s"] == model.clocks.dynamics_step_s/model.clocks.orbit_substeps,
             "Orbit step conflicts with scenario")
     ticks = settings.get("completed_dynamics_ticks")
-    _integer(ticks, "completed dynamics ticks")
+    _integer(ticks, "completed dynamics ticks", 0, 3_000_000 if model.duration_s > 604800 else 1_000_000)
     require(abs(ticks*model.clocks.dynamics_step_s-completed) <= 1e-7, "Completed dynamics ticks disagree with duration")
+    if "reporting" in summary:
+        _validate_reporting(summary["reporting"], model, summary)
     count = _validate_samples(result["samples"], model, summary)
+    _validate_delivery(result["samples"], summary, model)
     events = result["events"]
     require(type(events) is list and len(events) <= 100000, "Invalid event array")
     previous = -1.0
@@ -443,7 +610,14 @@ def validate_snapshot(snapshot):
         _number(event.get("time_s"), "event time", minimum=0, maximum=completed)
         require(event["time_s"] >= previous, "Event times must be nondecreasing")
         previous = event["time_s"]
-        require(event.get("type") in ("state", "terminated"), "Unsupported mission event type")
+        require(event.get("type") in ("state", "terminated", "radio_delivery"), "Unsupported mission event type")
+        if event["type"] == "radio_delivery":
+            require(model.radio_delivery is not None, "Receiver events require an explicit model")
+            direction = event.get("direction")
+            require(direction in ("uplink", "downlink"), "Receiver event direction is invalid")
+            require(event.get("state") in ("idle", "acquiring", "locked", "reconfiguring", "unresolved"), "Receiver event state is invalid")
+            require(event.get("mode_id") in {m.mode_id for m in getattr(model.radio_delivery, direction).modes}, "Receiver event mode is invalid")
+            _text(event.get("cause"), "receiver event cause", 256)
         if "visible" in event:
             require(type(event["visible"]) is bool, "Event visibility must be Boolean")
         for key in ("sun_visibility", "attempted_interval_s", "unserved_load_w", "projection_error"):
@@ -458,15 +632,51 @@ def validate_snapshot(snapshot):
                 and terminated[0]["time_s"] == completed, "Stopped prefix needs its matching termination event")
     progress = run.get("progress")
     if progress is not None:
-        _keys(progress, {"state"}, {"completed_time_s", "requested_duration_s", "fraction", "output_samples", "end_reason"}, "progress")
-        require(progress["state"] == "finished", "A complete archive cannot contain running/partial progress")
-        for key, expected in (("completed_time_s", completed), ("requested_duration_s", model.duration_s),
-                              ("fraction", completed/model.duration_s), ("output_samples", count)):
-            if key in progress:
-                _number(progress[key], "progress."+key)
-                require(abs(progress[key]-expected) <= 1e-8, "Progress conflicts with complete result")
-        require("end_reason" not in progress or progress["end_reason"] == reason, "Progress end reason conflicts with summary")
+        _validate_progress(progress, model, summary, count)
     return snapshot
+
+
+def _validate_progress(progress, model, summary, count):
+    _keys(progress, {"state"}, {
+        "completed_time_s", "requested_duration_s", "fraction", "output_samples", "end_reason",
+        "reporting", "worker_elapsed_s", "execution_limits",
+    }, "progress")
+    require(progress["state"] == "finished", "A complete archive cannot contain running/partial progress")
+    completed = summary["computed_duration_s"]
+    for key, expected in (("completed_time_s", completed), ("requested_duration_s", model.duration_s),
+                          ("fraction", completed/model.duration_s), ("output_samples", count)):
+        if key in progress:
+            _number(progress[key], "progress."+key)
+            require(abs(progress[key]-expected) <= 1e-8, "Progress conflicts with complete result")
+    require("end_reason" not in progress or progress["end_reason"] == summary["end_reason"],
+            "Progress end reason conflicts with summary")
+    if "worker_elapsed_s" in progress:
+        _number(progress["worker_elapsed_s"], "worker elapsed seconds", minimum=0, maximum=86400)
+    if "reporting" in progress:
+        report = summary.get("reporting")
+        require(type(report) is dict, "Finished progress report requires the completed report")
+        expected = {key: value for key, value in report.items() if key != "passes"}
+        require(progress["reporting"] == expected, "Finished progress report differs from completed daily totals")
+    if "execution_limits" in progress:
+        limits = progress["execution_limits"]
+        _keys(limits, {
+            "policy", "estimated_work_units", "maximum_work_units", "worker_wall_limit_s",
+            "maximum_dynamics_ticks", "maximum_orbit_substeps", "maximum_output_intervals", "live_output",
+        }, path="execution limits")
+        require(limits["policy"] == "bounded_long_mission_v1", "Unsupported archived execution-limit policy")
+        _integer(limits["maximum_work_units"], "maximum work units", 1, 300_000_000)
+        _number(limits["estimated_work_units"], "estimated work units", minimum=0,
+                maximum=limits["maximum_work_units"])
+        _integer(limits["worker_wall_limit_s"], "worker wall limit seconds", 1, 3600)
+        _integer(limits["maximum_dynamics_ticks"], "maximum dynamics ticks", 1, 3_000_000)
+        _integer(limits["maximum_orbit_substeps"], "maximum orbit substeps", 1, 6_000_000)
+        _integer(limits["maximum_output_intervals"], "maximum output intervals", 1, 20000)
+        _text(limits["live_output"], "recorded live-output policy", 256)
+        ticks = round(model.duration_s/model.clocks.dynamics_step_s)
+        require(ticks <= limits["maximum_dynamics_ticks"]
+                and ticks*model.clocks.orbit_substeps <= limits["maximum_orbit_substeps"]
+                and model.duration_s/model.clocks.output_step_s <= limits["maximum_output_intervals"],
+                "Recorded execution limits cannot accommodate the scenario clocks")
 
 
 def export_archive(snapshot):
