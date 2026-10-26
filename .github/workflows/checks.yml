@@ -29,6 +29,7 @@ jobs:
       - run: node --experimental-strip-types apps/web/src/earth/night-map.test.mjs
       - run: node --experimental-strip-types apps/web/src/earth/follow-link.test.mjs
       - run: node --experimental-strip-types apps/web/src/earth/sun-display.test.mjs
+      - run: node apps/web/src/earth/orbital-lighting.test.mjs
       - run: node --experimental-strip-types apps/web/src/earth/target-display.test.mjs
       - run: node --experimental-strip-types apps/web/src/earth/earth-depth.test.mjs
       - run: node --experimental-strip-types apps/web/src/graphics/display-interpolation.test.mjs
