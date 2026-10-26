@@ -11,7 +11,7 @@ import math
 import re
 from datetime import datetime, timedelta
 
-from .mission_models import MissionScenario
+from .mission_models import MissionScenario, PointingCommand
 
 FORMAT = "ssi-coupled-mission"
 VERSION = 1
@@ -24,7 +24,7 @@ MAX_NODES = 5_000_000
 MAX_STRING = 1024 * 1024
 HASH = re.compile(r"[0-9a-f]{64}\Z")
 STOP_REASONS = {
-    "power_unserved", "dynamics_step_too_large", "quaternion_integration_accuracy_guard",
+    "power_unserved", "dynamics_step_too_large", "quaternion_integration_accuracy_guard", "user_stop",
 }
 ENERGY_FIELDS = {
     "generated_bus_j", "requested_load_j", "served_load_j", "pv_terminal_j",
@@ -207,6 +207,10 @@ def _scenario(raw):
         projected["conops"].pop("ground_tracking_min_elevation_deg", None)
     if model.spacecraft.pointing_reference is None:
         projected["spacecraft"].pop("pointing_reference", None)
+    if model.pointing_commands is None:
+        projected.pop("pointing_commands", None)
+    if model.stop_time_s is None:
+        projected.pop("stop_time_s", None)
     if model.radio_delivery is None:
         projected.pop("radio_delivery", None)
     if model.magnetic_model is None:
@@ -556,6 +560,10 @@ def validate_snapshot(snapshot):
     archived_scenario = manifest.get("scenario")
     _scenario(archived_scenario)
     require(archived_scenario == snapshot["scenario"], "Manifest scenario conflicts with snapshot inputs")
+    if model.power.analytical_efficiency_semantics is not None:
+        from .rf.mission_efficiency import mission_downlink_efficiency
+        require(manifest.get("downlink_efficiency") == mission_downlink_efficiency(model).record(),
+                "Archived downlink efficiency conflicts with the explicit antenna inputs")
     require("partial" not in manifest or manifest["partial"] is False,
             "A partial result cannot be imported as complete")
     hashes = manifest.get("source_code_hashes")
@@ -569,6 +577,13 @@ def validate_snapshot(snapshot):
     reason = summary.get("end_reason")
     require(type(reason) is str and reason in STOP_REASONS | {"requested_duration"}, "Unsupported completed-run end reason")
     completed = summary["computed_duration_s"]
+    if reason == "user_stop":
+        require(model.stop_time_s is not None, "User stop requires its recorded numerical boundary")
+    if model.stop_time_s is not None:
+        stop_boundary = round(model.stop_time_s / model.clocks.dynamics_step_s) * model.clocks.dynamics_step_s
+        require(completed <= stop_boundary + time_tolerance, "Completed prefix exceeds its recorded stop boundary")
+        if reason == "user_stop":
+            require(abs(completed - stop_boundary) <= time_tolerance, "User stop disagrees with its recorded boundary")
     require((reason == "requested_duration") == (abs(completed-model.duration_s) <= time_tolerance), "Complete/stopped-prefix duration semantics disagree")
     _integer(summary.get("sample_count"), "sample_count", 1, MAX_SAMPLES)
     _keys(summary.get("ideal_capacity_bits"), {"uplink", "downlink"}, path="capacity summary")
@@ -621,7 +636,16 @@ def validate_snapshot(snapshot):
         _number(event.get("time_s"), "event time", minimum=0, maximum=completed)
         require(event["time_s"] >= previous, "Event times must be nondecreasing")
         previous = event["time_s"]
-        require(event.get("type") in ("state", "terminated", "radio_delivery"), "Unsupported mission event type")
+        require(event.get("type") in ("state", "terminated", "radio_delivery", "pointing_command"), "Unsupported mission event type")
+        if event["type"] == "pointing_command":
+            try:
+                command = PointingCommand.model_validate(event.get("command"))
+            except (ValueError, TypeError) as error:
+                raise ArchiveError("Invalid pointing command event") from error
+            require(command in (model.pointing_commands or ()), "Pointing event is absent from the recorded command timeline")
+            command_tick = round(command.effective_time_s / model.clocks.dynamics_step_s)
+            require(abs(command_tick * model.clocks.dynamics_step_s - event["time_s"]) <= 1e-7,
+                    "Pointing command event time disagrees with its accepted boundary")
         if event["type"] == "radio_delivery":
             require(model.radio_delivery is not None, "Receiver events require an explicit model")
             direction = event.get("direction")

@@ -171,7 +171,7 @@ def test_reference_identity_and_archive_roundtrip(selection):
     if selection is None:
         omitted=deepcopy(data);omitted["spacecraft"].pop("pointing_reference")
         assert MissionScenario.model_validate(omitted).identity()==config.identity()
-        canonical=config.model_dump(mode="json");canonical["spacecraft"].pop("pointing_reference");canonical.pop("radio_delivery",None);canonical["conops"].pop("ground_tracking_min_elevation_deg",None)
+        canonical=config.model_dump(mode="json");canonical["spacecraft"].pop("pointing_reference");canonical.pop("radio_delivery",None);canonical["conops"].pop("ground_tracking_min_elevation_deg",None);canonical.pop("pointing_commands",None);canonical.pop("stop_time_s",None)
         assert hashlib.sha256(json.dumps(canonical,sort_keys=True,separators=(",",":"),allow_nan=False).encode()).hexdigest()==digest
     else:
         assert result["manifest"]["scenario"]["spacecraft"]["pointing_reference"]==selection

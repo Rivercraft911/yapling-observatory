@@ -6,11 +6,12 @@ forcing is interval-averaged before the separate implicit thermal update.
 """
 
 from dataclasses import replace
+from copy import deepcopy
 import hashlib
 import math
 from pathlib import Path
 import platform
-from ..mission_models import MissionScenario, mission_execution_limits
+from ..mission_models import MissionScenario, PointingCommand, mission_execution_limits
 from ..orbit.elements import elements_to_cartesian
 from ..orbit.two_body import CartesianState, TwoBodyConfig, step as orbit_step
 from ..attitude.dynamics import (
@@ -68,6 +69,7 @@ from .environment import (
 from .geometry import geometry_at, operation_at, target_direction, target_motion
 from .defaults import orbit_metadata
 from .reporting import MissionReporter
+from .runtime import RuntimeDirective
 
 MODEL_VERSION = "coupled-reference-mission-0.1.0"
 
@@ -104,7 +106,7 @@ def _source_hashes():
     }
 
 
-def run_mission(config: MissionScenario, cancelled=None, progress=None):
+def run_mission(config: MissionScenario, cancelled=None, progress=None, runtime=None):
     if not isinstance(config, MissionScenario):
         raise TypeError("Validated MissionScenario required")
     source_hashes_at_start = _source_hashes()
@@ -115,6 +117,19 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
     control_stride = round(config.clocks.controller_period_s / dt)
     thermal_stride = round(config.clocks.thermal_step_s / dt)
     output_stride = round(config.clocks.output_step_s / dt)
+    telemetry_stride = None
+    telemetry_callback = None
+    telemetry_period = getattr(runtime, "telemetry_period_s", None)
+    if telemetry_period is not None:
+        if (type(telemetry_period) not in (int, float) or not math.isfinite(telemetry_period)
+                or telemetry_period <= 0):
+            raise ValueError("Live telemetry period must be positive finite seconds")
+        telemetry_stride = round(telemetry_period / dt)
+        if telemetry_stride < 1 or abs(telemetry_period / dt - telemetry_stride) > 1e-8:
+            raise ValueError("Live telemetry period must be integer dynamics ticks")
+        telemetry_callback = getattr(runtime, "on_telemetry", None)
+        if not callable(telemetry_callback):
+            raise ValueError("Live telemetry requires an on_telemetry callback")
     orbit_config = TwoBodyConfig(
         config.orbit.mu_m3_s2,
         dt / config.clocks.orbit_substeps,
@@ -192,6 +207,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
     stage_energy = {}
     events = []
     previous_operation = None
+    command_cutoff_time_s = -1.0
     totals = {
         key: 0.0
         for key in (
@@ -244,7 +260,10 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
     def state_geometry():
         geo = geometry_at(config, orbit, attitude)
         sun = sun_direction_inertial(config.epoch_utc, orbit.time_s)
-        mode, stage_id, window = operation_at(config, orbit.time_s, geo["visible"], geo["elevation_deg"])
+        mode, stage_id, window = operation_at(
+            config, orbit.time_s, geo["visible"], geo["elevation_deg"],
+            command_cutoff_time_s=command_cutoff_time_s,
+        )
         target = target_direction(config, geo, sun, mode, window, orbit)
         visibility = sun_visibility(orbit.position_m, sun, power.earth_radius_m)
         field_ecef = field_evaluator(
@@ -398,7 +417,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             values[:] = [0.0, 0.0, 0.0, 0.0]
         thermal_elapsed = 0.0
 
-    def append_sample():
+    def append_sample(*, store=True):
         nonlocal maximum_pointing, maximum_rate, maximum_elevation
         geo, sun, mode, stage_id, target, visibility, field, window = state_geometry()
         pointing = math.degrees(
@@ -415,9 +434,10 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
                 )
             )
         )
-        maximum_elevation = max(maximum_elevation, geo["elevation_deg"])
-        maximum_pointing = max(maximum_pointing, pointing)
-        maximum_rate = max(maximum_rate, norm(attitude.omega_body_rad_s))
+        if store:
+            maximum_elevation = max(maximum_elevation, geo["elevation_deg"])
+            maximum_pointing = max(maximum_pointing, pointing)
+            maximum_rate = max(maximum_rate, norm(attitude.omega_body_rad_s))
         direction = active_direction(config, orbit.time_s)
         radio_active = mode == "ground_tracking" and geo["visible"]
         links = {
@@ -425,7 +445,7 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             for d in capacity
         }
         for d, link in links.items():
-            if link["ideal_rate_bps"] is None:
+            if store and link["ideal_rate_bps"] is None:
                 capacity_available[d] = False
             link["cumulative_ideal_bits"] = (
                 capacity[d] if capacity_available[d] else None
@@ -585,7 +605,12 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
         )
         if radio_delivery is not None:
             row["radio_delivery"] = radio_delivery.sample()
-        _append(samples, row)
+        if store:
+            _append(samples, row)
+            if runtime is not None:
+                runtime.on_sample(deepcopy(row))
+        if telemetry_callback is not None:
+            telemetry_callback(deepcopy(row))
 
     component_ids = {
         "radio",
@@ -597,6 +622,45 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
     for tick in range(count):
         if tick % 16 == 0 and cancelled and cancelled():
             raise InterruptedError("Mission cancelled")
+        if config.stop_time_s is not None and tick >= round(config.stop_time_s / dt):
+            end_reason = "user_stop"
+            events.append(dict(time_s=orbit.time_s, type="terminated", reason=end_reason))
+            break
+        if runtime is not None:
+            directive = runtime.before_step(orbit.time_s, tick % control_stride == 0)
+            if directive is not None and not isinstance(directive, RuntimeDirective):
+                raise TypeError("Runtime before_step must return RuntimeDirective or None")
+            if directive is not None and directive.stop:
+                config = MissionScenario.model_validate(
+                    config.model_dump(mode="json") | dict(stop_time_s=orbit.time_s)
+                )
+                end_reason = "user_stop"
+                events.append(dict(time_s=orbit.time_s, type="terminated", reason=end_reason))
+                break
+            if directive is not None and directive.commands:
+                if tick % control_stride:
+                    raise ValueError("Runtime pointing commands require a controller boundary")
+                accepted = tuple(PointingCommand.model_validate(
+                    intent.model_dump(mode="json") | dict(effective_time_s=orbit.time_s)
+                ) for intent in directive.commands)
+                combined = sorted(
+                    (*(config.pointing_commands or ()), *accepted),
+                    key=lambda command: command.effective_time_s,
+                )
+                config = MissionScenario.model_validate(
+                    config.model_dump(mode="json") | dict(
+                        pointing_commands=[command.model_dump(mode="json") for command in combined]
+                    )
+                )
+                for command in accepted:
+                    runtime.on_command(deepcopy(command.model_dump(mode="json")))
+        command_cutoff_time_s = orbit.time_s
+        for command in config.pointing_commands or ():
+            if round(command.effective_time_s / dt) == tick:
+                events.append(dict(
+                    time_s=orbit.time_s, type="pointing_command",
+                    command=command.model_dump(mode="json"),
+                ))
         geo, sun, mode, stage_id, target, visibility, field, window = state_geometry()
         maximum_elevation = max(maximum_elevation, geo["elevation_deg"])
         maximum_rate = max(maximum_rate, norm(attitude.omega_body_rad_s))
@@ -922,6 +986,8 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             flush_thermal()
         if completed_ticks % output_stride == 0:
             append_sample()
+        elif telemetry_stride is not None and completed_ticks % telemetry_stride == 0:
+            append_sample(store=False)
         if progress and (
             completed_ticks % progress_stride == 0 or completed_ticks == count
         ):
@@ -1024,6 +1090,14 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             "Power demand that cannot be served terminates at last valid shared-state prefix; postbrownout dynamics are not modeled.",
         ],
     )
+    if config.pointing_commands is not None or config.stop_time_s is not None:
+        manifest["runtime_control"] = dict(
+            model="continuous_integrator_pointing_commands_v1",
+            command_times="Core-stamped controller boundaries; same-time commands retain order and the last controls the mode. Auto restores configured CONOPS.",
+            telemetry="Copied physical rows after the preceding accepted interval and before commands received at that boundary. Initial t=0 follows initial command acceptance and uses first-interval power unless stopped before any interval.",
+            stopping="User stop preserves the common-state prefix, flushes partial thermal accumulation and records stop_time_s for exact production replay.",
+            clocks="Pacing and pause are I/O only; all numerical clocks remain the scenario clocks.",
+        )
     if config.spacecraft.pointing_reference == "moving_boresight":
         manifest["pointing_reference"] = dict(
             model="moving_boresight_zero_twist_v1",

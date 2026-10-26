@@ -114,7 +114,9 @@ class MissionSpacecraft(MissionModel):
     derivative_nm_s_per_rad: tuple[float, float, float] = (3e-4, 3e-4, 3e-4)
     body_boresight: tuple[float, float, float] = (0, 1, 0)
     free_roll: bool = True
-    pointing_reference: Literal["instantaneous_zero_rate", "moving_boresight"] | None = None
+    pointing_reference: (
+        Literal["instantaneous_zero_rate", "moving_boresight"] | None
+    ) = None
     roll_rate_damping: bool = True
     bdot_gain_am2_s_t: float = Field(default=20000, ge=0)
     magnetic_unloading_enabled: bool = False
@@ -169,6 +171,25 @@ class MissionConops(MissionModel):
     windows: tuple[MissionWindow, ...] = Field(default=(), max_length=256)
 
 
+class PointingIntent(MissionModel):
+    command_id: str = Field(min_length=1, max_length=128, strict=True)
+    mode: Literal["auto", "sun_pointing", "ground_tracking", "imaging"]
+    target_latitude_deg: float | None = Field(default=None, ge=-90, le=90, strict=True)
+    target_longitude_deg: float | None = Field(default=None, ge=-180, le=180, strict=True)
+
+    @model_validator(mode="after")
+    def target_coordinates(self):
+        if (self.target_latitude_deg is None) != (self.target_longitude_deg is None):
+            raise ValueError("Pointing target latitude and longitude must be supplied together")
+        if self.mode != "imaging" and self.target_latitude_deg is not None:
+            raise ValueError("Only imaging commands accept target latitude and longitude")
+        return self
+
+
+class PointingCommand(PointingIntent):
+    effective_time_s: float = Field(ge=0, strict=True)
+
+
 class MissionSurface(MissionModel):
     surface_id: str
     thermal_node_id: str
@@ -209,7 +230,9 @@ class MissionPower(MissionModel):
     spacecraft_receive_w: float = Field(default=1.5, ge=0)
     radio_idle_w: float = Field(default=0.5, ge=0)
     transmit_radiation_efficiency: float = Field(default=1, ge=0, le=1)
-    analytical_efficiency_semantics: Literal["pattern_times_additional_v1"] | None = None
+    analytical_efficiency_semantics: Literal["pattern_times_additional_v1"] | None = (
+        None
+    )
     solar_irradiance_w_m2: float = Field(default=1361, ge=0)
     earth_radius_m: float = Field(default=6371000, gt=0)
     earth_albedo: float = Field(default=0.3, ge=0, le=1)
@@ -309,6 +332,8 @@ class MissionScenario(MissionModel):
     magnetic_model: Literal["igrf14_degree1", "igrf14_degree13"] | None = None
     spacecraft: MissionSpacecraft = MissionSpacecraft()
     conops: MissionConops = MissionConops()
+    pointing_commands: tuple[PointingCommand, ...] | None = Field(default=None, max_length=128)
+    stop_time_s: float | None = Field(default=None, ge=0, strict=True)
     power: MissionPower
     provenance: tuple[str, ...] = ()
 
@@ -318,6 +343,10 @@ class MissionScenario(MissionModel):
 
     def identity(self):
         values = self.model_dump(mode="json")
+        if self.pointing_commands is None:
+            values.pop("pointing_commands", None)
+        if self.stop_time_s is None:
+            values.pop("stop_time_s", None)
         if self.conops.ground_tracking_min_elevation_deg is None:
             values["conops"].pop("ground_tracking_min_elevation_deg", None)
         if self.spacecraft.pointing_reference is None:
@@ -339,6 +368,7 @@ class MissionScenario(MissionModel):
     def clock_boundaries(self):
         if self.power.analytical_efficiency_semantics is not None:
             from .rf.mission_efficiency import mission_downlink_efficiency
+
             mission_downlink_efficiency(self)
         if utc_datetime(self.epoch_utc) + timedelta(seconds=self.duration_s) > datetime(
             2030, 1, 1, tzinfo=timezone.utc
@@ -387,6 +417,25 @@ class MissionScenario(MissionModel):
                 self.schedule.slot_duration_s,
             )
         ]
+        commands = self.pointing_commands or ()
+        if len({command.command_id for command in commands}) != len(commands):
+            raise ValueError("Pointing command IDs must be unique")
+        previous_command_tick = -1
+        canonical_commands = []
+        for command in commands:
+            command_tick = ticks(command.effective_time_s)
+            if (command_tick > count or command_tick < previous_command_tick
+                    or command_tick % strides[0]):
+                raise ValueError("Pointing commands must be ordered within the mission on controller boundaries")
+            canonical_commands.append(command.model_copy(update=dict(effective_time_s=command_tick * dt)))
+            previous_command_tick = command_tick
+        if self.pointing_commands is not None:
+            object.__setattr__(self, "pointing_commands", tuple(canonical_commands))
+        if self.stop_time_s is not None:
+            stop_tick = ticks(self.stop_time_s)
+            if stop_tick >= count:
+                raise ValueError("Stop time must precede the requested mission horizon")
+            object.__setattr__(self, "stop_time_s", stop_tick * dt)
         extended = self.duration_s > 604800
         if extended and self.run_kind != "long_mission":
             raise ValueError("Requests longer than seven days require long_mission")
@@ -430,16 +479,27 @@ def mission_execution_limits(config):
     """Resource policy, not a numerical fidelity preset or completion estimate."""
     ticks = round(config.duration_s / config.clocks.dynamics_step_s)
     environments = config.duration_s / config.clocks.thermal_step_s
-    work = (ticks * (1 + len(config.spacecraft.wheels) + config.clocks.orbit_substeps)
-            + environments * len(config.power.surfaces)
-            * config.power.earth_quadrature_rings * config.power.earth_quadrature_azimuths)
+    work = (
+        ticks * (1 + len(config.spacecraft.wheels) + config.clocks.orbit_substeps)
+        + environments
+        * len(config.power.surfaces)
+        * config.power.earth_quadrature_rings
+        * config.power.earth_quadrature_azimuths
+    )
     extended = config.duration_s > 604800
     work_limit = 300_000_000 if extended else 100_000_000
-    wall = (min(3600, max(180, math.ceil(ticks * 0.001 + work * 0.000001)))
-            if config.duration_s > 86400 else 180)
-    return dict(policy="bounded_long_mission_v1", estimated_work_units=work,
-                maximum_work_units=work_limit, worker_wall_limit_s=wall,
-                maximum_dynamics_ticks=3_000_000 if extended else 1_000_000,
-                maximum_orbit_substeps=6_000_000 if extended else 2_000_000,
-                maximum_output_intervals=20000,
-                live_output="bounded UTC day summaries; no sample streaming or resume")
+    wall = (
+        min(3600, max(180, math.ceil(ticks * 0.001 + work * 0.000001)))
+        if config.duration_s > 86400
+        else 180
+    )
+    return dict(
+        policy="bounded_long_mission_v1",
+        estimated_work_units=work,
+        maximum_work_units=work_limit,
+        worker_wall_limit_s=wall,
+        maximum_dynamics_ticks=3_000_000 if extended else 1_000_000,
+        maximum_orbit_substeps=6_000_000 if extended else 2_000_000,
+        maximum_output_intervals=20000,
+        live_output="bounded UTC day summaries; no sample streaming or resume",
+    )

@@ -51,7 +51,18 @@ def geometry_at(config, orbit, attitude):
     )
 
 
-def operation_at(config, time_s, visible, elevation_deg=None):
+def operation_at(config, time_s, visible, elevation_deg=None, *, command_cutoff_time_s=None):
+    active_command = None
+    dt = config.clocks.dynamics_step_s
+    cutoff = time_s if command_cutoff_time_s is None else min(time_s, command_cutoff_time_s)
+    for command in config.pointing_commands or ():
+        applied_time = round(command.effective_time_s / dt) * dt
+        if applied_time <= cutoff + max(1e-12, 8 * math.ulp(cutoff)):
+            active_command = command
+        else:
+            break
+    if active_command is not None and active_command.mode != "auto":
+        return active_command.mode, "command_" + active_command.command_id, active_command
     for window in config.conops.windows:
         if window.start_s <= time_s < window.end_s:
             return window.mode, window.window_id, window
