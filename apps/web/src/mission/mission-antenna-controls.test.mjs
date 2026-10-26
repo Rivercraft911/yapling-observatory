@@ -186,7 +186,28 @@ const renderUhf = () => {
   assert.equal(selected.props.antennaOnly, true);
   return uhf.render('MissionUhfControls', selected.props);
 };
+field(renderUhf(), 'Spacecraft UHF antenna').props.onChange('dipole');
+assert.equal(renderMission().config.uhf_beacon.antenna_variant, 'dipole');
+assert.equal(renderMission().config.antenna_variant, 'dipole');
+assert.equal(previewVariant, 'dipole');
+assert.equal(renderMission().config.downlink.spacecraft_antenna, 'wire');
+assert.equal(JSON.stringify(renderMission().snapshot), archived);
+await renderMission().start();
+assert.equal(requests.at(-1).scenario.uhf_beacon.antenna_variant, 'dipole');
+assert.equal(requests.at(-1).scenario.antenna_variant, 'dipole');
+const wireSnapshot = renderMission().snapshot;
+const wireArchive = JSON.stringify(wireSnapshot);
+
+button(renderAntennas(), 'S-band').props.onClick();
+button(renderAntennas(), 'Downlink').props.onClick();
+field(renderSband(), 'Pattern').props.onChange('patch');
+button(renderAntennas(), 'UHF').props.onClick();
 field(renderUhf(), 'Spacecraft UHF antenna').props.onChange('turnstile');
+assert.equal(renderMission().config.uhf_beacon.antenna_variant, 'turnstile');
+assert.equal(renderMission().config.antenna_variant, 'turnstile');
+assert.equal(previewVariant, 'turnstile');
+assert.equal(renderMission().config.uplink.spacecraft_antenna, 'patch');
+assert.equal(renderMission().config.downlink.spacecraft_antenna, 'patch');
 field(renderUhf(), 'Ground Yagi gain').props.onChange(14);
 field(renderUhf(), 'Radiation efficiency').props.onChange(85);
 mount = find(renderUhf(), (node) => node.type === radio.exports.AntennaMountControls);
@@ -197,12 +218,13 @@ assert.equal(field(renderUhf(), 'Beacon interval'), undefined);
 assert.equal(field(renderUhf(), 'Bandwidth'), undefined);
 assert.equal(field(renderUhf(), 'TX electrical'), undefined);
 mission = renderMission();
-assert.equal(JSON.stringify(mission.snapshot), archived);
+assert.equal(JSON.stringify(mission.snapshot), wireArchive);
 assert.equal(mission.dirty, true);
 await mission.start();
 const submitted = requests.at(-1);
 assert.equal(submitted.path, '/api/mission/runs');
 assert.equal(submitted.scenario.antenna_variant, 'turnstile');
+assert.equal(submitted.scenario.downlink.spacecraft_antenna, 'patch');
 assert.equal(submitted.scenario.downlink.ground_peak_gain_dbi, 30);
 assert.equal(submitted.scenario.downlink.ground_feed_roll_deg, 45);
 assert.deepEqual(submitted.scenario.downlink.antenna_orientation_deg, [0, 23, 0]);
@@ -213,8 +235,19 @@ assert.equal(submitted.scenario.uhf_beacon.radiation_efficiency, 0.85);
 assert.deepEqual(submitted.scenario.uhf_beacon.antenna_orientation_deg, [12, 0, 0]);
 assert.equal(submitted.scenario.uhf_beacon.ground_feed_roll_deg, -30);
 assert.equal(JSON.stringify(retained), archived);
+assert.equal(JSON.stringify(wireSnapshot), wireArchive);
+const standalone = structuredClone(renderMission().config);
+standalone.uhf_beacon.modulation = {};
+const standaloneTree = uhf.render('MissionUhfControls', {
+  config: standalone,
+  edit: (change) => change(standalone),
+});
+field(standaloneTree, 'Spacecraft UHF antenna').props.onChange('dipole');
+assert.equal(standalone.uhf_beacon.antenna_variant, 'dipole');
+assert.equal(standalone.antenna_variant, 'turnstile');
+assert.equal(previewVariant, 'turnstile');
 const app = await readFile(new URL('../App.tsx', import.meta.url), 'utf8');
 assert.match(app, /onAntennaVariant=\{setPreviewVariant\}/);
 console.log(
-  'Hardware antennas passed: shared edits reach the next run, direction isolation, mount/polarization, focused fields, preview callback and retained history.',
+  'Hardware antennas passed: shared edits reach the next run, direction isolation, mount/polarization, focused fields, UHF assembly preview with patch or wire S-band, isolated Link/Power use and retained history.',
 );

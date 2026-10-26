@@ -15,10 +15,12 @@ export function MissionUhfControls({
   config,
   edit,
   antennaOnly = false,
+  onVariant,
 }: {
   config: MissionConfig;
   edit: (change: (draft: MissionConfig) => void) => void;
   antennaOnly?: boolean;
+  onVariant?: (variant: UhfBeaconConfig['antenna_variant']) => void;
 }) {
   const radio = config.uhf_beacon;
   const [loading, setLoading] = useState(false);
@@ -96,11 +98,14 @@ export function MissionUhfControls({
           { value: 'dipole', label: 'Dipole' },
           { value: 'turnstile', label: 'Turnstile' },
         ]}
-        onChange={(value) =>
-          change((d) => {
-            d.antenna_variant = value as UhfBeaconConfig['antenna_variant'];
-          })
-        }
+        onChange={(value) => {
+          const variant = value as UhfBeaconConfig['antenna_variant'];
+          if (onVariant) onVariant(variant);
+          else
+            change((draft) => {
+              draft.antenna_variant = variant;
+            });
+        }}
       />
       <Field
         label="Ground Yagi gain"

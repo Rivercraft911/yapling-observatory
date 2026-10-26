@@ -26,7 +26,19 @@ export function MissionAntennaControls({
         </button>
       </nav>
       {band === 'uhf' ? (
-        <MissionUhfControls config={config} edit={edit} antennaOnly />
+        <MissionUhfControls
+          config={config}
+          edit={edit}
+          antennaOnly
+          onVariant={(variant) => {
+            edit((draft) => {
+              if (!draft.uhf_beacon) return;
+              draft.uhf_beacon.antenna_variant = variant;
+              draft.antenna_variant = variant;
+            });
+            onVariant?.(variant);
+          }}
+        />
       ) : (
         <>
           <nav className="mission-mode-selector" aria-label="Antenna direction">
