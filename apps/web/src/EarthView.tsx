@@ -25,7 +25,9 @@ export function EarthView({
 }: EarthViewProps) {
   const host = useRef<HTMLDivElement>(null),
     station = useRef<HTMLDivElement>(null),
-    satellite = useRef<HTMLDivElement>(null);
+    satellite = useRef<HTMLDivElement>(null),
+    sun = useRef<HTMLDivElement>(null),
+    target = useRef<HTMLDivElement>(null);
   const scene = useRef<EarthScene | null>(null);
   const displayClock = useRef(displayTime);
   displayClock.current = displayTime;
@@ -53,14 +55,20 @@ export function EarthView({
     [error, setError] = useState(''),
     [retry, setRetry] = useState(0);
   useEffect(() => {
-    if (!host.current || !station.current || !satellite.current) return;
+    if (!host.current || !station.current || !satellite.current || !sun.current || !target.current)
+      return;
     setLoading(true);
     setError('');
     let view: EarthScene;
     try {
       view = new EarthScene(
         host.current,
-        { station: station.current, satellite: satellite.current },
+        {
+          station: station.current,
+          satellite: satellite.current,
+          sun: sun.current,
+          target: target.current,
+        },
         (failure) => {
           setLoading(false);
           setError(failure || '');
@@ -159,6 +167,26 @@ export function EarthView({
         title="Locator marker is exaggerated. Position is the selected returned ECEF sample."
       >
         SC
+      </div>
+      <div
+        className="earth-locator earth-target-label"
+        ref={target}
+        hidden
+        title="Active Earth pointing target returned by guidance. The amber line marks the requested pointing direction, not the achieved attitude or a radio link."
+      >
+        TARGET
+      </div>
+      <div
+        className="earth-sun-cue"
+        ref={sun}
+        hidden
+        title="Sun direction used by the displayed Earth and spacecraft lighting. The disk has a fixed 1 AU angular size; the glow is illustrative. Behind Earth describes this camera's view, not the spacecraft's computed eclipse state."
+      >
+        <i aria-hidden="true" />
+        <span>
+          SUN
+          <small />
+        </span>
       </div>
       {pending && !error && (
         <div className="earth-message">

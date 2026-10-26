@@ -274,3 +274,56 @@
 .earth-thermal-scale small {
   font-size: 9px;
 }
+
+.earth-sun-cue {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transform: translate(-50%, -50%);
+  color: #e4d4b8;
+  font:
+    8px 'IBM Plex Mono',
+    monospace;
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 4px #000;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.earth-sun-cue[hidden] {
+  display: none;
+}
+.earth-sun-cue small {
+  display: block;
+  margin-top: 3px;
+  color: #a59a8c;
+  font-size: 7px;
+  letter-spacing: 0;
+}
+.earth-sun-cue small:empty,
+.earth-sun-cue i {
+  display: none;
+}
+.earth-sun-cue[data-edge='true'] i {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-top: 1px solid currentColor;
+  border-right: 1px solid currentColor;
+  transform: rotate(var(--sun-bearing));
+}
+.earth-sun-cue[data-occluded='true'] {
+  color: #b4a896;
+}
+.earth-sun-cue[data-edge='false'][data-occluded='true'] i {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border: 1px dotted currentColor;
+  border-radius: 50%;
+}
+
+.earth-target-label {
+  color: #d8b77c;
+  margin: 8px 0 0 9px;
+}

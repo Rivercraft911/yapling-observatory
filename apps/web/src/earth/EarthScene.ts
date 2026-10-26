@@ -2,7 +2,6 @@ import { FrameSize } from '../graphics/frameSize';
 import { linkDisplayState } from '../mission/linkDisplay';
 import {
   BufferGeometry,
-  Color,
   Float32BufferAttribute,
   Group,
   Line,
@@ -35,6 +34,8 @@ import type { EarthAppearance } from './atmosphereAdapter';
 import { earthGeometry, earthDepthRange } from './geometry';
 import { SpacecraftFollow } from './SpacecraftFollow';
 import { FollowLink } from './FollowLink';
+import { SunDisplay } from './SunDisplay';
+import { TargetDisplay, activeTargetAtSample } from './TargetDisplay';
 import regionalImagery from './regional-lod.json';
 import cloudImagery from './cloud-tiles.json';
 import { CloudTileLayer, cloudTileBudget, readCloudTile } from './CloudTiles';
@@ -64,6 +65,8 @@ interface RegionalTextureAsset {
 export interface EarthLabels {
   station: HTMLElement;
   satellite: HTMLElement;
+  sun: HTMLElement;
+  target: HTMLElement;
 }
 export type EarthCameraMode = 'earth' | 'spacecraft';
 export class EarthScene {
@@ -73,6 +76,8 @@ export class EarthScene {
   private readonly controls: OrbitControls;
   private readonly follow: SpacecraftFollow;
   private readonly followLink: FollowLink;
+  private readonly sunDisplay: SunDisplay;
+  private readonly targetDisplay = new TargetDisplay(this.renderer);
   private readonly followEarthCamera = new PerspectiveCamera(34, 1, 0.0001, 40);
   private cameraMode: EarthCameraMode = 'earth';
   private groundTargetPicker: ((positionEcefM: number[]) => void) | null = null;
@@ -190,7 +195,7 @@ export class EarthScene {
     private onLoad: (error?: string) => void,
     onFollowStatus?: (status: FollowStatus) => void,
   ) {
-    this.scene.background = new Color('#060709');
+    this.sunDisplay = new SunDisplay(labels.sun);
     this.camera.position.set(-1.4, 1.6, 3.5);
     const canvas = this.renderer.domElement;
     canvas.tabIndex = 0;
@@ -234,7 +239,14 @@ export class EarthScene {
     canvas.dataset.cloudTileEpoch = cloudImagery.acquisition_epoch;
     canvas.dataset.cloudTileBudget = String(cloudTileBudget(this.renderer.capabilities));
     canvas.dataset.imageryProvenanceUrl = '/earth/asset-provenance.json';
-    this.scene.add(this.history, this.satellite, this.station, this.losSolid, this.losDashed);
+    this.scene.add(
+      this.history,
+      this.satellite,
+      this.station,
+      this.losSolid,
+      this.losDashed,
+      this.targetDisplay.group,
+    );
     this.history.visible = false;
     this.satellite.visible = false;
     this.station.visible = false;
@@ -317,6 +329,8 @@ export class EarthScene {
     if (snapshot === this.snapshot) return;
     this.snapshot = snapshot;
     this.clearHistory();
+    this.targetDisplay.clear();
+    this.labels.target.hidden = true;
     this.historySegments = [];
     this.losSegment = [];
     this.sceneExtent = 1.02;
@@ -415,6 +429,9 @@ export class EarthScene {
         )
       : samples?.satellite_position_ecef_m[index];
     if (!snapshot || !samples || !p || p.length !== 3 || !p.every(Number.isFinite)) {
+      this.sunDisplay.clear();
+      this.targetDisplay.clear();
+      this.labels.target.hidden = true;
       this.satellite.visible = false;
       this.losSolid.visible = false;
       this.losDashed.visible = false;
@@ -445,7 +462,12 @@ export class EarthScene {
       : visualSunDirection(snapshot.scenario.epoch_utc, visualTime);
     this.appearance?.setSun(sun);
     this.follow.setSun(sun);
+    this.sunDisplay.setDirection(sun);
     this.follow.setPosition(p);
+    this.targetDisplay.setTarget(
+      p,
+      activeTargetAtSample(samples.pointing_target_ecef_m, bracket?.lower ?? index),
+    );
     const nodeTemperatures = samples.thermal?.node_temperature_k;
     this.follow.setTemperatures(
       this.thermalView && nodeTemperatures
@@ -651,11 +673,14 @@ export class EarthScene {
       // The local pass owns the LOS before the adaptive background near plane.
       // If its conservative Earth gate declines, fit the background to the full LOS.
       let nearLink = this.followLink.update(this.follow.camera, activeCamera.near);
-      if (!nearLink) {
+      let nearTarget = this.targetDisplay.updateNear(this.follow.camera, activeCamera.near);
+      if (!nearLink || (this.targetDisplay.group.visible && !nearTarget)) {
         this.fitDepthRange(activeCamera, true);
         nearLink = this.followLink.update(this.follow.camera, activeCamera.near);
+        nearTarget = this.targetDisplay.updateNear(this.follow.camera, activeCamera.near);
       }
       this.renderer.domElement.dataset.followNearLinkActive = String(nearLink);
+      this.renderer.domElement.dataset.followNearTargetActive = String(nearTarget);
     }
     this.renderer.domElement.dataset.earthNear = activeCamera.near.toPrecision(6);
     this.renderer.domElement.dataset.earthFar = activeCamera.far.toPrecision(6);
@@ -666,13 +691,30 @@ export class EarthScene {
     if (this.satellite.visible)
       this.placeLabel(this.labels.satellite, this.satellite.position, activeCamera);
     else this.labels.satellite.hidden = true;
+    if (this.targetDisplay.group.visible)
+      this.placeLabel(this.labels.target, this.targetDisplay.marker.position, activeCamera);
+    else this.labels.target.hidden = true;
+    this.renderer.domElement.dataset.pointingTargetActive = String(
+      this.targetDisplay.group.visible,
+    );
     this.updateRegionalImagery(activeCamera, now);
-    this.renderer.render(this.scene, activeCamera);
-    if (follow) {
-      this.renderer.clearDepth();
-      this.followLink.render();
-      this.renderer.clearDepth();
-      this.follow.render();
+    this.sunDisplay.updateCue(activeCamera, this.host.clientWidth, this.host.clientHeight);
+    const autoClear = this.renderer.autoClear;
+    try {
+      this.renderer.autoClear = true;
+      this.sunDisplay.renderBackground(this.renderer, activeCamera);
+      this.renderer.autoClear = false;
+      // Opaque Earth and spacecraft cover the solar disk in their own depth ranges.
+      this.renderer.render(this.scene, activeCamera);
+      if (follow) {
+        this.renderer.clearDepth();
+        this.followLink.render();
+        this.targetDisplay.renderNear();
+        this.renderer.clearDepth();
+        this.follow.render();
+      }
+    } finally {
+      this.renderer.autoClear = autoClear;
     }
     this.renderer.domElement.dataset.followModelVisible = String(
       follow && this.follow.modelVisible,
@@ -694,10 +736,12 @@ export class EarthScene {
     const groups = [
       this.history.visible ? this.historySegments : [],
       includeLos && (this.losSolid.visible || this.losDashed.visible) ? this.losSegment : [],
+      includeLos ? this.targetDisplay.backgroundSegment : [],
     ];
     const points = [];
     if (this.station.visible) points.push(this.station.position);
     if (this.satellite.visible) points.push(this.satellite.position);
+    if (this.targetDisplay.group.visible) points.push(this.targetDisplay.marker.position);
     const range = earthDepthRange(
       camera.position,
       camera.getEffectiveFOV(),
@@ -908,6 +952,8 @@ export class EarthScene {
     this.controls.dispose();
     this.follow.dispose();
     this.followLink.dispose();
+    this.sunDisplay.dispose();
+    this.targetDisplay.dispose();
     this.regionalAbort?.abort();
     this.releaseRegionalImagery();
     this.cloudTiles?.dispose();
