@@ -71,9 +71,11 @@ export function LiveWorkspace({
     if (!config) return null;
     const next = structuredClone(config) as MissionConfig & {
       pointing_commands?: unknown;
+      numerical_step_commands?: unknown;
       stop_time_s?: number;
     };
     delete next.pointing_commands;
+    delete next.numerical_step_commands;
     delete next.stop_time_s;
     if (durationH > 168) next.run_kind = 'long_mission';
     setMissionDuration(next, durationH * 3600);
@@ -108,6 +110,9 @@ export function LiveWorkspace({
   useEffect(() => {
     if (session) setSpeed(session.speed);
   }, [session?.speed]);
+  const unappliedRequests =
+    (session?.unapplied_command_ids.length ?? 0) +
+    (session?.unapplied_numerical_step_ids?.length ?? 0);
   const commandReady = live.active && session?.status !== 'stopping' && !live.pending;
   const ack = live.acknowledgments.at(-1)?.command;
   const pickTarget = async (position: number[]) => {
@@ -297,6 +302,43 @@ export function LiveWorkspace({
             }}
           />
         </label>
+        {session?.numerical_step_options && (
+          <label
+            className="live-field"
+            title="Changes the integration timestep at a compatible controller boundary. Wall speed is independent; every accepted change is recorded for replay."
+          >
+            Integration step
+            <select
+              aria-label="Live integration timestep"
+              value={session.numerical_step_s ?? session.initial_scenario.clocks.dynamics_step_s}
+              disabled={
+                !live.active ||
+                live.pending ||
+                !!session.pending_numerical_steps ||
+                session.status === 'stopping'
+              }
+              onChange={(event) => void live.numerics(Number(event.target.value))}
+            >
+              {session.numerical_step_options.map((option) => (
+                <option
+                  key={option.dynamics_step_s}
+                  value={option.dynamics_step_s}
+                  disabled={!option.allowed}
+                  title={option.reason || undefined}
+                >
+                  {option.dynamics_step_s} s{option.allowed ? '' : ' · incompatible'}
+                </option>
+              ))}
+            </select>
+            {!!session.pending_numerical_steps && <small>Queued</small>}
+          </label>
+        )}
+        {live.numericalAcknowledgments?.length ? (
+          <small className="live-note">
+            Step accepted at T+
+            {live.numericalAcknowledgments.at(-1)!.command.effective_time_s.toFixed(2)} s
+          </small>
+        ) : null}
         <div className="live-speed-presets">
           {[1, 10, 100, 1000].map((value) => (
             <button
@@ -359,10 +401,9 @@ export function LiveWorkspace({
             Some streamed history expired. The completed archive retains its scheduled samples.
           </p>
         )}
-        {!!session?.unapplied_command_ids.length && (
+        {!!unappliedRequests && (
           <p className="live-note">
-            {session.unapplied_command_ids.length} commands were not applied before this session
-            ended.
+            {unappliedRequests} requests were not applied before this session ended.
           </p>
         )}
         <div className="live-command-heading">
@@ -414,8 +455,9 @@ export function LiveWorkspace({
             </dd>
             <dt>Dynamics step</dt>
             <dd>
-              {(live.active ? session?.initial_scenario : freshConfig)?.clocks.dynamics_step_s ??
-                '—'}{' '}
+              {(live.active
+                ? (session?.numerical_step_s ?? session?.initial_scenario.clocks.dynamics_step_s)
+                : freshConfig?.clocks.dynamics_step_s) ?? '—'}{' '}
               s
             </dd>
           </dl>

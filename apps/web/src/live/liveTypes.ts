@@ -18,11 +18,25 @@ export type LiveSession = {
   last_sample_time_s: number | null;
   sample_count: number;
   unapplied_command_ids: string[];
+  unapplied_numerical_step_ids?: string[];
   requested_duration_s: number;
   speed: number;
   paused: boolean;
   lease_expired: boolean;
   pending_commands: number;
+  numerical_step_s?: number;
+  numerical_step_options?: { dynamics_step_s: number; allowed: boolean; reason: string | null }[];
+  pending_numerical_steps?: number;
+  numerical_step_acks?: {
+    sequence: number;
+    command: { command_id: string; effective_time_s: number; dynamics_step_s: number };
+  }[];
+  numerical_step_errors?: {
+    sequence: number;
+    command_id: string;
+    effective_time_s: number;
+    error: string;
+  }[];
   next_sequence: number;
   first_sequence: number;
   gap: boolean;

@@ -36,7 +36,10 @@ export function useLiveMission() {
   const sessionRef = useRef(session);
   sessionRef.current = session;
   const ingest = useCallback((next: LiveSession) => {
+    const previousNumericalErrors = history.current.numericalErrors.length;
     const added = history.current.accept(next);
+    if (history.current.numericalErrors.length > previousNumericalErrors)
+      setError(history.current.numericalErrors.at(-1)!.error);
     if (added || !sessionRef.current || next.final_snapshot)
       setSnapshot(history.current.snapshot(next));
     setSession(next);
@@ -147,6 +150,11 @@ export function useLiveMission() {
       }),
     [send],
   );
+  const numerics = useCallback(
+    (dynamics_step_s: number) =>
+      send('/numerics', { command_id: crypto.randomUUID(), dynamics_step_s }),
+    [send],
+  );
   const control = useCallback(
     (change: { speed?: number; paused?: boolean; stop?: boolean }) => send('/control', change),
     [send],
@@ -161,10 +169,12 @@ export function useLiveMission() {
     start,
     control,
     command,
+    numerics,
     cancel,
     active: !!session && activeStates.has(session.status),
     historyGap: history.current.gap,
     acknowledgments: history.current.acknowledgments,
+    numericalAcknowledgments: history.current.numericalAcknowledgments,
     clearError: () => setError(''),
   };
 }

@@ -97,3 +97,34 @@ const ended = {
 };
 assert.equal(history.snapshot(session({ final_snapshot: ended })).run, ended.run);
 console.log('Live telemetry ordering, gaps, bounded tails and immutable snapshots pass.');
+
+const numeric = new LiveHistory();
+const accepted = {
+  sequence: 2,
+  command: { command_id: 'dt-a', effective_time_s: 2, dynamics_step_s: 0.5 },
+};
+const rejected = {
+  sequence: 3,
+  command_id: 'dt-b',
+  effective_time_s: 4,
+  error: 'Step does not divide the receive window.',
+};
+const batch = session({
+  samples: [
+    { sequence: 1, row: row(0) },
+    { sequence: 4, row: row(10) },
+  ],
+  numerical_step_acks: [accepted],
+  numerical_step_errors: [rejected],
+  next_sequence: 4,
+});
+numeric.accept(batch);
+numeric.accept(batch);
+assert.equal(numeric.sequence, 4);
+assert.deepEqual(numeric.numericalAcknowledgments, [accepted]);
+assert.deepEqual(numeric.numericalErrors, [rejected]);
+assert.deepEqual(numeric.snapshot(session()).run.result.samples.time_s, [0, 10]);
+assert.deepEqual(numeric.snapshot(session()).run.result.manifest.scenario, input);
+console.log(
+  'Numerical acknowledgments and rejections share the ordered journal without duplicating samples.',
+);

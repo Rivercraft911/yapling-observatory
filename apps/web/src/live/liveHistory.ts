@@ -19,6 +19,8 @@ export class LiveHistory {
   sequence = 0;
   gap = false;
   acknowledgments: LiveSession['command_acks'] = [];
+  numericalAcknowledgments: NonNullable<LiveSession['numerical_step_acks']> = [];
+  numericalErrors: NonNullable<LiveSession['numerical_step_errors']> = [];
   accept(session: LiveSession) {
     if (session.gap && session.first_sequence > this.sequence + 1) {
       this.columns = {};
@@ -28,6 +30,14 @@ export class LiveHistory {
     const events = [
       ...session.samples.map((item) => ({ sequence: item.sequence, sample: item.row })),
       ...session.command_acks.map((item) => ({ sequence: item.sequence, command: item })),
+      ...(session.numerical_step_acks || []).map((item) => ({
+        sequence: item.sequence,
+        numerical: item,
+      })),
+      ...(session.numerical_step_errors || []).map((item) => ({
+        sequence: item.sequence,
+        numericalError: item,
+      })),
     ].sort((a, b) => a.sequence - b.sequence);
     let added = false;
     for (const event of events) {
@@ -47,7 +57,9 @@ export class LiveHistory {
           throw new Error('Live history exceeded its sample limit.');
         append(this.columns, event.sample);
         added = true;
-      } else this.acknowledgments.push(event.command);
+      } else if ('command' in event) this.acknowledgments.push(event.command);
+      else if ('numerical' in event) this.numericalAcknowledgments.push(event.numerical);
+      else this.numericalErrors.push(event.numericalError);
       this.sequence = event.sequence;
     }
     if (session.next_sequence > this.sequence)
@@ -107,7 +119,7 @@ export class LiveHistory {
         scenario_hash: session.initial_scenario_hash,
         error: null,
         result: {
-          manifest: { partial: true, kind: 'live_telemetry_prefix' },
+          manifest: { partial: true, kind: 'live_telemetry_prefix', scenario: input },
           summary: {
             ideal_capacity_bits: {
               uplink: samples.uplink?.cumulative_ideal_bits.at(-1) ?? null,
