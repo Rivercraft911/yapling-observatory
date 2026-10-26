@@ -1,6 +1,7 @@
 # Yapling Observatory
 
 A CubeSat mission simulator for studying radio links, pointing, power and temperature over passes or longer missions.
+To take a peek at where these models came from take a peek at [Model references](services/simulator/REFERENCES.md).
 
 | Area | Models and tools |
 | --- | --- |
@@ -19,4 +20,4 @@ python3 start.py
 
 Tested on macOS and Linux. First launch prepares the app and opens your browser. Ctrl-C stops it.
 
-[Local setup](services/simulator/README.md#run-locally) · [Model references](services/simulator/REFERENCES.md)
+[Local setup](services/simulator/README.md#run-locally)
