@@ -72,7 +72,8 @@
   color: var(--muted);
   font-size: 11px;
 }
-.mission-details > small {
+.mission-details > small,
+.contextual-controls fieldset > small {
   display: block;
   color: var(--muted);
   font-size: 10px;
