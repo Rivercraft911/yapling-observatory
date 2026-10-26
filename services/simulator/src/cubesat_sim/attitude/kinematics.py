@@ -6,16 +6,17 @@ from ..geometry.vectors import cross, dot, norm, scale, unit
 
 
 def finite_vector(value, size=3):
-    if len(value) != size or not all(math.isfinite(v) for v in value):
+    if len(value) != size or not all(map(math.isfinite, value)):
         raise ValueError(f"Expected {size} finite real components")
-    return tuple(float(v) for v in value)
+    return tuple(map(float, value))
 
 
 def unit_vector(value):
     vector = finite_vector(value)
-    if not math.isfinite(norm(vector)) or norm(vector) < 1e-14:
+    magnitude = norm(vector)
+    if not math.isfinite(magnitude) or magnitude < 1e-14:
         raise ValueError("Direction must have a finite nonzero norm")
-    return unit(vector)
+    return scale(vector, 1 / magnitude)
 
 
 def normalize_quaternion(value, *, validate=True):
@@ -23,7 +24,12 @@ def normalize_quaternion(value, *, validate=True):
     magnitude = math.hypot(*value)
     if magnitude < 1e-14 or (validate and abs(magnitude - 1) > 1e-6):
         raise ValueError("Quaternion must have unit norm within 1e-6")
-    result = tuple(v / magnitude for v in value)
+    result = (
+        value[0] / magnitude,
+        value[1] / magnitude,
+        value[2] / magnitude,
+        value[3] / magnitude,
+    )
     sign_reference = (
         result[0]
         if abs(result[0]) > 1e-14
@@ -37,6 +43,13 @@ def conjugate(q):
 
 
 def multiply(a, b):
+    if len(a) == len(b) == 4:
+        return (
+            a[0] * b[0] - sum((a[1] * b[1], a[2] * b[2], a[3] * b[3])),
+            a[0] * b[1] + b[0] * a[1] + (a[2] * b[3] - a[3] * b[2]),
+            a[0] * b[2] + b[0] * a[2] + (a[3] * b[1] - a[1] * b[3]),
+            a[0] * b[3] + b[0] * a[3] + (a[1] * b[2] - a[2] * b[1]),
+        )
     av, bv = a[1:], b[1:]
     vector = tuple(a[0] * y + b[0] * x + z for x, y, z in zip(av, bv, cross(av, bv)))
     return a[0] * b[0] - dot(av, bv), *vector

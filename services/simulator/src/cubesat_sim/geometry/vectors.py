@@ -1,13 +1,14 @@
 """Real/complex vector and matrix operations."""
 import math
+from operator import add as scalar_add, mul
 
 
 def dot(a, b):
-    return sum(x*y for x, y in zip(a, b))
+    return sum(map(mul, a, b))
 
 
 def add(a, b):
-    return tuple(x+y for x, y in zip(a, b))
+    return tuple(map(scalar_add, a, b))
 
 
 def scale(a, s):
