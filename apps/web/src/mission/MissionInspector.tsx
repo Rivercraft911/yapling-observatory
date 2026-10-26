@@ -6,7 +6,7 @@ import { OrbitalElementsFields } from '../systems/OrbitalElementsFields';
 import { MissionDeliveryControls } from './MissionDeliveryControls';
 import { MissionRadioSchedule } from './MissionRadioSchedule';
 import { MissionUhfControls } from './MissionUhfControls';
-import { MissionHardware } from './MissionHardware';
+import { MissionGncControls } from './MissionGncControls';
 import { MissionArchiveControls } from './MissionArchiveControls';
 import { MissionPowerControls } from './MissionPowerControls';
 import { MissionConopsControls } from './MissionConopsControls';
@@ -23,6 +23,7 @@ export function MissionInspector({
   canPin,
   hasBaseline,
   onPin,
+  sampleIndex = 0,
 }: {
   mission: MissionSession;
   catalog: RadioCatalog;
@@ -31,6 +32,7 @@ export function MissionInspector({
   canPin: boolean;
   hasBaseline: boolean;
   onPin: () => void;
+  sampleIndex?: number;
 }) {
   const [section, setSection] = useState<'orbit' | 'link' | 'gnc' | 'power' | 'thermal' | 'conops'>(
     'orbit',
@@ -327,6 +329,7 @@ export function MissionInspector({
             ) : (
               <>
                 <MissionDeliveryControls config={config} edit={edit} />
+                <MissionRadioSchedule config={config} edit={edit} />
                 {(['uplink', 'downlink'] as const).map((direction) => (
                   <RadioControls
                     key={direction}
@@ -337,12 +340,18 @@ export function MissionInspector({
                     onChange={(change) => edit((d) => change(d[direction]))}
                   />
                 ))}
-                <MissionRadioSchedule config={config} edit={edit} />
               </>
             )}
           </>
         )}
-        {section === 'gnc' && <MissionHardware config={config} edit={edit} />}
+        {section === 'gnc' && (
+          <MissionGncControls
+            config={config}
+            edit={edit}
+            samples={mission.snapshot?.run.result?.samples}
+            sampleIndex={sampleIndex}
+          />
+        )}
         {section === 'power' && <MissionPowerControls config={config} edit={edit} />}
         {section === 'thermal' && <MissionThermalControls config={config} edit={edit} />}
         {section === 'conops' && <MissionConopsControls config={config} edit={edit} />}

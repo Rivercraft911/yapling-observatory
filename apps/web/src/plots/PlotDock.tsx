@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { RunSnapshot, Samples } from '../types';
-import { TracePlot, closestIndex } from './TracePlot';
+import type { RunSnapshot } from '../types';
+import { TracePlot } from './TracePlot';
 import { plotDefinitions, plotTraces } from './registry';
 import type { PlotId } from './registry';
 import { MissionReport } from '../mission/MissionReport';
@@ -96,26 +96,6 @@ function preferenceStorage() {
   } catch {
     return undefined;
   }
-}
-function showBatteryTemperatureNotice(
-  selection: readonly PlotId[],
-  samples: Samples | undefined,
-  cursorTime: number,
-) {
-  return (
-    selection.some((id) =>
-      [
-        'battery_voltage',
-        'battery_current',
-        'battery_soc',
-        'battery_remaining_charge',
-        'battery_heat',
-      ].includes(id),
-    ) &&
-    samples?.power?.battery_temperature_outside_reference?.[
-      closestIndex(samples.time_s, cursorTime)
-    ] === true
-  );
 }
 interface PlotDockProps {
   snapshot: RunSnapshot | null;
@@ -214,11 +194,6 @@ function PlotDockContent({
       }),
     [selection, snapshot, baseline],
   );
-  const outsideBatteryReference = showBatteryTemperatureNotice(
-    selection,
-    snapshot?.run.result?.samples,
-    cursorTime,
-  );
   const toggle = (id: PlotId) =>
     setPreferences((current) => ({
       ...current,
@@ -286,14 +261,6 @@ function PlotDockContent({
           <button aria-pressed={reportOpen} onClick={() => setReportOpen(true)}>
             Report
           </button>
-        )}
-        {!reportOpen && outsideBatteryReference && (
-          <span
-            className="battery-reference-badge"
-            title="OCV and resistance stay at the fixed 25°C reference outside the 25±1°C tests. Operating temperature gates are separate and do not validate cold/hot electrical predictions."
-          >
-            25°C reference · outside test temperature
-          </span>
         )}
         <div className="plot-chooser" ref={chooser}>
           <button

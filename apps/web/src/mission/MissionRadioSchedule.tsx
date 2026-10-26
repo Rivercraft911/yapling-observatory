@@ -13,7 +13,7 @@ export function MissionRadioSchedule({
   const rx = schedule.uplink_duration_s ?? schedule.slot_duration_s;
   return (
     <fieldset>
-      <legend>S-BAND WINDOWS</legend>
+      <legend>TX / RX CYCLE</legend>
       <Field
         label="TX window"
         unit="s"

@@ -956,6 +956,7 @@ export default function App() {
             ) : (
               <MissionInspector
                 mission={mission}
+                sampleIndex={index}
                 catalog={catalog}
                 onRun={startMission}
                 onInspect={() => setInspector(true)}
