@@ -46,7 +46,9 @@ export function isEarthOccluded(
 
 /** USNO low-precision apparent Sun + mean sidereal rotation, for visual illumination only.
  * UTC approximates UT1; no EOP, polar motion or mission ephemeris is supplied here.
- * Sources and scope are retained in earth/rendering-notes.json. */
+ * Solar coordinates: https://aa.usno.navy.mil/faq/sun_approx
+ * GMST coefficients checked against ERFA eraGmst82, revision 2021-05-11:
+ * https://github.com/liberfa/erfa/blob/master/src/gmst82.c */
 export function visualSunDirection(epochUtc: string, elapsedS: number): Vec3 {
   const ms = new Date(epochUtc).getTime() + elapsedS * 1000;
   if (!Number.isFinite(ms)) return [1, 0, 0];

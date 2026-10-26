@@ -332,7 +332,7 @@ export function EarthView({
             href="/earth/NOTICE.txt"
             target="_blank"
             rel="noreferrer"
-            title="Static Solar System Scope / NASA-derived imagery, CC BY 4.0. Includes sources, transformations and license."
+            title="Earth imagery sources, transformations and license terms."
           >
             Imagery · SSS / NASA ↗
           </a>

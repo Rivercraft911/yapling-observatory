@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "scope": "Browser runtime dependencies from package-lock.json; build tools and separately installed Python packages are not redistributed here.",
+  "packages": [
+    {
+      "package": "@fontsource/ibm-plex-mono",
+      "version": "5.3.0",
+      "license_id": "OFL-1.1",
+      "package_url": "https://registry.npmjs.org/@fontsource/ibm-plex-mono/-/ibm-plex-mono-5.3.0.tgz",
+      "package_integrity": "sha512-eTgnZjZEGk1QtD3ZstF+Vclo2HLAni8YMy34/DxllwZvyz1lR/1RF/xTiAquOBO7MvqBx8D2Ig2WCPMVfdZu7Q==",
+      "license_file": "ibm-plex-mono-OFL-1.1.txt",
+      "license_sha256": "23b0a9d0c6d3f140a0b77e483c5cfa6bba574325ef5cb189ed9f2fec4884533f"
+    },
+    {
+      "package": "@fontsource/ibm-plex-sans",
+      "version": "5.3.0",
+      "license_id": "OFL-1.1",
+      "package_url": "https://registry.npmjs.org/@fontsource/ibm-plex-sans/-/ibm-plex-sans-5.3.0.tgz",
+      "package_integrity": "sha512-CbE4CbbEEZJX860XyUiRpsksXIQR8Rp2XDva2VO53NJox9tVNtusrysd2x5YkUEY3ErQ66W1IiiQL8/wihhw5w==",
+      "license_file": "ibm-plex-sans-OFL-1.1.txt",
+      "license_sha256": "d0283623ef57e722fd0eb688a8041589670c608ab780cd3612d06ba6f153d3fd"
+    },
+    {
+      "package": "react",
+      "version": "19.3.1",
+      "license_id": "MIT",
+      "package_url": "https://registry.npmjs.org/react/-/react-19.3.1.tgz",
+      "package_integrity": "sha512-QNhWdt7nrgVWWQG58QuGsAR3jv3Hbe4mb4vz7w2csnHavciZJgda1CPNaldF6eVxv90ud3jUXpKlHL69gO38yw==",
+      "license_file": "react-MIT.txt",
+      "license_sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+    },
+    {
+      "package": "react-dom",
+      "version": "19.3.1",
+      "license_id": "MIT",
+      "package_url": "https://registry.npmjs.org/react-dom/-/react-dom-19.3.1.tgz",
+      "package_integrity": "sha512-Y0bARz53lhEC1NMCASs0/j+faB/zqt3R8hpvg1e8+61ZVJ4UL0UdC4cBbXfZMcIuhrfgeILTLe+ZeBCavQPtKQ==",
+      "license_file": "react-dom-MIT.txt",
+      "license_sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+    },
+    {
+      "package": "scheduler",
+      "version": "0.28.0",
+      "license_id": "MIT",
+      "package_url": "https://registry.npmjs.org/scheduler/-/scheduler-0.28.0.tgz",
+      "package_integrity": "sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw==",
+      "license_file": "scheduler-MIT.txt",
+      "license_sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+    },
+    {
+      "package": "three",
+      "version": "0.183.2",
+      "license_id": "MIT",
+      "package_url": "https://registry.npmjs.org/three/-/three-0.183.2.tgz",
+      "package_integrity": "sha512-di3BsL2FEQ1PA7Hcvn4fyJOlxRRgFYBpMTcyOgkwJIaDOdJMebEFPA+t98EvjuljDx4hNulAGwF6KIjtwI5jgQ==",
+      "license_file": "three-MIT.txt",
+      "license_sha256": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
+    },
+    {
+      "package": "uplot",
+      "version": "1.6.32",
+      "license_id": "MIT",
+      "package_url": "https://registry.npmjs.org/uplot/-/uplot-1.6.32.tgz",
+      "package_integrity": "sha512-KIMVnG68zvu5XXUbC4LQEPnhwOxBuLyW1AHtpm6IKTXImkbLgkMy+jabjLgSLMasNuGGzQm/ep3tOkyTxpiQIw==",
+      "license_file": "uplot-MIT.txt",
+      "license_sha256": "8f989229699b4fe2f1a0432d0e9edc338a8a911e250e2d1b01ecd770a5f5b1bd"
+    }
+  ],
+  "asset_license": {
+    "license_id": "CC-BY-4.0",
+    "license_file": "CC-BY-4.0.txt",
+    "source_url": "https://creativecommons.org/licenses/by/4.0/legalcode.txt",
+    "retrieved_utc_date": "2026-10-26",
+    "license_sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+  },
+  "font_files": [
+    {
+      "package": "@fontsource/ibm-plex-sans",
+      "file": "ibm-plex-sans-latin-400-normal.woff",
+      "sha256": "828907bfd14855c880789878bd2b38ffd284a6c27c8b80f6069900f70dae3901"
+    },
+    {
+      "package": "@fontsource/ibm-plex-sans",
+      "file": "ibm-plex-sans-latin-400-normal.woff2",
+      "sha256": "3b646991d30055a93a4ecc499713d4347953a74a947ecab435ab72070cbdab0e"
+    },
+    {
+      "package": "@fontsource/ibm-plex-sans",
+      "file": "ibm-plex-sans-latin-500-normal.woff",
+      "sha256": "8d2c7b2eca91869d447851a9c8bd07edf629b26025eacb882291e03b384b4e35"
+    },
+    {
+      "package": "@fontsource/ibm-plex-sans",
+      "file": "ibm-plex-sans-latin-500-normal.woff2",
+      "sha256": "0717336fb31fcdcde4b8deb3675bb4a0f7f6d484864afcd6751ac29975962203"
+    },
+    {
+      "package": "@fontsource/ibm-plex-mono",
+      "file": "ibm-plex-mono-latin-400-normal.woff",
+      "sha256": "328d50b6ece9ca25c46eea3e885ba497f6237f2fb84ef7b92f88e14a1a25e381"
+    },
+    {
+      "package": "@fontsource/ibm-plex-mono",
+      "file": "ibm-plex-mono-latin-400-normal.woff2",
+      "sha256": "08949f728dc52d528e69b1667d15c89a5686a4ee9a296ff90983985f99c380f7"
+    }
+  ]
+}
