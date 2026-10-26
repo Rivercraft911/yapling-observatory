@@ -176,7 +176,7 @@ sun.dispose();
 const earthSource = await readFile(new URL('./EarthScene.ts', import.meta.url), 'utf8');
 assert.match(
   earthSource,
-  /this\.appearance\?\.setSun\(sun\);\s*this\.follow\.setSun\(sun\);\s*this\.sunDisplay\.setDirection\(sun\);/,
+  /this\.appearance\?\.setSun\(sun\);[\s\S]*this\.follow\.setSun\(sun, sunVisibility\);\s*this\.sunDisplay\.setDirection\(sun\);/,
 );
 assert.doesNotMatch(earthSource, /this\.scene\.background\s*=/);
 assert.ok(

@@ -41,6 +41,7 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
           satellite_position_ecef_m: Array.from({ length: end + 1 }, (_, i) => [7e6, i, 0]),
           station_position_m: Array.from({ length: end + 1 }, () => [6378137, 0, 0]),
           sun_direction_ecef: Array.from({ length: end + 1 }, () => [1, 0, 0]),
+          power: { sun_visibility: [1, 0, 0, 0] },
           q_body_from_inertial_wxyz: Array.from({ length: end + 1 }, () => [1, 0, 0, 0]),
           visible: [false, true, true],
           elevation_deg: [0, 20, 30],
@@ -68,7 +69,9 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
     history: new Group(),
     autoFramed: true,
     follow: {
-      setSun() {},
+      setSun(_direction, visibility) {
+        scene.sunVisibility = visibility;
+      },
       setEnabled() {},
       setPosition(position) {
         scene.displayedPosition = position;
@@ -101,6 +104,14 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
   scene.setHistory(first);
   near(scene.displayedPosition[1], 0.4);
   near(scene.poseTime, 0.4);
+  near(scene.sunVisibility, 0.6);
+  const eclipseSamples = [...first.run.result.samples.power.sun_visibility];
+  for (const time of [0, 0.25, 0.5, 0.75, 0.999, 1, 1.001]) {
+    scene.updateSample(1, time);
+    near(scene.sunVisibility, 1 - Math.min(1, time));
+  }
+  assert.deepEqual(first.run.result.samples.power.sun_visibility, eclipseSamples);
+  scene.updateSample(1, 0.4);
   assert.equal(scene.renderer.domElement.dataset.sampleIndex, '0');
   assert.equal(scene.losSolid.visible, false, 'A future link transition must not appear early');
   const paths = [...scene.history.children];
@@ -116,6 +127,7 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
   assert.equal(scene.renderer.domElement.dataset.sampleIndex, '0');
   scene.updateSample(2, 1.4);
   near(scene.displayedPosition[1], 1.4);
+  assert.equal(scene.sunVisibility, 0, 'Spacecraft lighting consumes the returned eclipse');
   assert.equal(scene.renderer.domElement.dataset.sampleIndex, '1');
   assert.equal(scene.losSolid.visible, true);
 

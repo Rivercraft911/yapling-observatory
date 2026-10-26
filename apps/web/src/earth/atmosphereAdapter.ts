@@ -18,6 +18,62 @@ const vertex = `
 varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
 void main(){vUv=uv;vPosition=(modelMatrix*vec4(position,1.)).xyz;vNormal=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}
 `;
+
+// Display-only single scattering. Coefficients are per km; the scene uses Earth radii.
+const atmosphericLight = `
+const float atmosphereRadius=1.01255;
+const float earthRadiusKm=6378.137;
+const vec3 earthAxes=vec3(1.,.9966471893,1.);
+const vec3 betaRayleigh=vec3(.0058,.0135,.0331);
+const vec3 betaMie=vec3(.003);
+vec2 atmosphereIntersection(vec3 o,vec3 d,float radius){
+ float b=dot(o,d),c=dot(o,o)-radius*radius,h=b*b-c;
+ if(h<0.)return vec2(1e5,-1e5);
+ float s=sqrt(h);return vec2(-b-s,-b+s);
+}
+vec2 atmosphereDensity(vec3 point){
+ float altitude=max(0.,(length(point)-1.)*earthRadiusKm);
+ return exp(-altitude/vec2(8.,1.2));
+}
+vec3 integrateAtmosphere(vec3 origin,vec3 ray,float start,float end,bool surfacePath,out vec3 transmission){
+ vec3 light=normalize(sun/earthAxes);
+ float mu=dot(ray,light),g=.76;
+ float phaseRayleigh=3./(16.*3.141592654)*(1.+mu*mu);
+ float phaseMie=(1.-g*g)/(4.*3.141592654*pow(1.+g*g-2.*g*mu,1.5));
+ vec2 optical=vec2(0.);vec3 scatter=vec3(0.);
+ for(int i=0;i<16;i++){
+  float u=(float(i)+.5)/16.;
+  float distance=surfacePath?end-(end-start)*(1.-u)*(1.-u):mix(start,end,u);
+  float stepSize=(end-start)/16.*(surfacePath?2.*(1.-u):1.);
+  vec3 p=origin+ray*distance;vec2 local=atmosphereDensity(p)*stepSize*earthRadiusKm;
+  vec2 halfway=optical+.5*local;optical+=local;
+  float r=length(p),muSun=dot(p/r,light);
+  float horizonMu=-sqrt(max(0.,1.-1./(r*r)));
+  float solarHalfAngle=.00465/r;
+  float visibility=smoothstep(horizonMu-solarHalfAngle,horizonMu+solarHalfAngle,muSun);
+  if(visibility<=0.)continue;
+  float sunPath=max(0.,atmosphereIntersection(p,light,atmosphereRadius).y);
+  vec2 sunOptical=vec2(0.);
+  for(int j=0;j<6;j++){
+   float v=(float(j)+.5)/6.;
+   sunOptical+=atmosphereDensity(p+light*(v*v*sunPath))*sunPath/6.*(2.*v)*earthRadiusKm;
+  }
+  vec3 extinction=exp(-betaRayleigh*(halfway.x+sunOptical.x)-betaMie*(halfway.y+sunOptical.y));
+  scatter+=visibility*extinction*(local.x*betaRayleigh*phaseRayleigh+local.y*betaMie*phaseMie);
+ }
+ transmission=exp(-betaRayleigh*optical.x-betaMie*optical.y);
+ return scatter*4.;
+}
+vec3 throughAtmosphere(vec3 endpoint,vec3 radiance){
+ vec3 origin=cameraPosition/earthAxes,delta=endpoint/earthAxes-origin;
+ float distance=length(delta);vec3 ray=delta/max(distance,1e-6);
+ vec2 hit=atmosphereIntersection(origin,ray,atmosphereRadius);
+ float start=max(0.,hit.x),end=min(distance,hit.y);
+ if(end<=start)return radiance;
+ vec3 transmission;vec3 scatter=integrateAtmosphere(origin,ray,start,end,true,transmission);
+ return radiance*transmission+scatter;
+}
+`;
 function cloudSampling(tileCount: number) {
   const samples = Array.from(
     { length: tileCount },
@@ -98,6 +154,7 @@ export function createEarthAppearance(
     fragmentShader: `
 uniform sampler2D dayMap;uniform sampler2D oceanMap;uniform vec3 sun;
 uniform sampler2D nightMap;uniform float nightIntensity;uniform bool nightGrayscale;
+${atmosphericLight}
 float nightDisplayToLinear(float value){return value<=.04045?value/12.92:pow((value+.055)/1.055,2.4);}
 float nightLightFade(float muSun){return 1.-smoothstep(-.14,.02,muSun);}
 
@@ -124,11 +181,10 @@ void main(){
  vec3 halfSum=sun+view;vec3 halfVector=halfSum/max(length(halfSum),1e-6);float specular=pow(max(dot(n,halfVector),0.),100.)*water*smoothstep(0.,.15,ndl);
  float fresnel=.025+.975*pow(1.-max(dot(n,view),0.),5.);
  color+=vec3(1.,.91,.77)*specular*fresnel*1.8;
- float grazing=pow(1.-max(dot(n,view),0.),3.);color+=vec3(.015,.045,.085)*grazing*smoothstep(-.15,.35,ndl);
  vec3 lights=texture2D(nightMap,vUv).rgb;
  if(nightGrayscale)lights=vec3(1.,.78,.50)*nightDisplayToLinear(pow(clamp(lights.r,0.,1.),.65));
  color+=lights*nightIntensity*nightLightFade(ndl);
- gl_FragColor=vec4(color,1.);
+ gl_FragColor=vec4(throughAtmosphere(vPosition,color),1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
 }`,
@@ -142,6 +198,7 @@ void main(){
     fragmentShader: `
 ${cloudSampling(cloudTileCount)}
 uniform vec3 sun;varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
+${atmosphericLight}
 // Display-only diffuse shell: the elevated cloud horizon lies below the surface horizon.
 float cloudSunlight(float muSun,float radius){
  float horizonMu=-sqrt(max(0.,1.-1./(radius*radius)));
@@ -152,9 +209,11 @@ float cloudSunlight(float muSun,float radius){
 }
 void main(){
  float density=cloudCoverage(vUv);float opacity=density*.94;
+ if(opacity<.001)discard;
  vec3 axes=vec3(1.,.9966471893,1.);vec3 p=vPosition/axes;
  float light=cloudSunlight(dot(normalize(p),normalize(sun/axes)),length(p));
- vec3 color=vec3(.99,.99,1.)*(.008+light*1.4);gl_FragColor=vec4(color,opacity);
+ vec3 color=vec3(.99,.99,1.)*(.008+light*1.4);
+ gl_FragColor=vec4(throughAtmosphere(vPosition,color),opacity);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
 }`,
@@ -168,25 +227,17 @@ void main(){
     side: BackSide,
     blending: AdditiveBlending,
     fragmentShader: `
-uniform vec3 sun;varying vec3 vPosition;const float R=6378.137;const float PI=3.141592653589793;
-vec2 intersectSphere(vec3 o,vec3 d,float radius){float b=dot(o,d),c=dot(o,o)-radius*radius,h=b*b-c;if(h<0.)return vec2(1e5,-1e5);float s=sqrt(h);return vec2(-b-s,-b+s);}
+uniform vec3 sun;varying vec3 vPosition;
+${atmosphericLight}
 void main(){
- vec3 axes=vec3(1.,.9966471893,1.);vec3 ro=cameraPosition/axes;vec3 rd=normalize((vPosition-cameraPosition)/axes);vec3 light=normalize(sun/axes);
- vec2 hit=intersectSphere(ro,rd,1.01255);float start=max(hit.x,0.);float end=hit.y;vec2 ground=intersectSphere(ro,rd,1.);if(ground.x>0.)end=min(end,ground.x);if(end<=start)discard;
- float stepSize=(end-start)/32.;vec2 optical=vec2(0.);vec3 scatter=vec3(0.);vec3 betaR=vec3(.0058,.0135,.0331);vec3 betaM=vec3(.003);
- float mu=dot(rd,light);float phaseR=3./(16.*PI)*(1.+mu*mu);float g=.76;float phaseM=(1.-g*g)/(4.*PI*pow(1.+g*g-2.*g*mu,1.5));
- for(int i=0;i<32;i++){
-  vec3 p=ro+rd*(start+(float(i)+.5)*stepSize);float altitude=max(0.,(length(p)-1.)*R);vec2 density=exp(-altitude/vec2(8.,1.2));vec2 local=density*stepSize*R;optical+=local;
-  // A finite solar disk gives continuous illumination at the geometric horizon.
-  // Optical depth above is still accumulated for every view sample, including shadow.
-  float r=length(p);float muSun=dot(p/r,light);float horizonMu=-sqrt(max(0.,1.-1./(r*r)));
-  float solarHalfAngle=.00465/r;float visibility=smoothstep(horizonMu-solarHalfAngle,horizonMu+solarHalfAngle,muSun);
-  if(visibility<=0.)continue;
-  float sunPath=max(0.,intersectSphere(p,light,1.01255).y);vec2 sunOptical=vec2(0.);
-  for(int j=0;j<8;j++){float u=(float(j)+.5)/8.;vec3 s=p+light*(u*u*sunPath);float h=max(0.,(length(s)-1.)*R);sunOptical+=exp(-h/vec2(8.,1.2))*sunPath/8.*(2.*u)*R;}
-  vec3 extinction=exp(-betaR*(optical.x+sunOptical.x)-betaM*(optical.y+sunOptical.y));scatter+=visibility*extinction*(local.x*betaR*phaseR+local.y*betaM*phaseM);
- }
- gl_FragColor=vec4(scatter*4.,1.);
+ vec3 origin=cameraPosition/earthAxes;vec3 ray=normalize((vPosition-cameraPosition)/earthAxes);
+ vec2 ground=atmosphereIntersection(origin,ray,1.);
+ // Ground and clouds already include their own view path. This pass supplies only sky.
+ if(ground.x>0.&&ground.y>0.)discard;
+ vec2 hit=atmosphereIntersection(origin,ray,atmosphereRadius);
+ float start=max(hit.x,0.),end=hit.y;if(end<=start)discard;
+ vec3 transmission;vec3 scatter=integrateAtmosphere(origin,ray,start,end,false,transmission);
+ gl_FragColor=vec4(scatter,1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
 }`,

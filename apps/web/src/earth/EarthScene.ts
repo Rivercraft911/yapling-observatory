@@ -33,6 +33,7 @@ import { createEarthAppearance } from './atmosphereAdapter';
 import type { EarthAppearance } from './atmosphereAdapter';
 import { earthGeometry, earthDepthRange } from './geometry';
 import { SpacecraftFollow } from './SpacecraftFollow';
+import { EarthComposite } from './EarthComposite';
 import { FollowLink } from './FollowLink';
 import { SunDisplay } from './SunDisplay';
 import { TargetDisplay, activeTargetAtSample } from './TargetDisplay';
@@ -75,6 +76,7 @@ export type EarthCameraMode = 'earth' | 'spacecraft';
 export class EarthScene {
   private readonly scene = new Scene();
   private readonly renderer = createRenderer().renderer;
+  private readonly composite = new EarthComposite(this.renderer);
   private readonly camera = new PerspectiveCamera(34, 1, 0.001, 40);
   private readonly controls: OrbitControls;
   private readonly follow: SpacecraftFollow;
@@ -349,9 +351,9 @@ export class EarthScene {
     );
     const surface = new Mesh(earthGeometry(), this.appearance.surface);
     const clouds = new Mesh(earthGeometry(8000), this.appearance.clouds);
-    clouds.renderOrder = 1;
+    clouds.renderOrder = 2;
     const atmosphere = new Mesh(earthGeometry(80000, 128, 64), this.appearance.atmosphere);
-    atmosphere.renderOrder = 2;
+    atmosphere.renderOrder = 1;
     this.earthMeshes = [surface, clouds, atmosphere];
     this.scene.add(...this.earthMeshes);
     this.updateSample(this.sampleIndex);
@@ -496,7 +498,15 @@ export class EarthScene {
         ])
       : visualSunDirection(snapshot.scenario.epoch_utc, visualTime);
     this.appearance?.setSun(sun);
-    this.follow.setSun(sun);
+    const visibility = samples.power?.sun_visibility;
+    const lowerVisibility = visibility?.[index] ?? 1;
+    // Appearance follows the same display clock as attitude. Returned eclipse
+    // samples, power telemetry and event timing remain untouched.
+    const sunVisibility = bracket
+      ? lowerVisibility +
+        ((visibility?.[bracket.upper] ?? lowerVisibility) - lowerVisibility) * bracket.alpha
+      : lowerVisibility;
+    this.follow.setSun(sun, sunVisibility);
     this.sunDisplay.setDirection(sun);
     this.follow.setPosition(p);
     this.targetDisplay.setTarget(
@@ -678,6 +688,7 @@ export class EarthScene {
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(width, height, false);
+      this.composite.resize();
       this.follow.setSize(width, height);
     });
     const displayTime = this.displayTimeSource?.current;
@@ -748,11 +759,12 @@ export class EarthScene {
     this.sunDisplay.updateCue(activeCamera, this.host.clientWidth, this.host.clientHeight);
     const autoClear = this.renderer.autoClear;
     try {
-      this.renderer.autoClear = true;
-      this.sunDisplay.renderBackground(this.renderer, activeCamera);
-      this.renderer.autoClear = false;
-      // Opaque Earth and spacecraft cover the solar disk in their own depth ranges.
-      this.renderer.render(this.scene, activeCamera);
+      this.composite.render(() => {
+        this.renderer.autoClear = true;
+        this.sunDisplay.renderBackground(this.renderer, activeCamera);
+        this.renderer.autoClear = false;
+        this.renderer.render(this.scene, activeCamera);
+      });
       if (follow) {
         this.renderer.clearDepth();
         this.followLink.render();
@@ -999,6 +1011,7 @@ export class EarthScene {
     this.renderer.domElement.removeEventListener('pointerup', this.pickUp);
     this.controls.dispose();
     this.follow.dispose();
+    this.composite.dispose();
     this.followLink.dispose();
     this.sunDisplay.dispose();
     this.targetDisplay.dispose();
