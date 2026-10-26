@@ -126,3 +126,33 @@ assert.deepEqual(snapshot, original);
 console.log(
   'Run antenna references passed: immutable archive/direction selection, no draft fallback, preserved unresolved installed field, exact sampled geometry, declared frame gate and blocked/idle/unscheduled ground labels.',
 );
+
+const coupled = structuredClone(snapshot);
+coupled.scenario.power = { transmit_radiation_efficiency: 0.99 };
+coupled.run.result.manifest.scenario.power = {
+  analytical_efficiency_semantics: 'pattern_times_additional_v1',
+  transmit_radiation_efficiency: 0.25,
+};
+for (const direction of ['uplink', 'downlink']) {
+  const request = runAntennaReference(coupled, direction).request;
+  assert.equal(request.direction, direction);
+  assert.equal(request.analytical_efficiency_semantics, 'pattern_times_additional_v1');
+  assert.equal(request.analytical_radiation_efficiency, 0.25);
+}
+for (const efficiency of [undefined, null, NaN, -0.1, 1.1]) {
+  const invalid = structuredClone(coupled);
+  invalid.run.result.manifest.scenario.power.transmit_radiation_efficiency = efficiency;
+  assert.equal(runAntennaReference(invalid, 'downlink').request, null);
+}
+const oldPower = structuredClone(coupled);
+oldPower.run.result.manifest.scenario.power.analytical_efficiency_semantics = null;
+assert.equal(
+  runAntennaReference(oldPower, 'downlink').request.analytical_efficiency_semantics,
+  undefined,
+);
+const unknownRevision = structuredClone(coupled);
+unknownRevision.run.result.manifest.scenario.power.analytical_efficiency_semantics = 'future';
+assert.equal(runAntennaReference(unknownRevision, 'downlink').request, null);
+console.log(
+  'Archived RF efficiency context passed: direction, exact additional factor, legacy omission and no draft fallback.',
+);

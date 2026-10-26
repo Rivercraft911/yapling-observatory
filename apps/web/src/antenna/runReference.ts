@@ -26,7 +26,10 @@ export function runAntennaReference(snapshot: RunSnapshot | null, direction: Dir
   const additional = power?.transmit_radiation_efficiency;
   if (
     semantics === 'pattern_times_additional_v1' &&
-    (typeof additional !== 'number' || !Number.isFinite(additional) || additional < 0 || additional > 1)
+    (typeof additional !== 'number' ||
+      !Number.isFinite(additional) ||
+      additional < 0 ||
+      additional > 1)
   )
     return { request: null, reason: 'Archived antenna efficiency unavailable.' };
   if (
@@ -39,11 +42,13 @@ export function runAntennaReference(snapshot: RunSnapshot | null, direction: Dir
     request: {
       link: link as unknown as Radio,
       antenna_variant: variant as Variant,
-      ...(semantics === 'pattern_times_additional_v1' ? {
-        direction,
-        analytical_efficiency_semantics: semantics,
-        analytical_radiation_efficiency: additional as number,
-      } : {}),
+      ...(semantics === 'pattern_times_additional_v1'
+        ? {
+            direction,
+            analytical_efficiency_semantics: semantics,
+            analytical_radiation_efficiency: additional as number,
+          }
+        : {}),
     },
     reason: null,
   };

@@ -20,7 +20,10 @@ from .orbit.elements import first_order_sso_inclination_deg
 from .orbit.gravity import GravityPotential
 from .models import Link
 from .power.radio import transmit_power, heat_only_load
-from .rf.mission_efficiency import resolve_downlink_efficiency, AnalyticalEfficiencySemantics
+from .rf.mission_efficiency import (
+    resolve_downlink_efficiency,
+    AnalyticalEfficiencySemantics,
+)
 from .operations.radio_delivery_models import delivery_example
 
 router = APIRouter(prefix="/api/mission", tags=["mission"])
@@ -48,7 +51,9 @@ class DeliveryExampleRequest(MissionModel):
 @router.post("/delivery-example")
 def receiver_example(request: DeliveryExampleRequest):
     try:
-        return delivery_example(request.uplink, request.downlink).model_dump(mode="json")
+        return delivery_example(request.uplink, request.downlink).model_dump(
+            mode="json"
+        )
     except ValueError as error:
         raise HTTPException(422, str(error)) from error
 
@@ -67,6 +72,7 @@ def default_config():
 @router.get("/demo/daytime-pass")
 def daytime_demo():
     from .mission.daytime_demo import daytime_overhead_demo
+
     return {"scenario": daytime_overhead_demo().model_dump(mode="json")}
 
 
@@ -163,7 +169,9 @@ async def open_archive(request: Request):
         result = await run_in_threadpool(import_archive, data)
         # Serialize the complete history in the same bounded background lane.
         response = await run_in_threadpool(
-            lambda: json.dumps(result, separators=(",", ":"), allow_nan=False).encode("utf-8")
+            lambda: json.dumps(result, separators=(",", ":"), allow_nan=False).encode(
+                "utf-8"
+            )
         )
     except ArchiveError as error:
         raise HTTPException(422, str(error)) from error
@@ -174,16 +182,21 @@ async def open_archive(request: Request):
 def radio_power(request: RadioPowerRequest):
     try:
         context = resolve_downlink_efficiency(
-            request.downlink, request.antenna_variant,
+            request.downlink,
+            request.antenna_variant,
             request.analytical_radiation_efficiency,
             request.analytical_efficiency_semantics,
         )
         efficiency = context.radiation_efficiency
         return dict(
-            transmit=asdict(transmit_power(
-                request.tx_electrical_w, request.downlink.tx_power_w,
-                request.downlink.tx_feed_loss_db, efficiency,
-            )),
+            transmit=asdict(
+                transmit_power(
+                    request.tx_electrical_w,
+                    request.downlink.tx_power_w,
+                    request.downlink.tx_feed_loss_db,
+                    efficiency,
+                )
+            ),
             receive=heat_only_load(request.rx_electrical_w),
             idle=heat_only_load(request.idle_electrical_w),
         )
@@ -194,10 +207,12 @@ def radio_power(request: RadioPowerRequest):
 @router.get("/battery-electrical-default")
 def battery_electrical_default():
     from .power.battery_electrical import electrical_defaults, electrical_model_metadata
+
     return dict(electrical=electrical_defaults(), metadata=electrical_model_metadata())
 
 
 @router.get("/wheel-reference")
 def wheel_reference_example():
     from .attitude.wheel_profiles import wheel_example_metadata, wheel_profiles
+
     return dict(example=wheel_example_metadata(), references=wheel_profiles())
