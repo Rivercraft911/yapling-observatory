@@ -82,6 +82,7 @@ def test_demo_explicit_inputs_preserve_normal_default_and_independent_masks(demo
     assert demo.conops.windows == ()
     assert demo.power.battery.electrical.initial_soc == 0.5
     assert demo.spacecraft.pointing_reference == "moving_boresight"
+    assert demo.spacecraft.magnetic_unloading_enabled
     assert demo.orbit.force_model == "j2"
     assert demo.orbit.method == "rk4"
     assert demo.clocks.dynamics_step_s == demo.clocks.controller_period_s == 1

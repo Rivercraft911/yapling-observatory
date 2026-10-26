@@ -177,7 +177,7 @@ def test_zero_field_and_inactive_controllers_have_unambiguous_telemetry(monkeypa
     assert all(norm(v) == 0 for v in result["samples"]["gnc"]["unloading_achieved_torque_body_nm"])
 
 
-def test_optional_default_off_and_time_constant_do_not_change_existing_physics():
+def test_disabled_unloading_ignores_time_constant():
     data = mission(60, enabled=False)
     a = run_mission(MissionScenario.model_validate(data))
     data["spacecraft"]["magnetic_unloading_time_constant_s"] = 17
@@ -186,7 +186,18 @@ def test_optional_default_off_and_time_constant_do_not_change_existing_physics()
     assert a["summary"] == b["summary"]
     assert a["events"] == b["events"]
     assert set(a["samples"]["gnc"]["unloading_status"]) == {"disabled"}
-    assert not default_mission_scenario().spacecraft.magnetic_unloading_enabled
+
+
+def test_new_missions_enable_unloading_without_reinterpreting_older_inputs():
+    scenario = default_mission_scenario()
+    assert scenario.spacecraft.magnetic_unloading_enabled
+    assert scenario.spacecraft.magnetorquer.enabled
+    assert any(wheel.enabled for wheel in scenario.spacecraft.wheels)
+    data = scenario.model_dump(mode="json")
+    data["spacecraft"].pop("magnetic_unloading_enabled")
+    assert not MissionScenario.model_validate(data).spacecraft.magnetic_unloading_enabled
+    data["spacecraft"]["magnetic_unloading_enabled"] = False
+    assert not MissionScenario.model_validate(data).spacecraft.magnetic_unloading_enabled
 
 
 def test_initial_rpm_and_time_constant_validate_before_run():

@@ -159,6 +159,7 @@ def default_mission_scenario():
             ),
             spacecraft=dict(
                 **actuator_presets()["wheels_and_magnetic"],
+                magnetic_unloading_enabled=True,
                 pointing_reference="moving_boresight",
                 initial_q_body_from_inertial_wxyz=boresight_reference(
                     (1, 0, 0, 0), (0, 1, 0), sun_direction_inertial(epoch)
@@ -202,7 +203,7 @@ def default_mission_scenario():
                 "Provisional18cell covered-footprint geometry from conceptv03, source recordSHA256 bdf89fe69fd1a63378394387393dba70d9e1cf52295ccb0f0f14071751326af5. This is not manufacturer active area.29% is an assumed efficiency relative to COVERED footprint; no hidden packing factor.",
                 "All array faces are modeled at fixed exported5/8deg cant. No selfshadow, deployment dynamics, rearPVgeneration or temperature-dependent efficiency.",
                 "Initial mass1.5kg and locked diagonal inertia.002kgm2 remain independent provisional inputs. Removing actuators does not subtract guessed mass/inertia.",
-                "Bundled wheel-assisted PD uses three RW1 Type A mechanical references with an assumed linear torque envelope, 8000 rpm operating cap and 0.40 W per-axis power allowance floor (0.50 W cap), including a shared three-wheel driver allowance. Motor electrical constants and speed-dependent losses remain uncalibrated. The enabled MTQ has a total-norm0.2Am2 limit. Magnetic wheel unloading is optional and disabled by default; when enabled with wheel PD, its zero aggregate absolute-rotor-momentum reference is projected perpendicular to B and compensated by the wheels. This does not guarantee individual desaturation or pointing. Quadratic MTQ electrical coefficient is0.75W atfullnorm,not selectedcoil/drive evidence.",
+                "Bundled wheel-assisted PD uses three RW1 Type A mechanical references with an assumed linear torque envelope, 8000 rpm operating cap and 0.40 W per-axis power allowance floor (0.50 W cap), including a shared three-wheel driver allowance. Motor electrical constants and speed-dependent losses remain uncalibrated. The enabled MTQ has a total-norm0.2Am2 limit. Magnetic wheel unloading starts enabled for new missions; with wheel PD, its zero aggregate absolute-rotor-momentum reference is projected perpendicular to B and compensated by the wheels. This does not guarantee individual desaturation or pointing. Quadratic MTQ electrical coefficient is0.75W atfullnorm,not selectedcoil/drive evidence.",
                 "Earth optical albedo.3 and outgoingIR237W/m2 are uniform global example constants, not local weather. Thermal surface optics/capacities/contacts remain provisional.",
             ],
         )
