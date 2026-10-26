@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { cloneScenario } from '../api';
+import { useEffect, useRef, useState } from 'react';
+import { api, APIError, cloneScenario } from '../api';
 import { FieldModelDetails, profileEvidenceLabel } from '../antenna/FieldModelDetails';
 import type { SphericalHarmonicProfile } from '../antenna/types';
 import type { Direction, Radio, RadioCatalog, Variant } from '../types';
@@ -76,6 +76,177 @@ export function Select({
     </label>
   );
 }
+interface DishGainEstimate {
+  diameter_m: number;
+  frequency_hz: number;
+  aperture_efficiency: number;
+  peak_gain_dbi: number;
+  assumptions: string;
+  source: { url: string; locator: string };
+}
+
+const groundLinkKey = (direction: Direction, link: Radio) => JSON.stringify([direction, link]);
+
+export function GroundDishEstimator({
+  direction,
+  link,
+  onChange,
+}: {
+  direction: Direction;
+  link: Radio;
+  onChange: (change: (draft: Radio) => void) => void;
+}) {
+  const [diameterM, setDiameterM] = useState(1.9);
+  const [efficiency, setEfficiency] = useState<number | null>(null);
+  const [estimate, setEstimate] = useState<{
+    key: string;
+    version: number;
+    data: DishGainEstimate;
+  } | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+  const version = useRef(0);
+  const abort = useRef<AbortController | null>(null);
+  const sourceKey = groundLinkKey(direction, link);
+  const currentKey = useRef(sourceKey);
+  currentKey.current = sourceKey;
+  useEffect(() => {
+    setEstimate(null);
+    setPending(false);
+    setError('');
+    return () => {
+      version.current++;
+      abort.current?.abort();
+    };
+  }, [sourceKey]);
+  const changeDraft = () => {
+    version.current++;
+    abort.current?.abort();
+    setEstimate(null);
+    setPending(false);
+    setError('');
+  };
+  const calculate = async () => {
+    if (efficiency == null) return;
+    const request = ++version.current;
+    const requestKey = sourceKey;
+    abort.current?.abort();
+    const controller = new AbortController();
+    abort.current = controller;
+    const current = () =>
+      version.current === request &&
+      currentKey.current === requestKey &&
+      !controller.signal.aborted;
+    setEstimate(null);
+    setPending(true);
+    setError('');
+    try {
+      const data = await api<DishGainEstimate>('/api/ground-antennas/dish-gain', {
+        method: 'POST',
+        signal: controller.signal,
+        body: JSON.stringify({
+          diameter_m: diameterM,
+          frequency_hz: link.frequency_hz,
+          aperture_efficiency: efficiency / 100,
+        }),
+      });
+      if (current()) setEstimate({ key: requestKey, version: request, data });
+    } catch (cause) {
+      if (current())
+        setError(
+          cause instanceof APIError && cause.status === 404
+            ? 'Dish estimate unavailable: this local service needs the current antenna endpoint.'
+            : cause instanceof Error
+              ? cause.message
+              : 'Dish estimate unavailable',
+        );
+    } finally {
+      if (current()) setPending(false);
+    }
+  };
+  const result = estimate?.key === sourceKey ? estimate.data : null;
+  const applicable =
+    result != null &&
+    Number.isFinite(result.peak_gain_dbi) &&
+    result.peak_gain_dbi >= -10 &&
+    result.peak_gain_dbi <= 70;
+  return (
+    <details className="mission-details">
+      <summary title="User-reported S-band ground dish: 1.9 m. Gain remains independently editable; efficiency and feed/pattern measurements are unresolved.">
+        Ground dish · 1.9 m reported
+      </summary>
+      <Field
+        label="Dish diameter"
+        unit="m"
+        value={diameterM}
+        min={0.01}
+        max={100}
+        step={0.1}
+        onChange={(value) => {
+          changeDraft();
+          setDiameterM(value);
+        }}
+      />
+      <Field
+        label="Aperture efficiency · assumed"
+        unit="%"
+        value={efficiency}
+        min={0.01}
+        max={100}
+        step={1}
+        onChange={(value) => {
+          changeDraft();
+          setEfficiency(value);
+        }}
+      />
+      <button
+        className="text-button"
+        disabled={pending || efficiency == null}
+        onClick={() => void calculate()}
+      >
+        {pending ? 'Estimating…' : 'Estimate gain'}
+      </button>
+      {result && (
+        <>
+          <div className="field-row" title={result.assumptions}>
+            <span>Estimated peak</span>
+            <output aria-label={`${direction} dish estimate`}>
+              {result.peak_gain_dbi.toFixed(2)} dBi
+            </output>
+          </div>
+          <button
+            className="text-button"
+            disabled={!applicable}
+            title="Apply only this estimated gain to this direction. The calculator inputs remain an unsaved local draft; stored link gain stays editable."
+            onClick={() => {
+              if (!applicable || version.current !== estimate?.version) return;
+              onChange((draft) => {
+                if (
+                  version.current === estimate?.version &&
+                  groundLinkKey(direction, draft) === estimate?.key
+                )
+                  draft.ground_peak_gain_dbi = result.peak_gain_dbi;
+              });
+            }}
+          >
+            Apply gain
+          </button>{' '}
+          <a
+            href={result.source.url}
+            title={result.source.locator}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Equation source
+          </a>
+          {!applicable && <small>Estimate outside the link gain range.</small>}
+        </>
+      )}
+      {error && <small role="alert">{error}</small>}
+    </details>
+  );
+}
+
 export function RadioControls({
   direction,
   link,
@@ -205,7 +376,7 @@ export function RadioControls({
         />
       ) : null}
       <Field
-        label="Source power"
+        label={direction === 'uplink' ? 'Ground TX power' : 'Spacecraft TX power'}
         unit="W"
         value={link.tx_power_w}
         min={0.0001}
@@ -218,7 +389,7 @@ export function RadioControls({
         }
       />
       <Field
-        label="Ground gain"
+        label={link.profile.waveform === 'lora' ? 'Ground Yagi gain' : 'Ground dish gain'}
         unit="dBi"
         value={link.ground_peak_gain_dbi}
         min={-10}
@@ -230,6 +401,9 @@ export function RadioControls({
           })
         }
       />
+      {link.profile.waveform === 'dvb_s2' && (
+        <GroundDishEstimator direction={direction} link={link} onChange={onChange} />
+      )}
       {link.profile.waveform === 'lora' ? (
         <Field
           label="Information rate"

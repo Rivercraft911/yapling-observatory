@@ -101,7 +101,7 @@ export function MissionUhfControls({
         <>
           <fieldset>
             <legend>
-              MINIF27 <span>TX / RX</span>
+              MINIF27 <span>SPACECRAFT BEACON</span>
             </legend>
             <Field
               label="Beacon interval"
@@ -271,9 +271,9 @@ export function MissionUhfControls({
             </small>
           </fieldset>
           <details className="mission-details">
-            <summary>Antenna & receiver</summary>
+            <summary>Beacon antennas & ground receiver</summary>
             <Select
-              label="UHF antenna"
+              label="Spacecraft UHF antenna"
               value={radio.antenna_variant}
               options={[
                 { value: 'dipole', label: 'Dipole' },
@@ -286,7 +286,7 @@ export function MissionUhfControls({
               }
             />
             <Field
-              label="Yagi gain"
+              label="Ground Yagi gain"
               unit="dBi"
               value={radio.ground_peak_gain_dbi}
               min={0}
@@ -298,8 +298,11 @@ export function MissionUhfControls({
                 })
               }
             />
+            <small title="User-reported 15 dBi ground Yagi also applies reciprocally to the UHF uplink antenna at the same frequency and antenna state. This beacon model evaluates spacecraft-to-ground only; ground TX power and the spacecraft receiver threshold are not configured here.">
+              15 dBi reported · UHF uplink chain unresolved
+            </small>
             <Field
-              label="Receiver sensitivity"
+              label="Ground RX sensitivity"
               unit="dBm"
               value={radio.receiver_threshold_dbm}
               min={-180}
@@ -312,7 +315,7 @@ export function MissionUhfControls({
               }
             />
             {radio.receiver_threshold_dbm == null && (
-              <small>Sensitivity needed for a margin.</small>
+              <small>Ground sensitivity needed for beacon margin.</small>
             )}
             <Field
               label="Radiation efficiency"
