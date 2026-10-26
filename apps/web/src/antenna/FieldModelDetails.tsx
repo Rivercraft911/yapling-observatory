@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import './field-model.css';
 import type { AntennaCatalog, AntennaModel, Pattern, SphericalHarmonicProfile } from './types';
 
 export const profileEvidenceLabel = (profile: SphericalHarmonicProfile) =>
