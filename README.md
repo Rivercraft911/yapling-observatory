@@ -20,4 +20,6 @@ python3 start.py
 
 Tested on macOS and Linux. First launch prepares the app and opens your browser. Ctrl-C stops it.
 
+![random screenshot](docs/random-screenshot.png)
+
 [Local setup](services/simulator/README.md#run-locally)
