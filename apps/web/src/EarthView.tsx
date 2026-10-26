@@ -347,12 +347,12 @@ export function EarthView({
             href="/earth/NOTICE.txt"
             target="_blank"
             rel="noreferrer"
-            title="Earth imagery sources, transformations and license terms."
+            title="Earth imagery sources, rendering assumptions and license terms."
           >
             Imagery · SSS / NASA ↗
           </a>
-          <span title="Returned mission positions and attitudes. Camera changes never affect numerical results. Static clouds do not supply RF weather losses.">
-            ECEF · static cloud composite
+          <span title="Returned mission positions and attitudes. Static NASA cloud imagery has illustrative height and density. Camera and cloud rendering do not affect numerical results.">
+            ECEF · illustrative clouds
           </span>
         </div>
       </div>

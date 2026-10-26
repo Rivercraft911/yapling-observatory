@@ -34,6 +34,8 @@ import type { EarthAppearance } from './atmosphereAdapter';
 import { earthGeometry, earthDepthRange } from './geometry';
 import { SpacecraftFollow } from './SpacecraftFollow';
 import { EarthComposite } from './EarthComposite';
+import { CloudVolumePass } from './CloudVolumePass';
+import { CLOUD_VOLUME_MESH_M } from './cloudVolume';
 import { FollowLink } from './FollowLink';
 import { SunDisplay } from './SunDisplay';
 import { TargetDisplay, activeTargetAtSample } from './TargetDisplay';
@@ -79,6 +81,8 @@ export class EarthScene {
   private readonly scene = new Scene();
   private readonly renderer = createRenderer().renderer;
   private readonly composite = new EarthComposite(this.renderer);
+  private readonly cloudPass = new CloudVolumePass(this.renderer);
+  private readonly cloudScene = new Scene();
   private readonly camera = new PerspectiveCamera(34, 1, 0.001, 40);
   private readonly controls: OrbitControls;
   private readonly follow: SpacecraftFollow;
@@ -348,6 +352,8 @@ export class EarthScene {
       textures[2],
       tileBudget,
       textures[3] || null,
+      this.renderer.capabilities.maxTextureSize >= 4096 &&
+        this.renderer.capabilities.maxTextures >= tileBudget + 2,
     );
     this.cloudTiles = new CloudTileLayer(
       tileBudget,
@@ -364,12 +370,13 @@ export class EarthScene {
         readNightDetail(asset, signal, this.renderer.capabilities.getMaxAnisotropy()),
     );
     const surface = new Mesh(earthGeometry(), this.appearance.surface);
-    const clouds = new Mesh(earthGeometry(8000), this.appearance.clouds);
+    const clouds = new Mesh(earthGeometry(CLOUD_VOLUME_MESH_M), this.appearance.clouds);
     clouds.renderOrder = 2;
     const atmosphere = new Mesh(earthGeometry(80000, 128, 64), this.appearance.atmosphere);
     atmosphere.renderOrder = 1;
     this.earthMeshes = [surface, clouds, atmosphere];
-    this.scene.add(...this.earthMeshes);
+    this.scene.add(surface, atmosphere);
+    this.cloudScene.add(clouds);
     this.updateSample(this.sampleIndex);
     this.onLoad();
   }
@@ -707,6 +714,7 @@ export class EarthScene {
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(width, height, false);
       this.composite.resize();
+      this.cloudPass.resize();
       this.follow.setSize(width, height);
     });
     const displayTime = this.displayTimeSource?.current;
@@ -782,6 +790,11 @@ export class EarthScene {
       now,
     );
     this.updateRegionalImagery(activeCamera, now);
+    const cloudVolume =
+      this.appearance?.setCloudView(activeCamera.position, activeCamera.near) ?? 0;
+    this.renderer.domElement.dataset.cloudVolumeMix = cloudVolume.toFixed(3);
+    this.renderer.domElement.dataset.cloudRendering =
+      cloudVolume > 0 ? 'volume 12 view / 2 light' : 'shell fallback';
     this.sunDisplay.updateCue(activeCamera, this.host.clientWidth, this.host.clientHeight);
     const autoClear = this.renderer.autoClear;
     try {
@@ -790,6 +803,8 @@ export class EarthScene {
         this.sunDisplay.renderBackground(this.renderer, activeCamera);
         this.renderer.autoClear = false;
         this.renderer.render(this.scene, activeCamera);
+        if (this.appearance)
+          this.cloudPass.render(this.cloudScene, activeCamera, this.appearance.clouds);
       });
       if (follow) {
         this.renderer.clearDepth();
@@ -810,6 +825,9 @@ export class EarthScene {
         this.renderer.domElement.dataset.meanFrameMs = (
           this.frameTimes.reduce((a, b) => a + b, 0) / 120
         ).toFixed(2);
+        const ordered = [...this.frameTimes].sort((a, b) => a - b);
+        this.renderer.domElement.dataset.p95FrameMs = ordered[113].toFixed(2);
+        this.renderer.domElement.dataset.maxFrameMs = ordered[119].toFixed(2);
         this.frameTimes = [];
       }
     }
@@ -1038,6 +1056,7 @@ export class EarthScene {
     this.controls.dispose();
     this.follow.dispose();
     this.composite.dispose();
+    this.cloudPass.dispose();
     this.followLink.dispose();
     this.sunDisplay.dispose();
     this.targetDisplay.dispose();

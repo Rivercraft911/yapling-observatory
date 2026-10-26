@@ -26,6 +26,7 @@ jobs:
       - run: node apps/web/src/earth/regional-lod.test.mjs
       - run: node apps/web/src/earth/cloud-tiles.test.mjs
       - run: node --experimental-strip-types apps/web/src/earth/cloud-shader.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/cloud-volume.test.mjs
       - run: node --experimental-strip-types apps/web/src/earth/night-map.test.mjs
       - run: node apps/web/src/earth/night-detail.test.mjs
       - run: node --experimental-strip-types apps/web/src/earth/follow-link.test.mjs

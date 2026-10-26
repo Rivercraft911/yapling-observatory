@@ -181,6 +181,7 @@ if (typeof ASSET_DIR === 'undefined') {
     controls: noop,
     follow: noop,
     composite: noop,
+    cloudPass: noop,
     followLink: noop,
     sunDisplay: noop,
     targetDisplay: noop,

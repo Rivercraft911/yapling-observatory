@@ -1,14 +1,20 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import ts from 'typescript';
+import { build } from 'esbuild';
+import { fileURLToPath } from 'node:url';
 import { DataTexture, RedFormat, Texture } from 'three';
 
-const source = await readFile(new URL('./atmosphereAdapter.ts', import.meta.url), 'utf8');
-const compiled = ts
-  .transpileModule(source, {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
-  })
-  .outputText.replace(/from ['"]three['"]/g, `from '${import.meta.resolve('three')}'`);
+const bundled = await build({
+  entryPoints: [fileURLToPath(new URL('./atmosphereAdapter.ts', import.meta.url))],
+  bundle: true,
+  write: false,
+  platform: 'node',
+  format: 'esm',
+  external: ['three'],
+});
+const compiled = bundled.outputFiles[0].text.replace(
+  /from ['"]three['"]/g,
+  `from '${import.meta.resolve('three')}'`,
+);
 const { createEarthAppearance } = await import(
   `data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`
 );

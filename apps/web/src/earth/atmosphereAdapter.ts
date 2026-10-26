@@ -2,6 +2,7 @@ import { AdditiveBlending, BackSide, RedFormat, ShaderMaterial, Vector3, Vector4
 import type { Texture } from 'three';
 import type { CloudTileView } from './CloudTiles';
 import type { NightDetailView } from './NightDetail';
+import { cloudVolumeFragment, cloudVolumeWeight, createCloudNoise } from './cloudVolume';
 
 // Independent compatibility implementation. Replace this boundary with Takram's
 // renderer-context/TSL atmosphere API when the app adopts that pipeline.
@@ -14,6 +15,7 @@ export interface EarthAppearance {
   setRegionalOpacity: (opacity: number) => void;
   setCloudTiles: (tiles: readonly CloudTileView[]) => void;
   setNightDetail: (view: NightDetailView) => void;
+  setCloudView: (position: { x: number; y: number; z: number }, near: number) => number;
   dispose: () => void;
 }
 const vertex = `
@@ -108,14 +110,17 @@ uniform float nativeCloudOpacity[${tileCount}];`
 float combineCloudCoverage(float base,float nativeCoverage,float nativeWeight){
  return base*(1.-min(nativeWeight,1.))+nativeCoverage/max(nativeWeight,1.);
 }
-float cloudCoverage(vec2 uv){
- // Explicit derivatives remain valid across geographic branches and longitude wrap.
- vec2 dx=dFdx(uv),dy=dFdy(uv);dx.x-=floor(dx.x+.5);dy.x-=floor(dy.x+.5);
+float cloudCoverageGrad(vec2 uv,vec2 dx,vec2 dy){
  float base=texture2DGradEXT(cloudMap,uv,dx,dy).r;
  float nativeCoverage=0.;float nativeWeight=0.;
 ${samples}
  // Normalize overlapping gutters so async tile order cannot change coverage.
  return combineCloudCoverage(base,nativeCoverage,nativeWeight);
+}
+float cloudCoverage(vec2 uv){
+ // Compute these before any divergent march; ray samples use the explicit variant.
+ vec2 dx=dFdx(uv),dy=dFdy(uv);dx.x-=floor(dx.x+.5);dy.x-=floor(dy.x+.5);
+ return cloudCoverageGrad(uv,dx,dy);
 }
 `;
 }
@@ -125,7 +130,9 @@ export function createEarthAppearance(
   ocean: Texture,
   cloudTileCount = 0,
   night: Texture | null = null,
+  volumeEnabled = false,
 ): EarthAppearance {
+  const noise = volumeEnabled ? createCloudNoise() : null;
   const sun = { value: new Vector3(1, 0, 0) };
   const cloudUniforms = {
     cloudMap: { value: cloud },
@@ -207,10 +214,17 @@ void main(){
 }`,
   });
   const clouds = new ShaderMaterial({
-    uniforms: { sun, ...cloudUniforms },
+    uniforms: {
+      sun,
+      ...cloudUniforms,
+      cloudNoise: { value: noise },
+      cloudVolumeMix: { value: 0 },
+      cloudCameraNear: { value: 0.0001 },
+    },
     vertexShader: vertex,
     transparent: true,
     depthWrite: false,
+    side: BackSide,
     // Linear coverage commutes with mip filtering; a post-filter threshold loses wisps at distance.
     fragmentShader: `
 ${cloudSampling(cloudTileCount)}
@@ -224,16 +238,7 @@ float cloudSunlight(float muSun,float radius){
  float wrapped=clamp((muSun-horizonMu+solarHalfAngle)/(1.-horizonMu+solarHalfAngle),0.,1.);
  return visibility*pow(wrapped,.52);
 }
-void main(){
- float density=cloudCoverage(vUv);float opacity=density*.94;
- if(opacity<.001)discard;
- vec3 axes=vec3(1.,.9966471893,1.);vec3 p=vPosition/axes;
- float light=cloudSunlight(dot(normalize(p),normalize(sun/axes)),length(p));
- vec3 color=vec3(.99,.99,1.)*(.008+light*1.4);
- gl_FragColor=vec4(throughAtmosphere(vPosition,color),opacity);
- #include <tonemapping_fragment>
- #include <colorspace_fragment>
-}`,
+${cloudVolumeFragment}`,
   });
   const atmosphere = new ShaderMaterial({
     uniforms: { sun },
@@ -264,6 +269,15 @@ void main(){
     clouds,
     atmosphere,
     setSun: (direction) => sun.value.set(direction[0], direction[1], direction[2]).normalize(),
+    setCloudView: (position, near) => {
+      const weight = cloudVolumeWeight(
+        Math.hypot(position.x, position.y / 0.9966471893, position.z),
+        volumeEnabled,
+      );
+      clouds.uniforms.cloudVolumeMix.value = weight;
+      clouds.uniforms.cloudCameraNear.value = near;
+      return weight;
+    },
     setRegionalMap: (texture, bounds) => {
       uniforms.regionalDayMap.value = texture || day;
       if (bounds) uniforms.regionalBounds.value.fromArray(bounds);
@@ -292,6 +306,7 @@ void main(){
       surface.dispose();
       clouds.dispose();
       atmosphere.dispose();
+      noise?.dispose();
     },
   };
 }
