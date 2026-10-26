@@ -1767,10 +1767,15 @@ legend > span:last-child:not(:first-child) {
 
 .earth-mode-toggle {
   display: flex;
-  gap: 2px;
+  align-items: center;
+  gap: 14px;
   margin-left: auto;
   border-left: 1px solid var(--rule);
-  padding-left: 10px;
+  padding-left: 18px;
+}
+.earth-mode-toggle button {
+  min-width: 64px;
+  padding-inline: 12px;
 }
 .earth-mode-toggle + .reset-layout {
   margin-left: 4px;
