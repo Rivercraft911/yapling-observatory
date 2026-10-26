@@ -2,6 +2,7 @@
 
 from dataclasses import asdict, replace
 import json
+from typing import Literal
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
@@ -19,6 +20,7 @@ from .orbit.elements import first_order_sso_inclination_deg
 from .orbit.gravity import GravityPotential
 from .models import Link
 from .power.radio import transmit_power, heat_only_load
+from .rf.mission_efficiency import resolve_downlink_efficiency, AnalyticalEfficiencySemantics
 from .operations.radio_delivery_models import delivery_example
 
 router = APIRouter(prefix="/api/mission", tags=["mission"])
@@ -34,6 +36,8 @@ class RadioPowerRequest(MissionModel):
     idle_electrical_w: float = Field(ge=0, strict=True)
     downlink: Link
     analytical_radiation_efficiency: float = Field(ge=0, le=1, strict=True)
+    analytical_efficiency_semantics: AnalyticalEfficiencySemantics | None = None
+    antenna_variant: Literal["dipole", "turnstile", "v45"] = "dipole"
 
 
 class DeliveryExampleRequest(MissionModel):
@@ -58,6 +62,12 @@ class OrbitRequest(MissionModel):
 @router.get("/default")
 def default_config():
     return {"scenario": default_mission_scenario().model_dump(mode="json")}
+
+
+@router.get("/demo/daytime-pass")
+def daytime_demo():
+    from .mission.daytime_demo import daytime_overhead_demo
+    return {"scenario": daytime_overhead_demo().model_dump(mode="json")}
 
 
 @router.post("/orbit")
@@ -162,12 +172,13 @@ async def open_archive(request: Request):
 
 @router.post("/radio-power")
 def radio_power(request: RadioPowerRequest):
-    efficiency = (
-        request.downlink.spherical_harmonic_profile.radiation_efficiency
-        if request.downlink.spacecraft_antenna == "spherical_harmonic"
-        else request.analytical_radiation_efficiency
-    )
     try:
+        context = resolve_downlink_efficiency(
+            request.downlink, request.antenna_variant,
+            request.analytical_radiation_efficiency,
+            request.analytical_efficiency_semantics,
+        )
+        efficiency = context.radiation_efficiency
         return dict(
             transmit=asdict(transmit_power(
                 request.tx_electrical_w, request.downlink.tx_power_w,

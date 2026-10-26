@@ -1,5 +1,5 @@
 """Thin HTTP adapter; antenna formulas live in rf/pattern_sampling.py."""
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from .antenna_models import PatternRequest, RunProbe, LinkPatternReference
 from .rf.spherical_harmonics import reference_profiles
 from .rf.pattern_sampling import (
@@ -28,4 +28,11 @@ def probe(request: PatternRequest):
 
 @router.post("/reference-request", response_model=PatternRequest)
 def reference_request(request: LinkPatternReference):
-    return pattern_request_for_link(request.link, request.antenna_variant)
+    try:
+        return pattern_request_for_link(
+            request.link, request.antenna_variant, direction=request.direction,
+            analytical_efficiency_semantics=request.analytical_efficiency_semantics,
+            analytical_radiation_efficiency=request.analytical_radiation_efficiency,
+        )
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error

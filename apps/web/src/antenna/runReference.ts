@@ -19,6 +19,16 @@ export function runAntennaReference(snapshot: RunSnapshot | null, direction: Dir
   const archived = object(result.manifest.scenario);
   const link = object(archived?.[direction]);
   const variant = archived?.antenna_variant;
+  const power = object(archived?.power);
+  const semantics = power?.analytical_efficiency_semantics;
+  if (semantics != null && semantics !== 'pattern_times_additional_v1')
+    return { request: null, reason: 'Archived antenna efficiency revision unavailable.' };
+  const additional = power?.transmit_radiation_efficiency;
+  if (
+    semantics === 'pattern_times_additional_v1' &&
+    (typeof additional !== 'number' || !Number.isFinite(additional) || additional < 0 || additional > 1)
+  )
+    return { request: null, reason: 'Archived antenna efficiency unavailable.' };
   if (
     !link ||
     !['patch', 'wire', 'spherical_harmonic'].includes(String(link.spacecraft_antenna)) ||
@@ -26,7 +36,15 @@ export function runAntennaReference(snapshot: RunSnapshot | null, direction: Dir
   )
     return { request: null, reason: 'Archived antenna inputs unavailable.' };
   return {
-    request: { link: link as unknown as Radio, antenna_variant: variant as Variant },
+    request: {
+      link: link as unknown as Radio,
+      antenna_variant: variant as Variant,
+      ...(semantics === 'pattern_times_additional_v1' ? {
+        direction,
+        analytical_efficiency_semantics: semantics,
+        analytical_radiation_efficiency: additional as number,
+      } : {}),
+    },
     reason: null,
   };
 }

@@ -73,6 +73,14 @@ export function MissionInspector({
       <div className="mission-controls-body">
         {section === 'orbit' && (
           <>
+            <button
+              className="text-button"
+              disabled={mission.busy || mission.loading || mission.importing}
+              onClick={mission.loadDaylightDemo}
+              title="Load a constructed daytime near-overhead Stanford pass, starting at acquisition and continuing for five orbits with eclipses. Replaces the draft; displayed results stay unchanged."
+            >
+              Load daylight pass demo ↗
+            </button>
             <div className="mission-run-kinds" aria-label="Run scope">
               {[
                 { id: 'long_mission', label: 'Mission', duration: 86400 },

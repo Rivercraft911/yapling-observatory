@@ -197,7 +197,12 @@ def _scenario(raw):
         model = MissionScenario.model_validate(raw)
     except (ValueError, TypeError, ArithmeticError) as error:
         raise ArchiveError("Archive scenario is unsupported or invalid") from error
-    projected = _typed_projection(raw, model.model_dump(mode="json"))
+    typed = model.model_dump(mode="json")
+    if model.power.analytical_efficiency_semantics is None and "analytical_efficiency_semantics" in raw.get("power", {}):
+        typed["power"]["analytical_efficiency_semantics"] = None
+    projected = _typed_projection(raw, typed)
+    if model.power.analytical_efficiency_semantics is None:
+        projected["power"].pop("analytical_efficiency_semantics", None)
     if model.conops.ground_tracking_min_elevation_deg is None:
         projected["conops"].pop("ground_tracking_min_elevation_deg", None)
     if model.spacecraft.pointing_reference is None:

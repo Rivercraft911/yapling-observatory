@@ -37,6 +37,7 @@ from ..geometry.vectors import add, cross, dot, scale, norm
 from ..geomagnetism.igrf14 import field_ecef_t_at_utc, model_metadata as igrf_metadata
 from ..operations.schedule import active_direction
 from ..rf.link_budget import evaluate_link_budget
+from ..rf.mission_efficiency import mission_downlink_efficiency
 from ..rf.pattern_provenance import harmonic_pattern_records
 from ..power.solar import pv_generation
 from ..power.battery import advance_battery, capacity_wh
@@ -138,11 +139,8 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
     )
     mechanics0 = mechanical_invariants(body, attitude)
     power = config.power
-    transmit_efficiency = (
-        config.downlink.spherical_harmonic_profile.radiation_efficiency
-        if config.downlink.spacecraft_antenna == "spherical_harmonic"
-        else power.transmit_radiation_efficiency
-    )
+    downlink_efficiency = mission_downlink_efficiency(config)
+    transmit_efficiency = downlink_efficiency.radiation_efficiency
     radio_transmit_power = transmit_power(
         power.spacecraft_tx_electrical_w,
         config.downlink.tx_power_w,
@@ -1087,6 +1085,8 @@ def run_mission(config: MissionScenario, cancelled=None, progress=None):
             manifest["warnings"].append(
                 "Unloading time constant is shorter than the controller hold. In the ideal rest/static-field unsaturated scalar limit, each update multiplies available wheel momentum by 1-Tc/T: T<Tc alternates sign, T=Tc/2 has no decay, and T<Tc/2 is unstable. This is a sampled-reference limit, not a universal mission stability result."
             )
+    if power.analytical_efficiency_semantics is not None:
+        manifest["downlink_efficiency"] = downlink_efficiency.record()
     harmonic_patterns = harmonic_pattern_records(config)
     if harmonic_patterns:
         manifest["antenna_patterns"] = harmonic_patterns

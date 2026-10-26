@@ -31,6 +31,8 @@ export function MissionRadioPower({
     rx_electrical_w: power.spacecraft_receive_w,
     idle_electrical_w: power.radio_idle_w,
     downlink: config.downlink,
+    antenna_variant: config.antenna_variant,
+    analytical_efficiency_semantics: power.analytical_efficiency_semantics,
     analytical_radiation_efficiency: power.transmit_radiation_efficiency,
   });
   const [preview, setPreview] = useState<{ key: string; value: RadioPowerPreview } | null>(null);
@@ -128,7 +130,11 @@ export function MissionRadioPower({
         />
         {config.downlink.spacecraft_antenna !== 'spherical_harmonic' && (
           <Field
-            label="Radiation efficiency"
+            label={
+              power.analytical_efficiency_semantics
+                ? 'Additional antenna efficiency'
+                : 'Legacy heat efficiency'
+            }
             unit="%"
             value={power.transmit_radiation_efficiency * 100}
             min={0}
@@ -141,6 +147,20 @@ export function MissionRadioPower({
             }
           />
         )}
+        {config.downlink.spacecraft_antenna !== 'spherical_harmonic' &&
+          !power.analytical_efficiency_semantics && (
+            <button
+              className="text-button"
+              title="The saved legacy input only changes heat. Use a shared efficiency factor for the downlink gain and radiated power in new runs."
+              onClick={() =>
+                edit((draft) => {
+                  draft.power.analytical_efficiency_semantics = 'pattern_times_additional_v1';
+                })
+              }
+            >
+              Couple RF and heat
+            </button>
+          )}
         {current && (
           <div className="mission-radio-ledger">
             <span>

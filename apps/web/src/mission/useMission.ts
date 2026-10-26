@@ -69,28 +69,39 @@ export function useMission() {
     [requests],
   );
 
-  const reload = useCallback(async () => {
-    if (isBusy() || importingRef.current) return;
-    invalidateInputs();
-    const request = requests.begin('defaults');
-    loadingRef.current = true;
-    setLoading(true);
-    setError('');
-    try {
-      const { scenario } = await api<{ scenario: MissionConfig }>('/api/mission/default', {
-        signal: request.signal,
-      });
-      if (request.current()) commitConfig(scenario);
-    } catch (cause) {
-      if (request.current())
-        setError(cause instanceof Error ? cause.message : 'Mission unavailable');
-    } finally {
-      if (request.current()) {
-        loadingRef.current = false;
-        setLoading(false);
+  const loadStartingMission = useCallback(
+    async (path: string) => {
+      if (isBusy() || importingRef.current) return;
+      invalidateInputs();
+      const request = requests.begin('defaults');
+      loadingRef.current = true;
+      setLoading(true);
+      setError('');
+      try {
+        const { scenario } = await api<{ scenario: MissionConfig }>(path, {
+          signal: request.signal,
+        });
+        if (request.current()) commitConfig(scenario);
+      } catch (cause) {
+        if (request.current())
+          setError(cause instanceof Error ? cause.message : 'Mission unavailable');
+      } finally {
+        if (request.current()) {
+          loadingRef.current = false;
+          setLoading(false);
+        }
       }
-    }
-  }, [commitConfig, invalidateInputs, isBusy, requests]);
+    },
+    [commitConfig, invalidateInputs, isBusy, requests],
+  );
+  const reload = useCallback(
+    () => loadStartingMission('/api/mission/default'),
+    [loadStartingMission],
+  );
+  const loadDaylightDemo = useCallback(
+    () => loadStartingMission('/api/mission/demo/daytime-pass'),
+    [loadStartingMission],
+  );
   useEffect(() => {
     const release = requests.attach();
     if (!configRef.current && !runContext.current && !importingRef.current) void reload();
@@ -362,6 +373,7 @@ export function useMission() {
     start,
     cancel,
     reload,
+    loadDaylightDemo,
     openArchive,
     saveArchive,
     canSave: !!snapshot?.run.result && snapshot.run.status === 'complete',

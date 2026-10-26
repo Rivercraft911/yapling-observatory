@@ -5,6 +5,7 @@ from pydantic import Field, model_validator
 from .models import FrozenModel, Link
 from .geometry.vectors import norm, add, scale
 from .rf.free_space import C_M_S
+from .rf.mission_efficiency import AnalyticalEfficiencySemantics
 from .rf.spherical_harmonic_models import SphericalHarmonicProfile
 
 
@@ -61,3 +62,15 @@ class PatternRequest(FrozenModel):
 class LinkPatternReference(FrozenModel):
     link: Link
     antenna_variant: Literal["dipole", "turnstile", "v45"]
+    direction: Literal["uplink", "downlink"] | None = None
+    analytical_efficiency_semantics: AnalyticalEfficiencySemantics | None = None
+    analytical_radiation_efficiency: float | None = Field(default=None, ge=0, le=1)
+
+    @model_validator(mode="after")
+    def complete_efficiency_context(self):
+        if self.analytical_efficiency_semantics is not None and (
+            self.direction is None or self.analytical_radiation_efficiency is None
+        ):
+            raise ValueError("A coupled run pattern requires archived direction and additional antenna efficiency")
+        return self
+

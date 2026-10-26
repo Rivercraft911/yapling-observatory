@@ -8,6 +8,7 @@ from .polarization import horizontal_feed, polarization_coupling
 from .free_space import C_M_S, fspl_db, power_db
 from .noise import noise_density_dbw_hz
 from .modem import net_rate_bps
+from .mission_efficiency import mission_downlink_efficiency
 
 
 def spacecraft_response(scenario, link, state):
@@ -41,6 +42,15 @@ def spacecraft_response(scenario, link, state):
 def evaluate_link_budget(scenario, direction, state, scheduled):
     link = getattr(scenario, direction)
     sc_response = spacecraft_response(scenario, link, state)
+    additional_zero = False
+    if direction == "downlink" and getattr(getattr(scenario, "power", None), "analytical_efficiency_semantics", None) is not None:
+        multiplier = mission_downlink_efficiency(scenario).gain_multiplier
+        additional_zero = multiplier == 0
+        if sc_response is not None and multiplier != 1:
+            sc_response = AntennaResponse(
+                sc_response.gain_linear * multiplier,
+                sc_response.polarization if multiplier > 0 else None,
+            )
     ground_pol = tuple(complex(v) for v in horizontal_feed(state["east"], state["north"], state["k"], link.ground_feed_roll_deg))
     ground_response = AntennaResponse(10**(link.ground_peak_gain_dbi/10), ground_pol)
     tx, rx = (ground_response, sc_response) if direction == "uplink" else (sc_response, ground_response)
@@ -59,7 +69,7 @@ def evaluate_link_budget(scenario, direction, state, scheduled):
     analyzer = tuple(v.conjugate() for v in rx.polarization) if rx.polarization else None
     coupling = polarization_coupling(tx.polarization, analyzer)
     result["polarization_coupling"] = coupling
-    if link.profile.threshold_db is None:
+    if link.profile.threshold_db is None and not additional_zero:
         result["ideal_rate_bps"] = None
     coupling_db = power_db(coupling) if coupling is not None else None
     result["polarization_loss_db"] = -coupling_db if coupling_db is not None else None

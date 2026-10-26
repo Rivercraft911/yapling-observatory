@@ -157,6 +157,7 @@ def default_mission_scenario():
                 mode_loads=profiles,
                 spacecraft_tx_electrical_w=tx.electrical_w,
                 transmit_radiation_efficiency=tx.radiation_efficiency,
+                analytical_efficiency_semantics="pattern_times_additional_v1",
             ),
             provenance=[
                 wheel_example_metadata()["label"] + ": " + wheel_example_metadata()["sources"][0]["url"],

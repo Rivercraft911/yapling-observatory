@@ -5,7 +5,7 @@ import hashlib
 import json
 import math
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, model_serializer
 from .models import Station, Link, Schedule
 from .operations.radio_delivery_models import RadioDeliveryConfig
 from .orbit.elements import OrbitElements
@@ -209,12 +209,20 @@ class MissionPower(MissionModel):
     spacecraft_receive_w: float = Field(default=1.5, ge=0)
     radio_idle_w: float = Field(default=0.5, ge=0)
     transmit_radiation_efficiency: float = Field(default=1, ge=0, le=1)
+    analytical_efficiency_semantics: Literal["pattern_times_additional_v1"] | None = None
     solar_irradiance_w_m2: float = Field(default=1361, ge=0)
     earth_radius_m: float = Field(default=6371000, gt=0)
     earth_albedo: float = Field(default=0.3, ge=0, le=1)
     earth_outgoing_ir_w_m2: float = Field(default=237, ge=0)
     earth_quadrature_rings: int = Field(default=4, ge=2, le=16, strict=True)
     earth_quadrature_azimuths: int = Field(default=12, ge=4, le=64, strict=True)
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_efficiency_shape(self, handler):
+        values = handler(self)
+        if self.analytical_efficiency_semantics is None:
+            values.pop("analytical_efficiency_semantics", None)
+        return values
 
     @model_validator(mode="after")
     def topology(self):
@@ -329,6 +337,9 @@ class MissionScenario(MissionModel):
 
     @model_validator(mode="after")
     def clock_boundaries(self):
+        if self.power.analytical_efficiency_semantics is not None:
+            from .rf.mission_efficiency import mission_downlink_efficiency
+            mission_downlink_efficiency(self)
         if utc_datetime(self.epoch_utc) + timedelta(seconds=self.duration_s) > datetime(
             2030, 1, 1, tzinfo=timezone.utc
         ):

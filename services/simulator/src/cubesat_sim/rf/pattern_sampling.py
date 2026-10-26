@@ -14,6 +14,7 @@ from .spherical_harmonics import (spherical_harmonic_response, sphere_mean_gain,
                                   FORMULA as HARMONIC_FORMULA, CONVENTIONS as HARMONIC_CONVENTIONS)
 from .polarization import polarization_coupling
 from .free_space import power_db
+from .mission_efficiency import resolve_downlink_efficiency
 from .beamwidth import half_power_span
 from .bent_wire import BentWire, MODEL_VERSION as BENT_WIRE_VERSION, UPWARD_45_ARMS, OUTWARD_45_ARMS
 MODEL_VERSION = "antenna-lab-core-patterns-0.1.0"
@@ -182,14 +183,26 @@ def sample_pattern(request: PatternRequest):
                        integration=integration)
 
 
-def pattern_request_for_link(link, antenna_variant):
+def pattern_request_for_link(
+    link, antenna_variant, *, direction=None,
+    analytical_efficiency_semantics=None, analytical_radiation_efficiency=None,
+):
     """Canonical lab reference for the selected main-link field and mount."""
+    multiplier = 1.0
+    if analytical_efficiency_semantics is not None:
+        if direction is None or analytical_radiation_efficiency is None:
+            raise ValueError("A coupled run pattern requires archived efficiency context")
+        if direction == "downlink":
+            multiplier = resolve_downlink_efficiency(
+                link, antenna_variant, analytical_radiation_efficiency,
+                analytical_efficiency_semantics,
+            ).gain_multiplier
     shared = dict(frequency_hz=link.frequency_hz, orientation_deg=link.antenna_orientation_deg,
                   patch_peak_gain_dbi=link.spacecraft_peak_gain_dbi)
     if link.spacecraft_antenna == "spherical_harmonic":
         return PatternRequest(model="spherical_harmonic", spherical_harmonic_profile=link.spherical_harmonic_profile,
                               **shared)
     if link.spacecraft_antenna == "patch":
-        return PatternRequest(model="patch", **shared)
+        return PatternRequest(model="patch", efficiency=multiplier, **shared)
     return PatternRequest(model=antenna_variant,
-                          efficiency=10**(link.spacecraft_peak_gain_dbi/10)/HALF_WAVE_DIRECTIVITY, **shared)
+                          efficiency=10**(link.spacecraft_peak_gain_dbi/10)/HALF_WAVE_DIRECTIVITY*multiplier, **shared)
