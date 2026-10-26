@@ -90,6 +90,7 @@
     "Static display coverage from the same 2001 NASA composite as the native tiles; not simulated-date weather, cloud-water, radiance, RF loss, or a thermal input.",
     "Downsampling removes spatial detail. Blank source coverage, polar gaps, mosaic boundaries and other source artifacts remain; absent coverage is not filled.",
     "Matching the source prevents camera LOD changes from switching between different cloud composites. Native lossy WebP tiles and the area-reduced global map can still differ at the pixel and filtering scale.",
-    "Original Solar System Scope cloud maps remain bundled as legacy assets with their original provenance and license."
+    "Original Solar System Scope cloud maps remain bundled as legacy assets with their original provenance and license.",
+    "The checked western and eastern source images have a hard cloud-coverage discontinuity at longitude 0 degrees, visible over the Southern Ocean. This fixed geographical seam is preserved in both the global maps and native tiles; it is not a runtime tile boundary."
   ]
 }

@@ -406,7 +406,8 @@
       ],
       "transform": "Process each checked 21600 x 21600 L hemisphere separately with Pillow BOX area resampling to 4096 x 4096; concatenate W then E into 8192 x 4096. Reduce that map to 4096 x 2048 with BOX. Encode lossless WebP. Coverage changes are limited to area averaging. No full native global mosaic, sharpening, inpainting, or synthetic cloud detail.",
       "role": "Matched NASA global 8k cloud-coverage fallback for the native tiles; display-only, not simulated-date weather.",
-      "manifest": "/earth/cloud-global.json"
+      "manifest": "/earth/cloud-global.json",
+      "source_limitation": "The checked western and eastern source images have a hard cloud-coverage discontinuity at longitude 0 degrees, visible over the Southern Ocean. This fixed geographical seam is preserved in both the global maps and native tiles; it is not a runtime tile boundary."
     },
     {
       "file": "earth-clouds-nasa-4k.webp",
@@ -456,7 +457,8 @@
       ],
       "transform": "Process each checked 21600 x 21600 L hemisphere separately with Pillow BOX area resampling to 4096 x 4096; concatenate W then E into 8192 x 4096. Reduce that map to 4096 x 2048 with BOX. Encode lossless WebP. Coverage changes are limited to area averaging. No full native global mosaic, sharpening, inpainting, or synthetic cloud detail.",
       "role": "Matched NASA global 4k cloud-coverage fallback for the native tiles; display-only, not simulated-date weather.",
-      "manifest": "/earth/cloud-global.json"
+      "manifest": "/earth/cloud-global.json",
+      "source_limitation": "The checked western and eastern source images have a hard cloud-coverage discontinuity at longitude 0 degrees, visible over the Southern Ocean. This fixed geographical seam is preserved in both the global maps and native tiles; it is not a runtime tile boundary."
     }
   ],
   "updated_utc": "2026-10-26T20:09:02.957628+00:00",
