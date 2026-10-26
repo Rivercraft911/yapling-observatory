@@ -1,4 +1,4 @@
-import { createThermalOverlay } from './graphics/thermalOverlay';
+import { createThermalOverlay, thermalNodeForPart } from './graphics/thermalOverlay';
 import { FrameSize } from './graphics/frameSize';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -70,6 +70,7 @@ export function Workbench({
   moduleVisibility,
   onAvailableModules,
   thermalTemperaturesK,
+  onThermalNodePick,
 }: {
   variant: Variant;
   asset?: AssetInfo;
@@ -82,6 +83,7 @@ export function Workbench({
   moduleVisibility?: Record<string, boolean>;
   onAvailableModules?: (groups: string[]) => void;
   thermalTemperaturesK?: Record<string, number>;
+  onThermalNodePick?: (nodeId: string) => void;
 }) {
   const mount = useRef<HTMLDivElement>(null);
   const handle = useRef<Handle | null>(null);
@@ -105,6 +107,8 @@ export function Workbench({
   const [revision, setRevision] = useState(asset?.revision || 'Revision unverified');
   const [retry, setRetry] = useState(0);
   pose.current = quaternion;
+  const thermalPick = useRef(onThermalNodePick);
+  thermalPick.current = onThermalNodePick;
   const temperatures = useRef(thermalTemperaturesK);
   temperatures.current = thermalTemperaturesK;
 
@@ -345,7 +349,12 @@ export function Workbench({
       }
     };
     const keyUp = (event: KeyboardEvent) => keys.delete(event.code);
+    let tap: { id: number; x: number; y: number; moved: boolean } | null = null;
     const pointerDown = (event: PointerEvent) => {
+      tap =
+        currentMode === 'orbit' && event.button === 0 && thermalPick.current
+          ? { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false }
+          : null;
       canvas.focus();
       if (currentMode === 'fly' && event.button === 0) {
         dragging = true;
@@ -353,6 +362,7 @@ export function Workbench({
       }
     };
     const pointerMove = (event: PointerEvent) => {
+      if (tap && Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > 5) tap.moved = true;
       if (!dragging || currentMode !== 'fly') return;
       const yaw = new ThreeQuaternion().setFromAxisAngle(camera.up, -event.movementX * 0.004);
       const pitch = new ThreeQuaternion().setFromAxisAngle(
@@ -361,10 +371,32 @@ export function Workbench({
       );
       camera.quaternion.premultiply(yaw).multiply(pitch).normalize();
     };
-    const pointerUp = () => {
+    const pointerUp = (event: PointerEvent) => {
       dragging = false;
+      const click = tap;
+      tap = null;
+      if (!click || click.id !== event.pointerId || click.moved || !root || !thermalPick.current)
+        return;
+      const bounds = canvas.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return;
+      pointer.set(
+        ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+        -((event.clientY - bounds.top) / bounds.height) * 2 + 1,
+      );
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster
+        .intersectObject(root, true)
+        .find((item) => item.object instanceof Mesh && isVisiblePart(item.object));
+      if (!(hit?.object instanceof Mesh)) return;
+      const node = thermalNodeForPart(hit.object);
+      if (node) {
+        selected = hit.object;
+        setSelection(`${node} · ${(selected.name || 'Selected part').replace(/[_\.]+/g, ' ')}`);
+        thermalPick.current(node);
+      }
     };
     const blur = () => {
+      tap = null;
       keys.clear();
       dragging = false;
     };
@@ -377,6 +409,7 @@ export function Workbench({
     canvas.addEventListener('pointerdown', pointerDown);
     canvas.addEventListener('pointermove', pointerMove);
     canvas.addEventListener('pointerup', pointerUp);
+    canvas.addEventListener('pointercancel', blur);
     canvas.addEventListener('blur', blur);
     document.addEventListener('visibilitychange', visibility);
     const frameSize = new FrameSize();
@@ -483,6 +516,7 @@ export function Workbench({
       canvas.removeEventListener('pointerdown', pointerDown);
       canvas.removeEventListener('pointermove', pointerMove);
       canvas.removeEventListener('pointerup', pointerUp);
+      canvas.removeEventListener('pointercancel', blur);
       canvas.removeEventListener('blur', blur);
       document.removeEventListener('visibilitychange', visibility);
       controls.dispose();

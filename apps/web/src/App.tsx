@@ -55,6 +55,7 @@ export default function App() {
   const [antennaFollowsRun, setAntennaFollowsRun] = useState(false);
   const [previewVariant, setPreviewVariant] = useState<Variant | null>(null);
   const [cutaway, setCutaway] = useState(false);
+  const [thermalNodeId, setThermalNodeId] = useState('bus');
   const [spacecraftSection, setSpacecraftSection] = useState<
     'geometry' | 'hardware' | 'power' | 'thermal' | 'gnc'
   >('geometry');
@@ -511,6 +512,9 @@ export default function App() {
                     starTrackerVisible={starTrackerVisible}
                     moduleVisibility={renderModules}
                     onAvailableModules={setAvailableModules}
+                    onThermalNodePick={
+                      spacecraftSection === 'thermal' ? setThermalNodeId : undefined
+                    }
                     thermalTemperaturesK={
                       spacecraftSection === 'thermal' && samples?.thermal
                         ? missionTemperatures
@@ -857,7 +861,12 @@ export default function App() {
                       {spacecraftSection === 'power' ? (
                         <MissionPowerControls config={scenario} edit={mission.edit} />
                       ) : spacecraftSection === 'thermal' ? (
-                        <MissionThermalControls config={scenario} edit={mission.edit} />
+                        <MissionThermalControls
+                          config={scenario}
+                          edit={mission.edit}
+                          nodeId={thermalNodeId}
+                          onNodeChange={setThermalNodeId}
+                        />
                       ) : (
                         <MissionHardware config={scenario} edit={mission.edit} />
                       )}

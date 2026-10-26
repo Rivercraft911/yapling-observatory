@@ -169,7 +169,7 @@ assert.equal(JSON.stringify(history), original);
 
 const render = await readFile(new URL('../App.tsx', import.meta.url), 'utf8');
 assert.match(render, /<MissionPowerControls config=\{scenario\} edit=\{mission\.edit\}/);
-assert.match(render, /<MissionThermalControls config=\{scenario\} edit=\{mission\.edit\}/);
+assert.match(render, /<MissionThermalControls\s+config=\{scenario\}\s+edit=\{mission\.edit\}/);
 assert.match(render, /<MissionHardware config=\{scenario\} edit=\{mission\.edit\}/);
 assert.match(render, /independentStudy === 'gnc'/);
 assert.match(render, /section=\{independentStudy\}/);

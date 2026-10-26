@@ -7,11 +7,16 @@ import { MissionConopsControls } from './MissionConopsControls';
 export function MissionThermalControls({
   config,
   edit,
+  nodeId: selectedNodeId,
+  onNodeChange,
 }: {
   config: MissionConfig;
+  nodeId?: string;
+  onNodeChange?: (node: string) => void;
   edit: (change: (draft: MissionConfig) => void) => void;
 }) {
-  const [nodeId, setNodeId] = useState('bus');
+  const [localNodeId, setLocalNodeId] = useState('bus');
+  const nodeId = selectedNodeId ?? localNodeId;
   const thermal = config.power.thermal;
   const nodeIndex = Math.max(
     0,
@@ -23,12 +28,12 @@ export function MissionThermalControls({
     <>
       <fieldset>
         <legend>
-          THERMAL NODE <span>mission</span>
+          THERMAL PROPERTIES <span>next run</span>
         </legend>
         <Select
           label="Node"
           value={node.node_id}
-          onChange={setNodeId}
+          onChange={onNodeChange ?? setLocalNodeId}
           options={thermal.nodes.map((item) => ({ value: item.node_id, label: item.node_id }))}
         />
         <Field
@@ -148,7 +153,8 @@ export function MissionThermalControls({
           </small>
         </details>
         <small className="profile-evidence">
-          Declared lumped-node properties. Rendering materials do not select thermal properties.
+          Click a mapped part to inspect its node. Constant α/ε; finish and contacts are
+          provisional. Edits apply to the next run.
         </small>
       </fieldset>
       <MissionModeLoads config={config} edit={edit} />
