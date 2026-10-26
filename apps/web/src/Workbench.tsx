@@ -352,7 +352,7 @@ export function Workbench({
     let tap: { id: number; x: number; y: number; moved: boolean } | null = null;
     const pointerDown = (event: PointerEvent) => {
       tap =
-        currentMode === 'orbit' && event.button === 0 && thermalPick.current
+        currentMode === 'orbit' && event.isPrimary && event.button === 0 && thermalPick.current
           ? { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false }
           : null;
       canvas.focus();
@@ -375,7 +375,14 @@ export function Workbench({
       dragging = false;
       const click = tap;
       tap = null;
-      if (!click || click.id !== event.pointerId || click.moved || !root || !thermalPick.current)
+      if (
+        !click ||
+        click.id !== event.pointerId ||
+        click.moved ||
+        Math.hypot(event.clientX - click.x, event.clientY - click.y) > 5 ||
+        !root ||
+        !thermalPick.current
+      )
         return;
       const bounds = canvas.getBoundingClientRect();
       if (!bounds.width || !bounds.height) return;

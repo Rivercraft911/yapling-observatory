@@ -1,8 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api } from '../api';
 import { Field, Select } from '../controls/RadioControls';
 import type { MissionConfig } from './missionTypes';
 import { MissionModeLoads } from './MissionModeLoads';
 import { MissionConopsControls } from './MissionConopsControls';
+
+interface MaterialProfile {
+  profile_id: string;
+  label: string;
+  status: 'unverified_assumption' | 'historical_reference';
+  solar_absorptivity: number;
+  infrared_emissivity: number;
+  source: string;
+  source_locator: string;
+  conditions: string;
+  limitations: string[];
+}
 
 export function MissionThermalControls({
   config,
@@ -16,6 +29,16 @@ export function MissionThermalControls({
   edit: (change: (draft: MissionConfig) => void) => void;
 }) {
   const [localNodeId, setLocalNodeId] = useState('bus');
+  const [profiles, setProfiles] = useState<MaterialProfile[]>([]);
+  useEffect(() => {
+    const abort = new AbortController();
+    api<{ profiles: MaterialProfile[] }>('/api/mission/thermal-materials', { signal: abort.signal })
+      .then((result) => {
+        if (!abort.signal.aborted) setProfiles(result.profiles);
+      })
+      .catch(() => {});
+    return () => abort.abort();
+  }, []);
   const nodeId = selectedNodeId ?? localNodeId;
   const thermal = config.power.thermal;
   const nodeIndex = Math.max(
@@ -24,6 +47,18 @@ export function MissionThermalControls({
   );
   const node = thermal.nodes[nodeIndex];
   if (!node) return null;
+  const minimumAbsorptivity = Math.max(
+    0,
+    ...config.power.panels
+      .filter((panel) => panel.thermal_node_id === node.node_id)
+      .map((panel) => (panel.efficiency ?? 0) * (panel.electrical_derate ?? 1)),
+  );
+  const provenancePrefix = `Thermal optics for ${node.node_id}:`;
+  const recordOptics = (draft: MissionConfig, source?: string) => {
+    draft.provenance = draft.provenance.filter((line) => !line.startsWith(provenancePrefix));
+    if (source) draft.provenance.push(`${provenancePrefix} ${source}`);
+  };
+  const selectedReference = config.provenance.find((line) => line.startsWith(provenancePrefix));
   return (
     <>
       <fieldset>
@@ -36,6 +71,43 @@ export function MissionThermalControls({
           onChange={onNodeChange ?? setLocalNodeId}
           options={thermal.nodes.map((item) => ({ value: item.node_id, label: item.node_id }))}
         />
+        {profiles.length > 0 && node.radiating_area_m2 > 0 && (
+          <Select
+            label="Optical preset"
+            value=""
+            options={[
+              { value: '', label: 'Choose reference…' },
+              ...profiles.map((profile) => ({
+                value: profile.profile_id,
+                label: profile.label,
+                disabled: profile.solar_absorptivity < minimumAbsorptivity,
+              })),
+            ]}
+            onChange={(id) => {
+              const profile = profiles.find((item) => item.profile_id === id);
+              if (!profile || profile.solar_absorptivity < minimumAbsorptivity) return;
+              edit((draft) => {
+                const target = draft.power.thermal.nodes[nodeIndex];
+                target.solar_absorptivity = profile.solar_absorptivity;
+                target.infrared_emissivity = profile.infrared_emissivity;
+                draft.power.panels
+                  .filter((panel) => panel.thermal_node_id === node.node_id)
+                  .forEach((panel) => {
+                    panel.solar_absorptivity = profile.solar_absorptivity;
+                  });
+                recordOptics(
+                  draft,
+                  `${profile.profile_id}; α=${profile.solar_absorptivity}, ε=${profile.infrared_emissivity}. ${profile.source} ${profile.source_locator}. ${profile.conditions} ${profile.limitations.join(' ')}`,
+                );
+              });
+            }}
+          />
+        )}
+        {node.node_id === config.spacecraft?.actuator_heat_node_id && (
+          <small className="profile-evidence">
+            Wheel/driver heat shares this node; no separate motor temperature.
+          </small>
+        )}
         <Field
           label="Initial temperature"
           unit="°C"
@@ -66,11 +138,12 @@ export function MissionThermalControls({
           label="Solar absorptivity α"
           unit=""
           value={node.solar_absorptivity}
-          min={0}
+          min={minimumAbsorptivity}
           max={1}
           step={0.01}
           onChange={(v) =>
             edit((d) => {
+              recordOptics(d);
               d.power.thermal.nodes[nodeIndex].solar_absorptivity = v;
               d.power.panels
                 .filter((panel) => panel.thermal_node_id === node.node_id)
@@ -89,6 +162,7 @@ export function MissionThermalControls({
           step={0.01}
           onChange={(v) =>
             edit((d) => {
+              recordOptics(d);
               d.power.thermal.nodes[nodeIndex].infrared_emissivity = v;
             })
           }
@@ -152,6 +226,12 @@ export function MissionThermalControls({
             Weights incident ambient-space IR. Exterior emission uses the declared radiating area.
           </small>
         </details>
+        {selectedReference && (
+          <details className="mission-details">
+            <summary>Optical source</summary>
+            <small>{selectedReference}</small>
+          </details>
+        )}
         <small className="profile-evidence">
           Click a mapped part to inspect its node. Constant α/ε; finish and contacts are
           provisional. Edits apply to the next run.

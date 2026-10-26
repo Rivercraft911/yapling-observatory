@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
 
-async function loadControls(filename, selectedMode) {
+async function loadControls(filename, selectedMode, profiles = []) {
   const source = await readFile(new URL(filename, import.meta.url), 'utf8');
   const compiled = ts
     .transpileModule(source, {
@@ -22,7 +22,7 @@ async function loadControls(filename, selectedMode) {
     const useEffect = () => {};
     const cloneScenario = structuredClone;
     ${filename.includes('Thermal') ? "const MissionModeLoads = 'MissionModeLoads', MissionConopsControls = 'MissionConopsControls';" : ''}
-    const useState = (value) => [value === 'sun_pointing' ? ${JSON.stringify(selectedMode || 'sun_pointing')} : value, () => {}];
+    const useState = (value) => [Array.isArray(value) ? ${JSON.stringify(profiles)} : value === 'sun_pointing' ? ${JSON.stringify(selectedMode || 'sun_pointing')} : value, () => {}];
   `;
   return import(
     `data:text/javascript;base64,${Buffer.from(harness + compiled).toString('base64')}`
@@ -48,6 +48,7 @@ const node = (node_id) => ({
 const modes = ['sun_pointing', 'ground_tracking', 'imaging', 'detumble'];
 const starting = {
   name: 'shared mission',
+  provenance: ['Unrelated source retained'],
   duration_s: 3600,
   power: {
     thermal: {
@@ -175,4 +176,51 @@ assert.match(render, /independentStudy === 'gnc'/);
 assert.match(render, /section=\{independentStudy\}/);
 console.log(
   'Shared spacecraft controls passed: mission draft callbacks, all four mode profiles, thermal/PV absorptivity agreement, conductive links, separate electrical/RF inputs, optional battery charge state, retained history, and independent-study routing.',
+);
+
+const reference = {
+  profile_id: 'test_reference',
+  label: 'Test reference',
+  status: 'historical_reference',
+  solar_absorptivity: 0.65,
+  infrared_emissivity: 0.87,
+  source: 'Fixture document',
+  source_locator: 'p. 1',
+  conditions: 'Test conditions',
+  limitations: ['No temperature curve.'],
+};
+const thermalWithProfiles = await loadControls('./MissionThermalControls.tsx', undefined, [
+  reference,
+]);
+tree = thermalWithProfiles.MissionThermalControls({
+  config,
+  edit,
+  nodeId: 'bus',
+  onNodeChange: () => {},
+});
+find(
+  tree,
+  (item) => item.type === 'Select' && item.props.label === 'Optical preset',
+).props.onChange('test_reference');
+assert.equal(config.power.thermal.nodes[0].solar_absorptivity, 0.65);
+assert.equal(config.power.thermal.nodes[0].infrared_emissivity, 0.87);
+assert.equal(config.power.panels[0].solar_absorptivity, 0.65);
+assert.equal(config.power.panels[1].solar_absorptivity, 0.8);
+assert.match(
+  config.provenance.at(-1),
+  /Thermal optics for bus:.*Fixture document.*No temperature curve/,
+);
+assert.equal(config.provenance[0], 'Unrelated source retained');
+find(
+  tree,
+  (item) => item.type === 'Field' && item.props.label === 'IR emissivity ε',
+).props.onChange(0.8);
+assert.equal(
+  config.provenance.length,
+  1,
+  'Manual optical edits must clear a now-stale preset attribution',
+);
+assert.equal(JSON.stringify(history), original);
+console.log(
+  'Thermal optical references update only the selected node/PV absorptance, preserve history and clear stale attribution after manual edits.',
 );
