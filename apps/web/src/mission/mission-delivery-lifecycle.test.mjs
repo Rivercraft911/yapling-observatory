@@ -59,7 +59,10 @@ vm.runInNewContext(compiled, {
     throw new Error(`Unexpected dependency ${name}`);
   },
 });
-let config = { uplink: { frequency_hz: 1 }, downlink: { frequency_hz: 2 } };
+let config = {
+  uplink: { frequency_hz: 1, profile: { waveform: 'dvb_s2' } },
+  downlink: { frequency_hz: 2, profile: { waveform: 'dvb_s2' } },
+};
 let edits = 0;
 function render() {
   cursor = 0;
@@ -85,7 +88,7 @@ function checkbox(element) {
 }
 checkbox(render()).props.onChange({ target: { checked: true } });
 assert.equal(checkbox(render()).props.disabled, true);
-config = { ...config, uplink: { frequency_hz: 3 } };
+config = { ...config, uplink: { ...config.uplink, frequency_hz: 3 } };
 render();
 assert.equal(requests[0].options.signal.aborted, true);
 assert.equal(

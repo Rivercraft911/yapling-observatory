@@ -6,7 +6,7 @@ export interface DeliveryMode {
   frame_size: 'normal' | 'short';
   pilots: boolean;
   decode_threshold_esn0_db: number | null;
-  threshold_status: 'illustrative' | 'unresolved';
+  threshold_status: 'illustrative' | 'ideal_awgn' | 'unresolved';
   threshold_source: string;
 }
 export interface DirectionDelivery {
@@ -14,7 +14,7 @@ export interface DirectionDelivery {
   assumptions: string;
   modes: DeliveryMode[];
   initial_mode_id: string;
-  policy: 'fixed' | 'scheduled';
+  policy: 'fixed' | 'scheduled' | 'adaptive';
   schedule: { start_s: number; mode_id: string }[];
   acquisition_s: number;
   reacquisition_s: number;

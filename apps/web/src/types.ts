@@ -50,7 +50,12 @@ export interface Scenario {
     pointing_error_deg: number;
   };
   antenna_variant: Variant;
-  schedule: { slot_duration_s: number; first_direction: Direction };
+  schedule: {
+    slot_duration_s: number;
+    first_direction: Direction;
+    uplink_duration_s?: number | null;
+    downlink_duration_s?: number | null;
+  };
   uplink: Radio;
   downlink: Radio;
   provenance: unknown[];
@@ -69,6 +74,8 @@ export interface LinkSamples {
   cumulative_ideal_bits: Scalar[];
 }
 export interface ReceiverSamples {
+  ready_payload_rate_bps?: Scalar[];
+  selected_margin_db?: Scalar[];
   delivered_useful_bits: number[];
   delivered_data_field_bits: number[];
   delivered_frames: number[];
@@ -85,6 +92,26 @@ export interface ReceiverSamples {
   receiver_state: string[];
 }
 export interface Samples {
+  uhf_beacon?: {
+    transmitting: boolean[];
+    visible: boolean[];
+    received_power_dbm: Scalar[];
+    available_received_power_dbm: Scalar[];
+    cn0_db_hz: Scalar[];
+    margin_db: Scalar[];
+    tx_airtime_s: number[];
+    output_interval_tx_fraction: number[];
+    output_interval_electrical_w: number[];
+    output_interval_heat_w: number[];
+    output_interval_escaped_rf_w: number[];
+    cumulative_tx_airtime_s: number[];
+    scheduled_beacons_started: number[];
+    scheduled_beacons_completed: number[];
+    contact_tx_airtime_s: number[];
+    electrical_w: number[];
+    heat_w: number[];
+    escaped_rf_w: number[];
+  };
   radio_delivery?: { uplink: ReceiverSamples; downlink: ReceiverSamples };
   time_s: number[];
   mode?: string[];
@@ -119,6 +146,7 @@ export interface Samples {
     controller_status: string[];
   };
   power?: {
+    dissipated_power_w?: number[];
     generated_bus_w: number[];
     potential_bus_w: number[];
     requested_load_w: number[];
@@ -145,10 +173,13 @@ export interface Samples {
     node_temperature_k: Record<string, number[]>;
     node_internal_heat_w?: Record<string, number[]>;
     node_net_heat_w?: Record<string, number[]>;
+    node_absorbed_environment_w?: Record<string, number[]>;
+    node_emitted_ir_w?: Record<string, number[]>;
   };
   satellite_position_m: number[][];
   station_position_m: number[][];
   satellite_position_ecef_m: number[][];
+  pointing_target_ecef_m?: (number[] | null)[];
   q_body_from_inertial_wxyz: Quaternion[];
   attitude_angle_deg?: Scalar[];
   tracking_rate_deg_s?: Scalar[];

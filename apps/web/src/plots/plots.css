@@ -52,3 +52,11 @@
     padding-inline: 12px;
   }
 }
+
+.link-now {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-right: auto;
+  font: 10px var(--mono);
+}

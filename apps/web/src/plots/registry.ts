@@ -6,6 +6,8 @@ export type PlotId =
   | 'pointing'
   | 'margin'
   | 'rate'
+  | 'frame_rate'
+  | 'selected_margin'
   | 'payload'
   | 'receiver_lock'
   | 'lost_frames'
@@ -37,7 +39,16 @@ export type PlotId =
   | 'battery_heat'
   | 'actuator_power'
   | 'temperatures'
-  | 'bus_heat';
+  | 'bus_heat'
+  | 'absorbed_heat'
+  | 'radiated_heat'
+  | 'internal_heat'
+  | 'dissipation'
+  | 'uhf_signal'
+  | 'uhf_margin'
+  | 'uhf_duty'
+  | 'uhf_beacons'
+  | 'uhf_power';
 export interface PlotDefinition {
   id: PlotId;
   title: string;
@@ -73,7 +84,7 @@ export const plotDefinitions: PlotDefinition[] = [
   },
   {
     id: 'margin',
-    title: 'Link margin',
+    title: 'Fixed-mode margin',
     unit: 'dB',
     description:
       'Potential UL/DL margins above the station mask. Gaps mean no ground contact or unresolved RF. Scheduling and receiver lock are separate.',
@@ -85,12 +96,39 @@ export const plotDefinitions: PlotDefinition[] = [
   },
   {
     id: 'rate',
-    title: 'Ideal rate',
+    title: 'Fixed-mode rate',
     unit: 'kb/s',
     stepped: true,
     description:
-      'Scheduled ideal threshold rate. Receiver lock and completed-frame payload are separate traces.',
+      'Rate estimate for the fixed RF profile, gated by contact and alternating transmit/receive windows. Zero during the other direction’s slot. Adaptive MODCOD delivery appears under Frame rate.',
     read: (s) => paired(s, 'ideal_rate_bps', 1000),
+  },
+  {
+    id: 'frame_rate',
+    title: 'Frame rate',
+    unit: 'kb/s',
+    stepped: true,
+    description:
+      'Selected adaptive MODCOD useful rate when the modeled receiver is ready. Acquisition, reconfiguration and inactive windows return zero. This is a hard-threshold prediction, not measured throughput.',
+    read: (s) =>
+      (['uplink', 'downlink'] as const).map((direction) => ({
+        label: direction === 'uplink' ? 'UL' : 'DL',
+        values: scale(s.radio_delivery?.[direction].ready_payload_rate_bps, 1000),
+      })),
+  },
+  {
+    id: 'selected_margin',
+    title: 'Selected-mode margin',
+    unit: 'dB',
+    description:
+      'Margin against the active adaptive MODCOD threshold. Unavailable without an adaptive receiver model or ground contact.',
+    read: (s) =>
+      (['uplink', 'downlink'] as const).map((direction) => ({
+        label: direction === 'uplink' ? 'UL' : 'DL',
+        values: (s.radio_delivery?.[direction].selected_margin_db || []).map((value, index) =>
+          s.visible[index] ? value : null,
+        ),
+      })),
   },
   {
     id: 'payload',
@@ -131,6 +169,58 @@ export const plotDefinitions: PlotDefinition[] = [
         label: direction === 'uplink' ? 'UL' : 'DL',
         values: s.radio_delivery?.[direction].lost_frames || [],
       })),
+  },
+  {
+    id: 'uhf_signal',
+    title: 'UHF received level',
+    unit: 'dBm',
+    description:
+      'Conditional received level toward the station during contact, and sampled actual TX level. Unknown feed loss or antenna fields remain unavailable. This does not establish decoded beacons.',
+    read: (s) => [
+      { label: 'Available', values: s.uhf_beacon?.available_received_power_dbm || [] },
+      { label: 'Beacon TX', values: s.uhf_beacon?.received_power_dbm || [] },
+    ],
+  },
+  {
+    id: 'uhf_margin',
+    title: 'UHF beacon margin',
+    unit: 'dB',
+    description:
+      'Margin during a visible beacon against the supplied receiver sensitivity for the selected LoRa mode. Unavailable until that threshold is specified.',
+    read: (s) => [{ label: 'UHF', values: s.uhf_beacon?.margin_db || [] }],
+  },
+  {
+    id: 'uhf_duty',
+    title: 'UHF transmit duty',
+    unit: '%',
+    description:
+      'Exact scheduled transmit fraction over each preceding output interval. This preserves burst occupancy when individual packets fall between plotted samples.',
+    read: (s) => [
+      {
+        label: 'TX',
+        values: (s.uhf_beacon?.output_interval_tx_fraction || []).map((value) => value * 100),
+      },
+    ],
+  },
+  {
+    id: 'uhf_beacons',
+    title: 'UHF beacons sent',
+    unit: 'beacons',
+    stepped: true,
+    description:
+      'Completed scheduled transmissions onboard. This is not the number decoded on the ground.',
+    read: (s) => [{ label: 'Sent', values: s.uhf_beacon?.scheduled_beacons_completed || [] }],
+  },
+  {
+    id: 'uhf_power',
+    title: 'UHF power',
+    unit: 'W',
+    description:
+      'Mean electrical input and heat over each preceding output interval. Battery integration resolves every TX/RX edge before these display averages; this does not display the instantaneous pulse height.',
+    read: (s) => [
+      { label: 'Electrical', values: s.uhf_beacon?.output_interval_electrical_w || [] },
+      { label: 'Heat', values: s.uhf_beacon?.output_interval_heat_w || [] },
+    ],
   },
   {
     id: 'elevation',
@@ -418,8 +508,52 @@ export const plotDefinitions: PlotDefinition[] = [
       })),
   },
   {
+    id: 'dissipation',
+    title: 'Total dissipation',
+    unit: 'W',
+    description:
+      'Electrical and actuator heat produced inside the spacecraft, including radio/feed, regulator and storage losses. Absorbed sunlight/Earth radiation and extracted solar electricity are separate. Unavailable in older runs without this returned ledger.',
+    read: (s) => [{ label: 'Spacecraft', values: s.power?.dissipated_power_w || [] }],
+  },
+  {
+    id: 'internal_heat',
+    title: 'Thermal sources',
+    unit: 'W',
+    description:
+      'Internal forcing at each thermal node. Radio includes amplifier, feed and antenna losses. Panel forcing subtracts extracted PV electricity and can be negative. These values are not total spacecraft dissipation; absorbed sunlight and emitted infrared are separate.',
+    read: (s) =>
+      Object.entries(s.thermal?.node_internal_heat_w || {}).map(([label, values]) => ({
+        label,
+        values,
+      })),
+  },
+  {
+    id: 'absorbed_heat',
+    title: 'Absorbed radiation',
+    unit: 'W',
+    description:
+      'Returned absorbed sunlight, reflected sunlight and Earth/space infrared at each thermal node. Optical properties and orientation come from the archived mission.',
+    read: (s) =>
+      Object.entries(s.thermal?.node_absorbed_environment_w || {}).map(([label, values]) => ({
+        label,
+        values,
+      })),
+  },
+  {
+    id: 'radiated_heat',
+    title: 'Emitted infrared',
+    unit: 'W',
+    description:
+      'Returned outgoing thermal radiation at each node, using its emissivity, exterior area and computed temperature. Positive values remove heat.',
+    read: (s) =>
+      Object.entries(s.thermal?.node_emitted_ir_w || {}).map(([label, values]) => ({
+        label,
+        values,
+      })),
+  },
+  {
     id: 'bus_heat',
-    title: 'Bus heat',
+    title: 'Bus node heat',
     unit: 'W',
     description: 'Returned internal dissipation and net heat at the bus thermal node.',
     read: (s) => [

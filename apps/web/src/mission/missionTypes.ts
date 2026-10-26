@@ -1,3 +1,4 @@
+import type { UhfBeaconConfig } from './uhfTypes';
 import type { RadioDeliveryConfig } from './radioDeliveryTypes';
 import type { Radio, Run, RunResult, Samples, Scenario, Variant } from '../types';
 import type { WheelConfig, Vector3 } from '../systems/dynamicsTypes';
@@ -24,6 +25,7 @@ export interface MissionWindow {
 export interface MissionConfig {
   schema_version: string;
   radio_delivery?: RadioDeliveryConfig | null;
+  uhf_beacon?: UhfBeaconConfig | null;
   magnetic_model?: 'igrf14_degree1' | 'igrf14_degree13' | null;
   name: string;
   run_kind: 'single_pass' | 'targeted' | 'long_mission';

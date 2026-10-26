@@ -24,7 +24,10 @@ jobs:
       - run: node --experimental-strip-types apps/web/src/earth/follow-frames.test.mjs
       - run: node apps/web/src/earth/regional-lod.test.mjs
       - run: node apps/web/src/earth/cloud-tiles.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/cloud-shader.test.mjs
       - run: node --experimental-strip-types apps/web/src/earth/follow-link.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/sun-display.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/target-display.test.mjs
       - run: node --experimental-strip-types apps/web/src/earth/earth-depth.test.mjs
       - run: node --experimental-strip-types apps/web/src/graphics/display-interpolation.test.mjs
       - run: node --experimental-strip-types apps/web/src/graphics/frame-size.test.mjs
@@ -45,3 +48,8 @@ jobs:
       - run: node --experimental-strip-types apps/web/src/graphics/workbench-camera.test.mjs
       - run: node --experimental-strip-types apps/web/src/antenna/run-reference.test.mjs
       - run: node --experimental-strip-types apps/web/src/antenna/antenna-run-path.test.mjs
+      - run: node --experimental-strip-types apps/web/src/live/live-history.test.mjs
+      - run: node apps/web/src/live/live-lifecycle.test.mjs
+      - run: node apps/web/src/live/live-target-lifecycle.test.mjs
+      - run: node --experimental-strip-types apps/web/src/plots/radio-plots.test.mjs
+      - run: node apps/web/src/mission/mission-uhf-lifecycle.test.mjs

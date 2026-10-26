@@ -25,7 +25,7 @@ export function MissionDeliveryControls({
     };
   }, [linkKey]);
   const delivery = config.radio_delivery;
-  const enable = async (enabled: boolean) => {
+  const enable = async (enabled: boolean, preset: 'current' | 'adaptive_psk' = 'current') => {
     const request = ++version.current;
     setError('');
     abort.current?.abort();
@@ -41,7 +41,7 @@ export function MissionDeliveryControls({
     try {
       const profile = await api<RadioDeliveryConfig>('/api/mission/delivery-example', {
         method: 'POST',
-        body: linkKey,
+        body: JSON.stringify({ ...JSON.parse(linkKey), preset }),
         signal: abort.current.signal,
       });
       if (version.current === request)
@@ -55,13 +55,20 @@ export function MissionDeliveryControls({
       if (version.current === request) setPending(false);
     }
   };
-  const change = (direction: 'uplink' | 'downlink', update: (profile: DirectionDelivery) => void) =>
+  const change = (
+    direction: 'uplink' | 'downlink',
+    update: (profile: DirectionDelivery) => void,
+  ) => {
+    version.current++;
+    abort.current?.abort();
+    setPending(false);
     edit((draft) => {
       if (draft.radio_delivery) update(draft.radio_delivery[direction]);
     });
+  };
   return (
     <details className="mission-details">
-      <summary>Receiver & frame accounting</summary>
+      <summary>MODCOD & delivery</summary>
       <label className="spacecraft-follow">
         <input
           type="checkbox"
@@ -71,11 +78,25 @@ export function MissionDeliveryControls({
         />
         {pending ? 'Loading profile' : 'Model completed frames'}
       </label>
+      <button
+        className="text-button"
+        disabled={
+          pending ||
+          config.uplink.profile.waveform !== 'dvb_s2' ||
+          config.downlink.profile.waveform !== 'dvb_s2'
+        }
+        title="Load all 17 normal-frame QPSK/8PSK modes using ideal AWGN thresholds and the RF reserve. Replaces the receiver configuration with an editable adaptive study."
+        onClick={() => void enable(true, 'adaptive_psk')}
+      >
+        Adaptive QPSK / 8PSK
+      </button>
       {error && <small role="alert">{error}</small>}
       {delivery && (
         <>
           <small>
-            Assumed hard-threshold receiver. Saturated source; no measured packet-success curve.
+            {delivery.downlink.policy === 'adaptive' || delivery.uplink.policy === 'adaptive'
+              ? 'Ideal channel adaptation · normal frames · AWGN reference'
+              : 'Assumed receiver · complete-frame payload'}
           </small>
           {(['uplink', 'downlink'] as const).map((direction) => {
             const profile = delivery[direction];
@@ -89,19 +110,31 @@ export function MissionDeliveryControls({
                   value={profile.policy}
                   options={[
                     { value: 'fixed', label: 'Fixed mode' },
-                    { value: 'scheduled', label: 'Scheduled VCM' },
+                    {
+                      value: 'scheduled',
+                      label: 'Scheduled VCM',
+                      disabled: profile.hardware_profile !== 'generic_dvb_s2_reference',
+                    },
+                    {
+                      value: 'adaptive',
+                      label: 'Adaptive · ideal channel',
+                      disabled: profile.hardware_profile !== 'generic_dvb_s2_reference',
+                    },
                   ]}
                   onChange={(value) =>
                     change(direction, (p) => {
                       p.policy = value as DirectionDelivery['policy'];
-                      if (p.policy === 'fixed') p.schedule = [];
+                      if (p.policy !== 'scheduled') p.schedule = [];
                     })
                   }
                 />
                 <Select
                   label="Starting mode"
                   value={profile.initial_mode_id}
-                  options={profile.modes.map((m) => ({ value: m.mode_id, label: m.mode_id }))}
+                  options={profile.modes.map((m) => ({
+                    value: m.mode_id,
+                    label: `${m.modulation} ${m.code_rate}`,
+                  }))}
                   onChange={(value) =>
                     change(direction, (p) => {
                       p.initial_mode_id = value;
@@ -136,128 +169,136 @@ export function MissionDeliveryControls({
                 <details className="mission-details">
                   <summary>Modes & timing</summary>
                   {profile.modes.map((mode, index) => (
-                    <fieldset key={mode.mode_id}>
-                      <legend>{mode.mode_id}</legend>
-                      <Select
-                        label="Modulation"
-                        value={mode.modulation}
-                        options={['QPSK', '8PSK'].map((value) => ({ value, label: value }))}
-                        onChange={(value) =>
-                          change(direction, (p) => {
-                            p.modes[index].modulation = value as DeliveryMode['modulation'];
-                            p.modes[index].code_rate = '3/4';
-                            p.modes[index].decode_threshold_esn0_db = null;
-                            p.modes[index].threshold_status = 'unresolved';
-                          })
-                        }
-                      />
-                      <Select
-                        label="Code rate"
-                        value={mode.code_rate}
-                        options={(mode.modulation === 'QPSK'
-                          ? [
-                              '1/4',
-                              '1/3',
-                              '2/5',
-                              '1/2',
-                              '3/5',
-                              '2/3',
-                              '3/4',
-                              '4/5',
-                              '5/6',
-                              '8/9',
-                              '9/10',
-                            ]
-                          : ['3/5', '2/3', '3/4', '5/6', '8/9', '9/10']
-                        )
-                          .filter((value) => mode.frame_size !== 'short' || value !== '9/10')
-                          .map((value) => ({ value, label: value }))}
-                        onChange={(value) =>
-                          change(direction, (p) => {
-                            p.modes[index].code_rate = value as DeliveryMode['code_rate'];
-                            p.modes[index].decode_threshold_esn0_db = null;
-                            p.modes[index].threshold_status = 'unresolved';
-                          })
-                        }
-                      />
-                      <Field
-                        label="Symbol rate"
-                        unit="Msym/s"
-                        value={mode.symbol_rate_sps / 1e6}
-                        min={0.001}
-                        max={100}
-                        step={0.1}
-                        onChange={(value) =>
-                          change(direction, (p) => {
-                            p.modes[index].symbol_rate_sps = value * 1e6;
-                          })
-                        }
-                      />
-                      <Select
-                        label="Frame"
-                        value={mode.frame_size}
-                        options={[
-                          { value: 'short', label: 'Short' },
-                          { value: 'normal', label: 'Normal' },
-                        ]}
-                        onChange={(value) =>
-                          change(direction, (p) => {
-                            p.modes[index].frame_size = value as DeliveryMode['frame_size'];
-                            if (value === 'short' && p.modes[index].code_rate === '9/10')
-                              p.modes[index].code_rate = '3/4';
-                            p.modes[index].decode_threshold_esn0_db = null;
-                            p.modes[index].threshold_status = 'unresolved';
-                          })
-                        }
-                      />
-                      <label className="spacecraft-follow">
-                        <input
-                          type="checkbox"
-                          checked={mode.pilots}
-                          onChange={(event) =>
+                    <details className="mission-details" key={mode.mode_id}>
+                      <summary>
+                        {mode.modulation} {mode.code_rate} ·{' '}
+                        {(mode.symbol_rate_sps / 1e6).toLocaleString()} Msym/s
+                      </summary>
+                      <fieldset>
+                        <legend>
+                          {mode.modulation} {mode.code_rate}
+                        </legend>
+                        <Select
+                          label="Modulation"
+                          value={mode.modulation}
+                          options={['QPSK', '8PSK'].map((value) => ({ value, label: value }))}
+                          onChange={(value) =>
                             change(direction, (p) => {
-                              p.modes[index].pilots = event.target.checked;
+                              p.modes[index].modulation = value as DeliveryMode['modulation'];
+                              p.modes[index].code_rate = '3/4';
+                              p.modes[index].decode_threshold_esn0_db = null;
+                              p.modes[index].threshold_status = 'unresolved';
                             })
                           }
                         />
-                        Pilots
-                      </label>
-                      <Field
-                        label="Decode threshold · assumed"
-                        unit="dB Es/N₀"
-                        value={mode.decode_threshold_esn0_db}
-                        min={-30}
-                        max={40}
-                        step={0.1}
-                        onChange={(value) =>
-                          change(direction, (p) => {
-                            p.modes[index].decode_threshold_esn0_db = value;
-                            p.modes[index].threshold_status = 'illustrative';
-                            p.modes[index].threshold_source =
-                              'User-entered hard threshold, not a measured receiver curve';
-                          })
-                        }
-                      />
-                      <button
-                        className="text-button"
-                        disabled={
-                          profile.modes.length <= 1 ||
-                          profile.initial_mode_id === mode.mode_id ||
-                          profile.schedule.some((item) => item.mode_id === mode.mode_id)
-                        }
-                        onClick={() =>
-                          change(direction, (p) => {
-                            p.modes.splice(index, 1);
-                          })
-                        }
-                      >
-                        Remove mode
-                      </button>
-                    </fieldset>
+                        <Select
+                          label="Code rate"
+                          value={mode.code_rate}
+                          options={(mode.modulation === 'QPSK'
+                            ? [
+                                '1/4',
+                                '1/3',
+                                '2/5',
+                                '1/2',
+                                '3/5',
+                                '2/3',
+                                '3/4',
+                                '4/5',
+                                '5/6',
+                                '8/9',
+                                '9/10',
+                              ]
+                            : ['3/5', '2/3', '3/4', '5/6', '8/9', '9/10']
+                          )
+                            .filter((value) => mode.frame_size !== 'short' || value !== '9/10')
+                            .map((value) => ({ value, label: value }))}
+                          onChange={(value) =>
+                            change(direction, (p) => {
+                              p.modes[index].code_rate = value as DeliveryMode['code_rate'];
+                              p.modes[index].decode_threshold_esn0_db = null;
+                              p.modes[index].threshold_status = 'unresolved';
+                            })
+                          }
+                        />
+                        <Field
+                          label="Symbol rate"
+                          unit="Msym/s"
+                          value={mode.symbol_rate_sps / 1e6}
+                          min={0.001}
+                          max={100}
+                          step={0.1}
+                          onChange={(value) =>
+                            change(direction, (p) => {
+                              p.modes[index].symbol_rate_sps = value * 1e6;
+                            })
+                          }
+                        />
+                        <Select
+                          label="Frame"
+                          value={mode.frame_size}
+                          options={[
+                            { value: 'short', label: 'Short' },
+                            { value: 'normal', label: 'Normal' },
+                          ]}
+                          onChange={(value) =>
+                            change(direction, (p) => {
+                              p.modes[index].frame_size = value as DeliveryMode['frame_size'];
+                              if (value === 'short' && p.modes[index].code_rate === '9/10')
+                                p.modes[index].code_rate = '3/4';
+                              p.modes[index].decode_threshold_esn0_db = null;
+                              p.modes[index].threshold_status = 'unresolved';
+                            })
+                          }
+                        />
+                        <label className="spacecraft-follow">
+                          <input
+                            type="checkbox"
+                            checked={mode.pilots}
+                            onChange={(event) =>
+                              change(direction, (p) => {
+                                p.modes[index].pilots = event.target.checked;
+                              })
+                            }
+                          />
+                          Pilots
+                        </label>
+                        <Field
+                          label="Decode threshold · assumed"
+                          unit="dB Es/N₀"
+                          value={mode.decode_threshold_esn0_db}
+                          min={-30}
+                          max={40}
+                          step={0.1}
+                          onChange={(value) =>
+                            change(direction, (p) => {
+                              p.modes[index].decode_threshold_esn0_db = value;
+                              p.modes[index].threshold_status = 'illustrative';
+                              p.modes[index].threshold_source =
+                                'User-entered hard threshold, not a measured receiver curve';
+                            })
+                          }
+                        />
+                        <button
+                          className="text-button"
+                          disabled={
+                            profile.modes.length <= 1 ||
+                            profile.initial_mode_id === mode.mode_id ||
+                            profile.schedule.some((item) => item.mode_id === mode.mode_id)
+                          }
+                          onClick={() =>
+                            change(direction, (p) => {
+                              p.modes.splice(index, 1);
+                            })
+                          }
+                        >
+                          Remove mode
+                        </button>
+                      </fieldset>
+                    </details>
                   ))}
                   <button
                     className="text-button"
-                    disabled={profile.modes.length >= 16}
+                    disabled={profile.modes.length >= 32}
                     onClick={() =>
                       change(direction, (p) => {
                         let index = p.modes.length + 1;

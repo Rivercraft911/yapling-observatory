@@ -6,6 +6,7 @@ import { plotDefinitions, plotTraces } from './registry';
 import type { PlotId } from './registry';
 import { MissionReport } from '../mission/MissionReport';
 import { PowerStatus } from './PowerStatus';
+import { LinkStatus } from './LinkStatus';
 import { formatElapsedSeconds } from './traceFormatting';
 import {
   clampTimeRange,
@@ -30,14 +31,14 @@ const compactPresets: { label: string; values: PlotId[] }[] = [
   { label: 'Link', values: plotLayouts.compact.defaults },
   { label: 'GNC', values: ['pointing', 'wheel_speed', 'wheel_capacity'] },
   { label: 'Power', values: ['power', 'battery_soc', 'battery_current'] },
-  { label: 'Thermal', values: ['temperatures', 'bus_heat'] },
+  { label: 'Thermal', values: ['temperatures', 'dissipation', 'internal_heat'] },
   { label: 'Battery', values: ['battery_soc', 'battery_voltage', 'battery_current'] },
 ];
 const resultsPresets: { label: string; values: PlotId[] }[] = [
   { label: 'Overview', values: plotLayouts.results.defaults },
   {
     label: 'Link',
-    values: ['margin', 'rate', 'payload', 'receiver_lock', 'antenna_gain', 'polarization'],
+    values: ['margin', 'frame_rate', 'selected_margin', 'payload', 'receiver_lock', 'rate'],
   },
   {
     label: 'GNC',
@@ -66,7 +67,18 @@ const resultsPresets: { label: string; values: PlotId[] }[] = [
       'actuator_power',
     ],
   },
-  { label: 'Thermal', values: ['temperatures', 'bus_heat', 'battery_heat'] },
+  {
+    label: 'Thermal',
+    values: [
+      'temperatures',
+      'dissipation',
+      'absorbed_heat',
+      'radiated_heat',
+      'internal_heat',
+      'bus_heat',
+      'battery_heat',
+    ],
+  },
   {
     label: 'Battery',
     values: [
@@ -153,7 +165,18 @@ function PlotDockContent({
   );
   const selection = preferences.selection;
   const maximum = plotLayouts[layout].maximum;
-  const presets = layout === 'results' ? resultsPresets : compactPresets;
+  const adaptive = !!(
+    snapshot?.run.result?.samples.radio_delivery?.downlink.ready_payload_rate_bps ||
+    snapshot?.run.result?.samples.radio_delivery?.uplink.ready_payload_rate_bps
+  );
+  const presets =
+    layout === 'results'
+      ? resultsPresets
+      : compactPresets.map((preset) =>
+          adaptive && preset.label === 'Link'
+            ? { ...preset, values: ['selected_margin', 'frame_rate', 'pointing'] as PlotId[] }
+            : preset,
+        );
   const [choosing, setChoosing] = useState(false);
   const chooser = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -212,7 +235,18 @@ function PlotDockContent({
       aria-label={layout === 'results' ? 'Results charts' : 'Run plots'}
     >
       <nav className="plot-groups" aria-label="Plot groups">
-        {presets.map((preset) => (
+        {(snapshot?.run.result?.samples.uhf_beacon
+          ? [
+              ...presets,
+              {
+                label: 'UHF',
+                values: (layout === 'results'
+                  ? ['uhf_signal', 'uhf_margin', 'uhf_duty', 'uhf_beacons', 'uhf_power']
+                  : ['uhf_signal', 'uhf_duty', 'uhf_beacons']) as PlotId[],
+              },
+            ]
+          : presets
+        ).map((preset) => (
           <button
             key={preset.label}
             aria-pressed={!reportOpen && selection.join() === preset.values.join()}
@@ -316,6 +350,16 @@ function PlotDockContent({
               ? `${formatElapsedSeconds(shownRange[0])}–${formatElapsedSeconds(shownRange[1])} s`
               : 'No samples'}
           </span>
+          {selection.some((id) =>
+            [
+              'rate',
+              'margin',
+              'frame_rate',
+              'selected_margin',
+              'payload',
+              'receiver_lock',
+            ].includes(id),
+          ) && <LinkStatus snapshot={snapshot} cursorTime={cursorTime} />}
           <button
             aria-label="Pan graphs earlier"
             title="Pan earlier (←)"

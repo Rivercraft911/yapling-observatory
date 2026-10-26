@@ -1,8 +1,11 @@
+import { MissionPresetSelect } from './MissionPresetSelect';
 import { useState } from 'react';
 import { Field, Select, RadioControls } from '../controls/RadioControls';
 import type { RadioCatalog } from '../types';
 import { OrbitalElementsFields } from '../systems/OrbitalElementsFields';
 import { MissionDeliveryControls } from './MissionDeliveryControls';
+import { MissionRadioSchedule } from './MissionRadioSchedule';
+import { MissionUhfControls } from './MissionUhfControls';
 import { MissionHardware } from './MissionHardware';
 import { MissionArchiveControls } from './MissionArchiveControls';
 import { MissionPowerControls } from './MissionPowerControls';
@@ -32,6 +35,7 @@ export function MissionInspector({
   const [section, setSection] = useState<'orbit' | 'link' | 'gnc' | 'power' | 'thermal' | 'conops'>(
     'orbit',
   );
+  const [band, setBand] = useState<'sband' | 'uhf'>('sband');
   const { config, edit, resolveOrbit } = mission;
   if (!config)
     return (
@@ -59,6 +63,10 @@ export function MissionInspector({
         </button>
         <MissionArchiveControls mission={mission} />
       </div>
+      <MissionPresetSelect
+        onSelect={mission.loadPreset}
+        disabled={mission.busy || mission.loading || mission.importing || mission.orbitPending}
+      />
       <nav className="spacecraft-sections" aria-label="Mission controls">
         {(['orbit', 'link', 'gnc', 'power', 'thermal', 'conops'] as const).map((tab) => (
           <button key={tab} aria-pressed={section === tab} onClick={() => setSection(tab)}>
@@ -73,14 +81,6 @@ export function MissionInspector({
       <div className="mission-controls-body">
         {section === 'orbit' && (
           <>
-            <button
-              className="text-button"
-              disabled={mission.busy || mission.loading || mission.importing}
-              onClick={mission.loadDaylightDemo}
-              title="Load a constructed daytime near-overhead Stanford pass, starting at acquisition and continuing for five orbits with eclipses. Replaces the draft; displayed results stay unchanged."
-            >
-              Load daylight pass demo ↗
-            </button>
             <div className="mission-run-kinds" aria-label="Run scope">
               {[
                 { id: 'long_mission', label: 'Mission', duration: 86400 },
@@ -314,30 +314,32 @@ export function MissionInspector({
         )}
         {section === 'link' && (
           <>
-            <MissionDeliveryControls config={config} edit={edit} />
-            {(['uplink', 'downlink'] as const).map((direction) => (
-              <RadioControls
-                key={direction}
-                direction={direction}
-                link={config[direction]}
-                antennaVariant={config.antenna_variant}
-                catalog={catalog}
-                onChange={(change) => edit((d) => change(d[direction]))}
-              />
-            ))}
-            <Field
-              label="Direction slot"
-              unit="s"
-              value={config.schedule.slot_duration_s}
-              min={2}
-              max={3600}
-              step={2}
-              onChange={(v) =>
-                edit((d) => {
-                  d.schedule.slot_duration_s = v;
-                })
-              }
-            />
+            <nav className="mission-mode-selector" aria-label="Radio band">
+              <button aria-pressed={band === 'sband'} onClick={() => setBand('sband')}>
+                S-band
+              </button>
+              <button aria-pressed={band === 'uhf'} onClick={() => setBand('uhf')}>
+                UHF · LoRa
+              </button>
+            </nav>
+            {band === 'uhf' ? (
+              <MissionUhfControls config={config} edit={edit} />
+            ) : (
+              <>
+                <MissionDeliveryControls config={config} edit={edit} />
+                {(['uplink', 'downlink'] as const).map((direction) => (
+                  <RadioControls
+                    key={direction}
+                    direction={direction}
+                    link={config[direction]}
+                    antennaVariant={config.antenna_variant}
+                    catalog={catalog}
+                    onChange={(change) => edit((d) => change(d[direction]))}
+                  />
+                ))}
+                <MissionRadioSchedule config={config} edit={edit} />
+              </>
+            )}
           </>
         )}
         {section === 'gnc' && <MissionHardware config={config} edit={edit} />}
