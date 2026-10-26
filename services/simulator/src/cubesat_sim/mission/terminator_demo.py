@@ -1,4 +1,4 @@
-"""Dusk-ascending SSO example, initialized before a real Stanford pass.
+"""Dusk-ascending SSO example, initialized before a rising Stanford pass group.
 
 The starting plane uses the existing first-order mean-J2 SSO estimate as
 osculating elements. J2 propagation locates the pass; no contacts are inserted.
@@ -25,19 +25,44 @@ def terminator_pass_demo():
     )
     attitude = AttitudeState(0, (1, 0, 0, 0), (0, 0, 0))
     approach = None
+    maximum_elevation_deg = -90
     for _ in range(86400):
         geometry = geometry_at(seed, state, attitude)
         if geometry["visible"]:
             if approach is None:
                 approach = state
-            if geometry["elevation_deg"] >= 25:
+            maximum_elevation_deg = max(maximum_elevation_deg, geometry["elevation_deg"])
+        elif approach is not None:
+            if maximum_elevation_deg >= 80:
                 break
-        else:
             approach = None
+            maximum_elevation_deg = -90
         state = step(state, propagation)
     else:
-        raise ValueError("No Stanford pass reaches the acquisition elevation in the seed day")
-    state = approach
+        raise ValueError("No near-overhead Stanford pass occurs in the seed day")
+    overhead = (approach, maximum_elevation_deg)
+    state = step(approach, propagation, backward=True)
+    preceding = []
+    approach = None
+    maximum_elevation_deg = -90
+    for _ in range(86400):
+        geometry = geometry_at(seed, state, attitude)
+        if geometry["visible"]:
+            approach = state
+            maximum_elevation_deg = max(maximum_elevation_deg, geometry["elevation_deg"])
+        elif approach is not None:
+            preceding.append((approach, maximum_elevation_deg))
+            if len(preceding) == 2:
+                break
+            approach = None
+            maximum_elevation_deg = -90
+        state = step(state, propagation, backward=True)
+    else:
+        raise ValueError("Two preceding Stanford contacts were not found within one day")
+    rising_passes = (*reversed(preceding), overhead)
+    if not all(a[1] < b[1] for a, b in zip(rising_passes, rising_passes[1:])):
+        raise ValueError("The seed orbit does not produce the rising terminator pass group")
+    state = rising_passes[0][0]
     for _ in range(180):
         state = step(state, propagation, backward=True)
     elements = osculating_elements(state.position_m, state.velocity_m_s, seed.orbit.mu_m3_s2)
@@ -67,10 +92,15 @@ def terminator_pass_demo():
     values["provenance"].append(
         "Terminator comparison: the 550 km, 18:00 LTAN first-order mean-J2 SSO seed "
         "is propagated with 1 s RK4+J2 steps to its first Stanford pass reaching "
-        "25 degrees elevation. The scenario starts Sun-pointed at 50% charge SOC, "
-        "180 s before that pass crosses the 10 degree RF mask. Its initial elements "
+        "80 degrees elevation, then backward to the two preceding real contacts. "
+        "Their calculated peaks increase toward the near-overhead pass for this "
+        "seed; they are not three successive revolutions. The scenario starts "
+        "Sun-pointed at 50% charge SOC, 180 s before the first contact crosses "
+        "the 10 degree RF mask. A contact below the independent 25 degree "
+        "tracking threshold remains Sun-pointed. Its initial elements "
         "are the propagated osculating state at the shifted epoch; LTAN is recomputed. "
-        "The 24-hour mission uses real geometric contacts and calculated eclipse. "
+        "The 24-hour mission continues after the group with real geometric contacts "
+        "and calculated eclipse; later pass peaks need not keep increasing. "
         "This is a representative planning orbit, not a flight ephemeris or an "
         "assumption that all terminator orbits remain sunlit in every season."
     )

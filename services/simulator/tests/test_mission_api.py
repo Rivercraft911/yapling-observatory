@@ -80,3 +80,22 @@ def test_wheel_reference_default_has_traceable_mechanics_and_explicit_budget():
             assert wheel['spec']['max_bus_power_w'] == .5
         assert evidence['sources'][0]['url'].startswith('https://www.astrofein.com/')
         assert evidence['assumptions']
+
+
+def test_advertised_mission_presets_have_http_routes_and_editable_scenarios():
+    from cubesat_sim.mission_models import MissionScenario
+    with TestClient(create_app()) as client:
+        names = []
+        for path in ("daytime-pass", "terminator"):
+            response = client.get("/api/mission/demo/" + path)
+            assert response.status_code == 200, response.text
+            scenario = MissionScenario.model_validate(response.json()["scenario"])
+            assert scenario.duration_s == 86400
+            assert scenario.power.battery.electrical.initial_soc == .5
+            names.append(scenario.name)
+            custom = scenario.model_dump(mode="json")
+            custom["duration_s"] = 2 * 86400
+            custom["orbit"]["elements"]["semi_major_axis_m"] += 10000
+            custom["power"]["spacecraft_tx_electrical_w"] = 15
+            assert MissionScenario.model_validate(custom).duration_s == 2 * 86400
+        assert names[0] != names[1]

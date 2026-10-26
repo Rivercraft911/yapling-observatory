@@ -32,7 +32,11 @@ def geometry(demo):
     passes, eclipses = [], []
     current, eclipse_start, first_tracking = None, None, None
     initial_sunlit = None
-    for tick in range(int(demo.duration_s) + 1):
+    period = 2 * math.pi * math.sqrt(
+        demo.orbit.elements.semi_major_axis_m**3 / demo.orbit.mu_m3_s2
+    )
+    cluster_duration = math.ceil(5 * period / 10) * 10
+    for tick in range(cluster_duration + 1):
         geo = geometry_at(demo, state, attitude)
         sun = sun_direction_inertial(demo.epoch_utc, tick)
         shadow = sun_visibility(state.position_m, sun, demo.orbit.reference_radius_m) == 0
@@ -85,8 +89,8 @@ def test_demo_explicit_inputs_preserve_normal_default_and_independent_masks(demo
     period = 2 * math.pi * math.sqrt(
         demo.orbit.elements.semi_major_axis_m**3 / demo.orbit.mu_m3_s2
     )
-    assert 5 * period <= demo.duration_s < 5 * period + 10
-    assert 7.5 * 3600 < demo.duration_s < 8.5 * 3600
+    assert demo.duration_s == 86400
+    assert demo.duration_s > 10 * period
     assert any("no global worst-case" in source for source in demo.provenance)
 
 
@@ -123,3 +127,9 @@ def test_demo_has_five_complete_eclipse_cycles_without_claiming_worst_case(geome
         assert 1600 < end - start < 1800
     assert geometry["end_partial_eclipse"] is None
     assert 8000 < sum(end - start for start, end in geometry["eclipses"]) < 9000
+
+
+def test_daylight_run_keeps_more_than_ten_hours_after_initial_cluster(demo, geometry):
+    assert demo.duration_s - geometry["passes"][-1]["los_s"] > 10 * 3600
+    assert demo.conops.auto_ground_tracking
+    assert demo.conops.default_mode == "sun_pointing"

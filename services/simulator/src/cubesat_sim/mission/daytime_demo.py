@@ -72,7 +72,7 @@ def daytime_overhead_demo():
     start_epoch = (
         utc_datetime(PEAK_EPOCH_UTC) + timedelta(seconds=state.time_s)
     ).isoformat().replace("+00:00", "Z")
-    values["name"] = "Stanford daylight pass cluster · five orbits"
+    values["name"] = "Stanford daylight passes · 24 hours"
     values["run_kind"] = "long_mission"
     values["orbit"].update(
         force_model="j2", method="rk4", preset=None, ltan_hours_at_epoch=None,
@@ -90,10 +90,7 @@ def daytime_overhead_demo():
             epoch_utc=start_epoch,
         ),
     )
-    initial_period = 2 * math.pi * math.sqrt(
-        initial.semi_major_axis_m**3 / reference.orbit.mu_m3_s2
-    )
-    values["duration_s"] = math.ceil(5 * initial_period / 10) * 10
+    values["duration_s"] = 86400
     values["clocks"].update(
         dynamics_step_s=1, controller_period_s=1, thermal_step_s=10, output_step_s=10
     )
@@ -118,7 +115,7 @@ def daytime_overhead_demo():
         "95 degrees east of north. RK4 + J2 backward/forward 1 s steps locate the "
         "first real 10 degree station-mask crossing in the preceding 2.5 periods; "
         "the run begins 180 s earlier, Sun-pointed at 50% electrical charge SOC. "
-        "Five initial osculating periods are rounded up to 10 s. Automatic ground "
+        "The editable 24-hour run continues beyond the first five-orbit cluster to track charging and thermal cycles. Automatic ground "
         "tracking starts at an independently editable 25 degree elevation; the "
         "station RF mask remains 10 degrees. Earth rotation produces the moderate, "
         "high, overhead and receding pass cluster. Nonzero solar beta still produces "
