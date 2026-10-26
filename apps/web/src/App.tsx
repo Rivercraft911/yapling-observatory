@@ -301,7 +301,7 @@ export default function App() {
         <div className="brand">
           <img className="brand-mark" src="/brand/ssi-mark.svg" alt="" />
           <span className="brand-name">
-            Yapling Observatory<small>STANFORD SSI</small>
+            Yapling Observatory<small>Stanford SSI - A Rivercraft Slop Production</small>
           </span>
         </div>
         <div className="header-right">
