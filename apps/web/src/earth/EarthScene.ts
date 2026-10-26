@@ -692,6 +692,7 @@ export class EarthScene {
       this.frame = requestAnimationFrame(this.animate);
     } else {
       cancelAnimationFrame(this.frame);
+      this.nightDetail?.suspend();
     }
   }
 

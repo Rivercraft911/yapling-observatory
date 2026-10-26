@@ -136,12 +136,19 @@ export class NightDetailLayer {
     this.diagnostics.nightDetailResident = this.texture ? '1' : '0';
     this.diagnostics.nightDetailPending = this.pending ? '1' : '0';
   }
-  dispose() {
-    this.disposed = true;
+  suspend() {
+    if (this.disposed) return;
     this.pending?.abort();
+    this.neededSince = null;
+    this.unusedSince = null;
     this.weight = 0;
     this.release();
     this.publish();
+  }
+  dispose() {
+    if (this.disposed) return;
+    this.suspend();
+    this.disposed = true;
     this.diagnostics.nightDetailState = 'disposed';
     this.diagnostics.nightDetailPending = '0';
   }

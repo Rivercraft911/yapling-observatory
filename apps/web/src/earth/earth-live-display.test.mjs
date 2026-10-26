@@ -156,12 +156,15 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
     return scheduled.length + 20;
   };
   globalThis.cancelAnimationFrame = (id) => cancelled.push(id);
+  let suspendedNightDetail = 0;
+  scene.nightDetail = { suspend: () => suspendedNightDetail++ };
   scene.renderingVisible = true;
   scene.frame = 7;
   scene.animate = () => {};
   scene.setRenderingVisible(false);
   scene.setRenderingVisible(false);
   assert.deepEqual(cancelled, [7], 'Flat map cancels the hidden GPU frame once');
+  assert.equal(suspendedNightDetail, 1, 'Flat map suspends native night resources once');
   scene.setRenderingVisible(true);
   scene.setRenderingVisible(true);
   assert.equal(scheduled.length, 1, 'Returning to Earth schedules only one animation loop');

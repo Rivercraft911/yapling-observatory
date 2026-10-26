@@ -168,6 +168,35 @@ if (typeof NIGHT_DETAIL_TEST === 'undefined') {
   assert.equal(failed.diagnostics.nightDetailError, undefined);
   failed.layer.dispose();
   assert.equal(recovered.releases, 1);
+  const suspended = fixture();
+  suspended.layer.update(position(1.1), true, 0);
+  suspended.layer.update(position(1.1), true, 250);
+  const resident = trackedTexture();
+  suspended.requests[0].resolve(resident);
+  await settle();
+  suspended.layer.suspend();
+  assert.equal(
+    resident.releases,
+    1,
+    'Pausing rendering releases native detail without another frame',
+  );
+  assert.equal(suspended.diagnostics.nightDetailMix, '0.000');
+  assert.equal(suspended.diagnostics.nightDetailResident, '0');
+  suspended.layer.update(position(1.1), true, 1000);
+  suspended.layer.update(position(1.1), true, 1249);
+  assert.equal(suspended.requests.length, 1, 'Resume starts a fresh settle interval');
+  suspended.layer.update(position(1.1), true, 1250);
+  assert.equal(suspended.requests.length, 2);
+  suspended.layer.suspend();
+  assert.equal(suspended.requests[1].signal.aborted, true);
+  const inactive = trackedTexture();
+  suspended.requests[1].resolve(inactive);
+  await settle();
+  assert.equal(inactive.releases, 1, 'A suspended load cannot repopulate the texture');
+  suspended.layer.dispose();
+  suspended.layer.dispose();
+  assert.equal(suspended.diagnostics.nightDetailState, 'disposed');
+
   console.log(
     'Native night detail checks passed: asset identity/native georeferencing, lossless codec, sampler/memory bounds, visible-region/distance selection, lazy load/fade, cancellation, retry, eviction and disposal.',
   );
