@@ -18,6 +18,7 @@ import type {
   RadiusMode,
   SphericalHarmonicProfile,
 } from './antenna/types';
+import { runAntennaReference, runGroundLinkLabel, runLineOfSight } from './antenna/runReference';
 import './antenna.css';
 
 const labels: Record<AntennaModel, string> = {
@@ -88,10 +89,18 @@ export function AntennaLab({
     [retry, setRetry] = useState(0);
   const lastProbeDispatch = useRef(0);
   const samples = snapshot?.run.result?.samples;
-  const runLink = snapshot?.scenario[direction];
+  const archivedAntenna = useMemo(
+    () => runAntennaReference(snapshot, direction),
+    [snapshot, direction],
+  );
+  const runLink = archivedAntenna.request?.link;
+  const runVariant = archivedAntenna.request?.antenna_variant;
   const runReferenceKey = JSON.stringify({
-    link: runLink,
-    antenna_variant: snapshot?.scenario.antenna_variant || 'dipole',
+    run_id: snapshot?.run.run_id,
+    scenario_hash: snapshot?.run.scenario_hash,
+    direction,
+    request: archivedAntenna.request,
+    retry,
   });
   const runReference =
     runReferenceResult?.key === runReferenceKey ? runReferenceResult.value : null;
@@ -101,7 +110,7 @@ export function AntennaLab({
         ? 'spherical_harmonic'
         : runLink?.spacecraft_antenna === 'patch'
           ? 'patch'
-          : snapshot?.scenario.antenna_variant || 'dipole'
+          : runVariant || 'dipole'
       : source;
   const harmonic = model === 'spherical_harmonic';
   const harmonicProfile =
@@ -110,11 +119,7 @@ export function AntennaLab({
     source === 'run' ? runLink?.antenna_orientation_deg || ZERO_ANGLES : angles;
   const bentTape = model === 'bent_v_up_45' || model === 'bent_v_out_45';
   const physicalVariant: Variant =
-    model === 'patch' || harmonic
-      ? snapshot?.scenario.antenna_variant || 'dipole'
-      : bentTape
-        ? 'v45'
-        : (model as Variant);
+    model === 'patch' || harmonic ? runVariant || 'dipole' : bentTape ? 'v45' : (model as Variant);
   const physicalAsset =
     model === 'bent_v_out_45'
       ? assets?.previews?.v45_outward || {
@@ -137,14 +142,19 @@ export function AntennaLab({
     return () => abort.abort();
   }, []);
   useEffect(() => {
-    if (source !== 'run' || !runLink) return;
+    if (source !== 'run' || !archivedAntenna.request) {
+      setRunReference(null);
+      setReferenceLoading(false);
+      return;
+    }
     const abort = new AbortController();
     let active = true;
     setReferenceLoading(true);
+    setRunReference(null);
     setError('');
     api<PatternRequest>('/api/antenna-lab/reference-request', {
       method: 'POST',
-      body: runReferenceKey,
+      body: JSON.stringify(archivedAntenna.request),
       signal: abort.signal,
     })
       .then((result) => {
@@ -192,7 +202,7 @@ export function AntennaLab({
       armLengthMm,
     ],
   );
-  const shapeKey = JSON.stringify(shape);
+  const shapeKey = JSON.stringify({ request: shape, retry });
   useEffect(() => setAppliedTo(null), [shapeKey]);
   const pattern = patternResult?.key === shapeKey ? patternResult.value : null;
   useEffect(() => {
@@ -203,6 +213,7 @@ export function AntennaLab({
     const abort = new AbortController();
     let active = true;
     setLoading(true);
+    setPattern(null);
     setError('');
     const timeout = setTimeout(() => {
       api<Pattern>('/api/antenna-lab/pattern', {
@@ -227,23 +238,13 @@ export function AntennaLab({
       abort.abort();
     };
   }, [shape, retry]);
-  const runProbe = useMemo(() => {
-    if (!followLos || !samples) return null;
-    const i = Math.max(0, Math.min(sampleIndex, samples.time_s.length - 1));
-    const spacecraft = samples.satellite_position_m[i],
-      station = samples.station_position_m[i],
-      quaternion = samples.q_body_from_inertial_wxyz[i];
-    return spacecraft && station && quaternion
-      ? {
-          spacecraft_position_m: spacecraft,
-          station_position_m: station,
-          q_body_from_inertial_wxyz: quaternion,
-        }
-      : null;
-  }, [followLos, samples, sampleIndex]);
+  const selectedLos = useMemo(() => runLineOfSight(snapshot, sampleIndex), [snapshot, sampleIndex]);
+  const followingLos = source === 'run' || followLos;
+  const runProbe =
+    followingLos && (source !== 'run' || archivedAntenna.request) ? selectedLos.probe : null;
   const probeRequest = useMemo(
     () =>
-      shape
+      shape && (!followingLos || runProbe)
         ? {
             ...shape,
             probe_azimuth_deg: azimuth,
@@ -252,7 +253,7 @@ export function AntennaLab({
             run_probe: runProbe,
           }
         : null,
-    [shape, azimuth, elevation, feedRoll, runProbe],
+    [shape, azimuth, elevation, feedRoll, runProbe, followingLos],
   );
   const probeKey = JSON.stringify({
     request: probeRequest,
@@ -267,6 +268,7 @@ export function AntennaLab({
   });
   const probe = probeRequest && probeResult?.key === probeKey ? probeResult.value : null;
   useEffect(() => {
+    setProbe(null);
     if (!probeRequest) return;
     const abort = new AbortController();
     let active = true;
@@ -298,7 +300,11 @@ export function AntennaLab({
     onFollowRunChange?.(runProbe !== null);
     return () => onFollowRunChange?.(false);
   }, [runProbe !== null, onFollowRunChange]);
-  const actualCoupling = samples?.[direction].polarization_coupling[sampleIndex];
+  const actualCoupling =
+    samples?.visible?.[sampleIndex] === true
+      ? samples?.[direction]?.polarization_coupling?.[sampleIndex]
+      : null;
+  const groundLinkLabel = runGroundLinkLabel(snapshot, direction, sampleIndex);
   const time = samples?.time_s[sampleIndex];
   const angleChange = (index: number, next: number) =>
     setAngles(
@@ -354,12 +360,16 @@ export function AntennaLab({
               value={source}
               onChange={(event) => setSource(event.target.value as 'run' | AntennaModel)}
             >
-              <option value="run">Run antenna</option>
-              {Object.entries(labels).map(([id, label]) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
+              <option value="run" disabled={!archivedAntenna.request}>
+                Run antenna
+              </option>
+              {Object.entries(labels)
+                .filter(([id]) => id !== 'v45')
+                .map(([id, label]) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
             </select>
           </label>
           {source === 'run' ? (
@@ -373,6 +383,9 @@ export function AntennaLab({
             </select>
           ) : null}
         </div>
+        {source === 'run' && !archivedAntenna.request && (
+          <small className="antenna-geometry-note">{archivedAntenna.reason}</small>
+        )}
         {harmonic && source !== 'run' && catalog?.examples?.length ? (
           <label className="antenna-field antenna-reference-select">
             Reference
@@ -532,7 +545,7 @@ export function AntennaLab({
         {!harmonic ? (
           <button
             className="antenna-focus-button"
-            disabled={!geometryVisible}
+            disabled={!geometryVisible || (source === 'run' && !archivedAntenna.request)}
             onClick={() => setFocusRequest((previous) => previous + 1)}
           >
             Focus antenna
@@ -565,7 +578,13 @@ export function AntennaLab({
         {!harmonic ? (
           <NumberField
             label="Efficiency"
-            value={(source === 'run' ? (runReference?.efficiency ?? 1) : efficiency) * 100}
+            value={
+              source === 'run'
+                ? runReference
+                  ? runReference.efficiency * 100
+                  : null
+                : efficiency * 100
+            }
             unit="%"
             min={0}
             max={100}
@@ -602,33 +621,36 @@ export function AntennaLab({
         <label className="antenna-follow">
           <input
             type="checkbox"
-            checked={followLos}
-            disabled={!samples}
+            checked={followingLos}
+            disabled={source === 'run' || !selectedLos.probe}
             onChange={(event) => setFollowLos(event.target.checked)}
           />
-          Follow run LOS
-          <span title="Changes the body-frame probe direction only. The reference linear analyzer below is separate from the ground-station feed.">
-            direction only
+          {source === 'run' ? 'Computed run LOS' : 'Follow run LOS'}
+          <span title="Geometric direction from the archived positions and Hamilton body attitude. The analyzer below is independent of the actual ground feed.">
+            geometric direction
           </span>
         </label>
+        {followingLos && (
+          <small className="antenna-geometry-note">{selectedLos.reason || groundLinkLabel}</small>
+        )}
         <NumberField
           label="Azimuth"
-          value={runProbe ? (probe?.azimuth_deg ?? null) : azimuth}
+          value={followingLos ? (probe?.azimuth_deg ?? null) : azimuth}
           unit="deg"
           min={-180}
           max={180}
           step={1}
-          disabled={!!runProbe}
+          disabled={followingLos}
           onChange={setAzimuth}
         />
         <NumberField
           label="Elevation"
-          value={runProbe ? (probe?.elevation_deg ?? null) : elevation}
+          value={followingLos ? (probe?.elevation_deg ?? null) : elevation}
           unit="deg"
           min={-90}
           max={90}
           step={1}
-          disabled={!!runProbe}
+          disabled={followingLos}
           onChange={setElevation}
         />
         <div
@@ -663,9 +685,11 @@ export function AntennaLab({
         ) : null}
         {snapshot && runProbe ? (
           <div className="antenna-run-reference">
-            <span>Run {direction} coupling</span>
+            <span>Run {direction} feed coupling</span>
             <b>{value(actualCoupling, 3)}</b>
-            <small>T+ {value(time, 1)} s · actual run feed</small>
+            <small>
+              T+ {value(time, 1)} s · {groundLinkLabel}
+            </small>
           </div>
         ) : null}
       </fieldset>
@@ -720,7 +744,11 @@ export function AntennaLab({
       <header className="antenna-toolbar">
         <div>
           <span className="eyebrow">ANTENNA LAB / VECTOR FIELD</span>
-          <h1>{pattern?.definition.label || labels[model]}</h1>
+          <h1>
+            {source === 'run' && !archivedAntenna.request
+              ? 'Run antenna unavailable'
+              : pattern?.definition.label || labels[model]}
+          </h1>
         </div>
         <span className="antenna-toolbar-note">
           {harmonic && harmonicProfile
@@ -737,8 +765,8 @@ export function AntennaLab({
           variant={physicalVariant}
           asset={physicalAsset}
           model={model}
-          geometryVisible={geometryVisible}
-          lobeVisible={lobeVisible}
+          geometryVisible={geometryVisible && (source !== 'run' || !!archivedAntenna.request)}
+          lobeVisible={lobeVisible && (source !== 'run' || !!archivedAntenna.request)}
           lobeOpacity={lobeOpacity}
           focusRequest={focusRequest}
         />
