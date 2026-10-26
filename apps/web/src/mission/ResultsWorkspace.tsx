@@ -181,6 +181,7 @@ export function ResultsWorkspace({
             cursorTime={cursorTime}
             onScrub={onScrub}
             showReportTab={false}
+            layout="results"
           />
         ) : (
           <MissionReport report={report} live={showingLive} onScrub={onScrub} />

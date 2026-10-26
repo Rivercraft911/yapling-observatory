@@ -109,6 +109,8 @@ export interface Samples {
       | 'field_unavailable'
       | 'active'
     )[];
+    magnetic_field_body_t?: number[][];
+    magnetic_dipole_body_am2?: number[][];
     requested_torque_body_nm: number[][];
     actual_torque_body_nm: number[][];
     residual_torque_body_nm: number[][];

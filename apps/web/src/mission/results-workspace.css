@@ -141,6 +141,25 @@
 .results-workspace .trace-panel {
   padding-top: 12px;
 }
+.results-workspace .trace-heading {
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 15px;
+}
+.results-workspace .trace-heading h2 {
+  flex: none;
+  white-space: nowrap;
+}
+.results-workspace .trace-values {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 14px;
+  max-width: 100%;
+  margin-left: auto;
+}
+.results-workspace .trace-values > span {
+  white-space: nowrap;
+}
 .results-workspace .mission-report {
   padding: 12px 26px 0;
 }
@@ -148,12 +167,6 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-}
-@media (min-width: 1081px) {
-  .results-workspace .trace-stack[data-dense='true'] {
-    grid-template-rows: repeat(var(--plot-pairs), minmax(230px, 1fr));
-    column-gap: 28px;
-  }
 }
 @media (max-width: 760px) {
   .results-workspace .results-heading {
@@ -184,5 +197,54 @@
   }
   .results-workspace .mission-report {
     padding: 10px 16px 0;
+  }
+}
+
+.results-workspace .results-plot-dock {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.results-workspace .results-plot-dock .plot-groups {
+  min-height: 40px;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.results-workspace .results-plot-columns {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #9c9494;
+  font-size: 10px;
+}
+.results-workspace .results-plot-columns select {
+  padding: 3px 5px;
+  border: 1px solid #494046;
+  background: #211e22;
+  color: #d8d0cc;
+  font-size: 10px;
+}
+.results-workspace .results-plot-dock .trace-stack {
+  --results-columns: 1;
+  grid-template-columns: repeat(var(--results-columns), minmax(0, 1fr));
+  grid-template-rows: none;
+  grid-auto-rows: minmax(250px, 1fr);
+  column-gap: 26px;
+  align-content: start;
+  overflow-y: auto;
+}
+@media (min-width: 900px) {
+  .results-workspace .results-plot-dock:not([data-columns='1']) .trace-stack {
+    --results-columns: 2;
+  }
+}
+@media (min-width: 1200px) {
+  .results-workspace .results-plot-dock[data-columns='3'] .trace-stack {
+    --results-columns: 3;
+  }
+}
+@media (min-width: 1500px) {
+  .results-workspace .results-plot-dock[data-columns='auto'] .trace-stack {
+    --results-columns: 3;
   }
 }

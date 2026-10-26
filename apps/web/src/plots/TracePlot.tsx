@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import uPlot from 'uplot';
+import { formatAxisValues, formatElapsedSeconds, formatValue } from './traceFormatting';
+export { formatValue } from './traceFormatting';
 
 export interface Trace {
   label: string;
@@ -81,15 +83,13 @@ export function TracePlot({
         },
         {
           stroke: '#849195',
-          size: 49,
+          size: (_u, labels) =>
+            Math.max(49, 7 + 6.1 * Math.max(0, ...(labels ?? []).map((label) => label.length))),
           gap: 7,
           font: '10px IBM Plex Mono',
           grid: { show: true, stroke: '#2a3337', width: 1 },
           ticks: { show: false },
-          values: (_u, values) =>
-            values.map((value) =>
-              Number.isInteger(value) ? `${value}` : value.toFixed(Math.abs(value) < 1 ? 2 : 1),
-            ),
+          values: (_u, values) => formatAxisValues(values),
         },
       ],
       series: [
@@ -185,7 +185,7 @@ export function TracePlot({
         </h2>
         <div className="trace-values" data-inspecting={hoverTime !== null}>
           {hoverTime !== null && (
-            <span className="trace-hover-time">T+ {formatValue(times[index])} s</span>
+            <span className="trace-hover-time">T+ {formatElapsedSeconds(times[index])} s</span>
           )}
           {traces.map((trace) => (
             <span key={trace.label} style={{ color: trace.color }}>
@@ -211,7 +211,4 @@ export function closestIndex(times: number[], value: number) {
     else hi = mid;
   }
   return lo > 0 && Math.abs(times[lo - 1] - value) < Math.abs(times[lo] - value) ? lo - 1 : lo;
-}
-export function formatValue(value: number | null | undefined, digits = 1) {
-  return value == null || !Number.isFinite(value) ? '—' : value.toFixed(digits);
 }

@@ -6,29 +6,67 @@ import { plotDefinitions, plotTraces } from './registry';
 import type { PlotId } from './registry';
 import { MissionReport } from '../mission/MissionReport';
 import { missionReport } from '../mission/missionReporting';
+import {
+  plotLayouts,
+  readPlotPreferences,
+  writePlotPreferences,
+  togglePlotSelection,
+  type PlotLayout,
+  type PlotColumns,
+} from './plotPreferences';
 
 const emptyTimes: number[] = [];
-const defaults: PlotId[] = ['pointing', 'margin', 'rate'];
-const presets: { label: string; values: PlotId[] }[] = [
-  { label: 'Link', values: defaults },
+const compactPresets: { label: string; values: PlotId[] }[] = [
+  { label: 'Link', values: plotLayouts.compact.defaults },
   { label: 'GNC', values: ['pointing', 'wheel_capacity', 'saturation'] },
   { label: 'Power', values: ['power', 'charge', 'actuator_power'] },
   { label: 'Thermal', values: ['temperatures', 'bus_heat'] },
   { label: 'Battery', values: ['battery_soc', 'battery_voltage', 'battery_current'] },
 ];
-function readSelection(): PlotId[] {
+const resultsPresets: { label: string; values: PlotId[] }[] = [
+  { label: 'Overview', values: plotLayouts.results.defaults },
+  {
+    label: 'Link',
+    values: ['margin', 'rate', 'payload', 'receiver_lock', 'antenna_gain', 'polarization'],
+  },
+  {
+    label: 'GNC',
+    values: [
+      'pointing',
+      'body_rate',
+      'wheel_speed',
+      'wheel_capacity',
+      'wheel_momentum',
+      'saturation',
+      'unloading_torque',
+      'coil_power',
+      'magnetic_field',
+      'control_torque',
+      'control_residual',
+    ],
+  },
+  {
+    label: 'Power',
+    values: ['power', 'energy', 'charge', 'actuator_power', 'battery_voltage', 'battery_current'],
+  },
+  { label: 'Thermal', values: ['temperatures', 'bus_heat', 'battery_heat'] },
+  {
+    label: 'Battery',
+    values: [
+      'battery_soc',
+      'battery_voltage',
+      'battery_current',
+      'battery_remaining_charge',
+      'battery_heat',
+    ],
+  },
+];
+function preferenceStorage() {
   try {
-    const saved: unknown = JSON.parse(localStorage.getItem('ssi-workspace-plots') || 'null');
-    if (
-      Array.isArray(saved) &&
-      saved.length >= 1 &&
-      saved.length <= 6 &&
-      new Set(saved).size === saved.length &&
-      saved.every((id) => plotDefinitions.some((definition) => definition.id === id))
-    )
-      return saved;
-  } catch {}
-  return defaults;
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
 }
 function showBatteryTemperatureNotice(
   selection: readonly PlotId[],
@@ -50,30 +88,43 @@ function showBatteryTemperatureNotice(
     ] === true
   );
 }
-export function PlotDock({
-  snapshot,
-  baseline,
-  cursorTime,
-  onScrub,
-  liveReport,
-  showReportTab = true,
-}: {
+interface PlotDockProps {
   snapshot: RunSnapshot | null;
   baseline: RunSnapshot | null;
   cursorTime: number;
   onScrub: (time: number) => void;
   liveReport?: unknown;
   showReportTab?: boolean;
-}) {
+  layout?: PlotLayout;
+}
+export function PlotDock(props: PlotDockProps) {
+  return <PlotDockContent key={props.layout || 'compact'} {...props} />;
+}
+function PlotDockContent({
+  snapshot,
+  baseline,
+  cursorTime,
+  onScrub,
+  liveReport,
+  showReportTab = true,
+  layout = 'compact',
+}: PlotDockProps) {
   const [reportOpen, setReportOpen] = useState(false);
-  const [selection, setSelection] = useState(readSelection);
+  const [preferences, setPreferences] = useState(() =>
+    readPlotPreferences(
+      layout,
+      plotDefinitions.map((definition) => definition.id),
+      preferenceStorage(),
+    ),
+  );
+  const selection = preferences.selection;
+  const maximum = plotLayouts[layout].maximum;
+  const presets = layout === 'results' ? resultsPresets : compactPresets;
   const [choosing, setChoosing] = useState(false);
   const chooser = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    try {
-      localStorage.setItem('ssi-workspace-plots', JSON.stringify(selection));
-    } catch {}
-  }, [selection]);
+    writePlotPreferences(layout, preferences, preferenceStorage());
+  }, [layout, preferences]);
   useEffect(() => {
     if (!choosing) return;
     const outside = (event: PointerEvent) => {
@@ -112,17 +163,16 @@ export function PlotDock({
     cursorTime,
   );
   const toggle = (id: PlotId) =>
-    setSelection((current) =>
-      current.includes(id)
-        ? current.length > 1
-          ? current.filter((value) => value !== id)
-          : current
-        : current.length < 6
-          ? [...current, id]
-          : current,
-    );
+    setPreferences((current) => ({
+      ...current,
+      selection: togglePlotSelection(current.selection, id, layout),
+    }));
   return (
-    <section className="plot-dock" aria-label="Run plots">
+    <section
+      className={`plot-dock ${layout === 'results' ? 'results-plot-dock' : ''}`}
+      data-columns={preferences.columns}
+      aria-label={layout === 'results' ? 'Results charts' : 'Run plots'}
+    >
       <nav className="plot-groups" aria-label="Plot groups">
         {presets.map((preset) => (
           <button
@@ -130,12 +180,36 @@ export function PlotDock({
             aria-pressed={!reportOpen && selection.join() === preset.values.join()}
             onClick={() => {
               setReportOpen(false);
-              setSelection(preset.values);
+              setPreferences((current) => ({ ...current, selection: [...preset.values] }));
             }}
           >
             {preset.label}
           </button>
         ))}
+        {layout === 'results' && (
+          <label
+            className="results-plot-columns"
+            title="Maximum chart columns; narrow windows use fewer columns to keep plots readable."
+          >
+            <span>Columns</span>
+            <select
+              aria-label="Results chart columns"
+              value={preferences.columns}
+              onChange={(event) => {
+                const columns =
+                  event.target.value === 'auto'
+                    ? 'auto'
+                    : (Number(event.target.value) as PlotColumns);
+                setPreferences((current) => ({ ...current, columns }));
+              }}
+            >
+              <option value="auto">Auto</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </label>
+        )}
         {showReportTab && (
           <button aria-pressed={reportOpen} onClick={() => setReportOpen(true)}>
             Report
@@ -163,7 +237,10 @@ export function PlotDock({
           {choosing && (
             <div className="plot-options" id="plot-options" role="group" aria-label="Choose plots">
               <div className="plot-options-heading">
-                SHOW PLOTS <span>{selection.length} / 6</span>
+                SHOW PLOTS{' '}
+                <span>
+                  {selection.length} / {maximum}
+                </span>
               </div>
               {plotDefinitions.map((item) => (
                 <label key={item.id} title={item.description}>
@@ -171,7 +248,9 @@ export function PlotDock({
                     type="checkbox"
                     checked={selection.includes(item.id)}
                     disabled={
-                      selection.includes(item.id) ? selection.length === 1 : selection.length === 6
+                      selection.includes(item.id)
+                        ? selection.length === 1
+                        : selection.length === maximum
                     }
                     onChange={() => toggle(item.id)}
                   />

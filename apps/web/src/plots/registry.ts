@@ -21,6 +21,10 @@ export type PlotId =
   | 'wheel_momentum'
   | 'unloading_torque'
   | 'coil_power'
+  | 'magnetic_field'
+  | 'magnetic_dipole'
+  | 'control_torque'
+  | 'control_residual'
   | 'saturation'
   | 'power'
   | 'energy'
@@ -78,7 +82,8 @@ export const plotDefinitions: PlotDefinition[] = [
     title: 'Ideal rate',
     unit: 'kb/s',
     stepped: true,
-    description: 'Scheduled ideal threshold rate. Receiver lock and packet losses are not modeled.',
+    description:
+      'Scheduled ideal threshold rate. Receiver lock and completed-frame payload are separate traces.',
     read: (s) => paired(s, 'ideal_rate_bps', 1000),
   },
   {
@@ -184,6 +189,57 @@ export const plotDefinitions: PlotDefinition[] = [
       [0, 1, 2].map((axis) => ({
         label: 'xyz'[axis],
         values: (s.gnc?.omega_body_rad_s || []).map((v) => (v[axis] * 180) / Math.PI),
+      })),
+  },
+  {
+    id: 'magnetic_field',
+    title: 'Magnetic field',
+    unit: 'µT',
+    description: 'Modeled Earth magnetic field along the spacecraft body axes.',
+    read: (s) =>
+      [0, 1, 2].map((axis) => ({
+        label: 'xyz'[axis],
+        values: (s.gnc?.magnetic_field_body_t || []).map((v) => v[axis] * 1e6),
+      })),
+  },
+  {
+    id: 'magnetic_dipole',
+    title: 'Coil dipole',
+    unit: 'A·m²',
+    description: 'Applied magnetorquer dipole along body axes after authority limits.',
+    read: (s) =>
+      [0, 1, 2].map((axis) => ({
+        label: 'xyz'[axis],
+        values: (s.gnc?.magnetic_dipole_body_am2 || []).map((v) => v[axis]),
+      })),
+  },
+  {
+    id: 'control_torque',
+    title: 'Control torque',
+    unit: 'µN·m',
+    description:
+      'Requested and achieved spacecraft control torque, body axes. Achieved torque includes wheel and magnetic limits.',
+    read: (s) => [
+      ...[0, 1, 2].map((axis) => ({
+        label: `Requested ${'xyz'[axis]}`,
+        values: (s.gnc?.requested_torque_body_nm || []).map((v) => v[axis] * 1e6),
+      })),
+      ...[0, 1, 2].map((axis) => ({
+        label: `Achieved ${'xyz'[axis]}`,
+        values: (s.gnc?.actual_torque_body_nm || []).map((v) => v[axis] * 1e6),
+      })),
+    ],
+  },
+  {
+    id: 'control_residual',
+    title: 'Torque residual',
+    unit: 'µN·m',
+    description:
+      'Requested minus achieved spacecraft control torque, returned by the dynamics model in body axes.',
+    read: (s) =>
+      [0, 1, 2].map((axis) => ({
+        label: 'xyz'[axis],
+        values: (s.gnc?.residual_torque_body_nm || []).map((v) => v[axis] * 1e6),
       })),
   },
   {
@@ -380,23 +436,27 @@ export function plotTraces(
         ? series.values
         : samples.time_s.map(() => null),
     color:
-      series.label === 'UL'
-        ? pinned
-          ? '#94515a'
-          : '#ef6771'
-        : series.label === 'DL'
+      definition.id === 'control_torque' && !pinned
+        ? ['#c9c4bd', '#c89974', '#78a5b3'][index % 3]
+        : series.label === 'UL'
           ? pinned
-            ? '#827c75'
-            : '#e6e1d9'
-          : pinned
-            ? '#6b6865'
-            : ['#c9c4bd', '#c89974', '#78a5b3', '#bd7184'][index % 4],
+            ? '#94515a'
+            : '#ef6771'
+          : series.label === 'DL'
+            ? pinned
+              ? '#827c75'
+              : '#e6e1d9'
+            : pinned
+              ? '#6b6865'
+              : ['#c9c4bd', '#c89974', '#78a5b3', '#bd7184'][index % 4],
     dash: pinned
       ? series.label === 'DL'
         ? [2, 5]
         : [5, 4]
       : series.label === 'DL'
         ? [7, 3]
-        : undefined,
+        : definition.id === 'control_torque' && index < 3
+          ? [3, 3]
+          : undefined,
   }));
 }
