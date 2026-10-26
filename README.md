@@ -1,6 +1,6 @@
 # Stanford SSI Link Workspace
 
-Run a CubeSat mission, inspect antenna lobes, and compare RF, pointing, power and temperatures on one timeline. Follow the spacecraft above Earth or work with its physical model. Resize the panes, choose the lower plots, and replay a computed run at 0.25× to 1000×. Click or drag a plot to scrub. Hover to inspect a sampled value while playback continues. Graphics interpolate between samples for smooth replay.
+Run a CubeSat mission, inspect antenna lobes, and compare RF, pointing, power and temperatures on one timeline. Follow the spacecraft above Earth or work with its physical model. Resize the panes, choose the lower plots, and replay a computed run at 0.25× to 1000×. Click or drag a plot to scrub. Hover to inspect a sampled value while playback continues. Wheel over a plot to zoom at the pointer; Shift + wheel pans. The linked time window follows you between Earth and Results. Use Full to restore the whole run, or click a daily/pass row to frame that interval. Graphics interpolate between samples for smooth replay.
 
 Python owns the engineering calculations. The browser displays immutable results and handles cameras, geometry and controls. Equations have named homes such as [`rf/free_space.py`](services/simulator/src/cubesat_sim/rf/free_space.py), [`rf/link_budget.py`](services/simulator/src/cubesat_sim/rf/link_budget.py) and [`orbit/gravity.py`](services/simulator/src/cubesat_sim/orbit/gravity.py). See the [model map and numerical guide](services/simulator/README.md).
 
@@ -39,7 +39,11 @@ Spacecraft’s Hardware, Power, Thermal and GNC controls edit the same satellite
 
 The editable transmitter planning example is 10 W DC input and 4 W conducted RF at the PA port. It produces 6 W transmitter heat. With the provisional 1 dB feed loss and unit radiation efficiency, about 3.18 W escapes as RF and 6.82 W becomes total spacecraft heat. Feed and antenna losses remain separate; these are planning inputs, not calibrated flight hardware.
 
-The NCR18650GA battery defaults to nominal energy accounting. Select its optional 25 °C electrical reference to compute terminal voltage, current, remaining charge and resistive heat. Published exact-cell OCV and resistance data support this steady-current approximation; it has no transient relaxation, temperature-dependent calibration or aging model. Current and temperature limits constrain operation. Thermal materials and contacts remain provisional.
+New missions enable the NCR18650GA 25 °C electrical reference to compute terminal voltage, current, charge SOC and resistive heat. Energy-only accounting remains selectable, and older histories keep their original model. Published exact-cell OCV and resistance data support this steady-current approximation; it has no transient relaxation, temperature-dependent calibration or aging model. Current and temperature limits constrain operation. Thermal materials and contacts remain provisional.
+
+The Power plot group shows generation, requested draw, net available power and charge SOC at the replay cursor. Results also shows whole-run solar energy used, load energy and stored-energy change. Positive available net power can be curtailed by battery limits; it is not automatically stored.
+
+New missions start with three RW1 Type A mechanical references, an assumed linear torque envelope and a 1.20 W running allowance for wheels and their driver, capped at 1.50 W. These editable allowances are budget assumptions, not a measured motor-loss curve. Source values and drive assumptions are available under GNC → Wheels.
 
 Static NASA clouds supply appearance only. Native-resolution tiles refine close views across the globe; distant views use the global map. The imagery is a historical composite, not simulated weather. Numerical Sun directions drive mission lighting; shaders never feed calculations.
 
@@ -79,6 +83,9 @@ node --experimental-strip-types apps/web/src/plots/battery-plots.test.mjs
 node --experimental-strip-types apps/web/src/plots/gnc-plots.test.mjs
 node --experimental-strip-types apps/web/src/plots/plot-preferences.test.mjs
 node --experimental-strip-types apps/web/src/plots/trace-formatting.test.mjs
+node --experimental-strip-types apps/web/src/plots/time-window.test.mjs
+node apps/web/src/plots/trace-navigation.test.mjs
+node --experimental-strip-types apps/web/src/plots/power-readout.test.mjs
 ```
 
 Tests cover physical reference cases, numerical regressions and dependency boundaries. The GitHub workflow is configured to run the same checks. Use `npm --prefix apps/web run format` after frontend edits.
