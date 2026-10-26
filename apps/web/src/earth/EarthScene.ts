@@ -353,7 +353,7 @@ export class EarthScene {
       tileBudget,
       textures[3] || null,
       this.renderer.capabilities.maxTextureSize >= 4096 &&
-        this.renderer.capabilities.maxTextures >= tileBudget + 2,
+        this.renderer.capabilities.maxTextures >= tileBudget + 4,
     );
     this.cloudTiles = new CloudTileLayer(
       tileBudget,
@@ -794,7 +794,9 @@ export class EarthScene {
       this.appearance?.setCloudView(activeCamera.position, activeCamera.near) ?? 0;
     this.renderer.domElement.dataset.cloudVolumeMix = cloudVolume.toFixed(3);
     this.renderer.domElement.dataset.cloudRendering =
-      cloudVolume > 0 ? 'volume 12 view / 2 light' : 'shell fallback';
+      cloudVolume > 0
+        ? 'volume 12 view / 2 light + full resolution resolve'
+        : 'full resolution shell';
     this.sunDisplay.updateCue(activeCamera, this.host.clientWidth, this.host.clientHeight);
     const autoClear = this.renderer.autoClear;
     try {

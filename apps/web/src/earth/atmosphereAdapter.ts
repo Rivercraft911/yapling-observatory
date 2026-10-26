@@ -1,4 +1,12 @@
-import { AdditiveBlending, BackSide, RedFormat, ShaderMaterial, Vector3, Vector4 } from 'three';
+import {
+  AdditiveBlending,
+  BackSide,
+  RedFormat,
+  ShaderMaterial,
+  Vector2,
+  Vector3,
+  Vector4,
+} from 'three';
 import type { Texture } from 'three';
 import type { CloudTileView } from './CloudTiles';
 import type { NightDetailView } from './NightDetail';
@@ -220,6 +228,11 @@ void main(){
       cloudNoise: { value: noise },
       cloudVolumeMix: { value: 0 },
       cloudCameraNear: { value: 0.0001 },
+      cloudResolved: { value: false },
+      cloudVolumeColor: { value: null },
+      cloudVolumeDepth: { value: null },
+      cloudVolumeTexel: { value: new Vector2(1, 1) },
+      cloudOutputSize: { value: new Vector2(1, 1) },
     },
     vertexShader: vertex,
     transparent: true,

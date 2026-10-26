@@ -105,6 +105,11 @@ export const cloudVolumeFragment = `
 uniform sampler3D cloudNoise;
 uniform float cloudVolumeMix;
 uniform float cloudCameraNear;
+uniform bool cloudResolved;
+uniform sampler2D cloudVolumeColor;
+uniform sampler2D cloudVolumeDepth;
+uniform vec2 cloudVolumeTexel;
+uniform vec2 cloudOutputSize;
 uniform mat4 projectionMatrix;
 const float cloudBottom=1.+2./6378.137;
 const float cloudTop=1.+10./6378.137;
@@ -184,46 +189,76 @@ vec4 cloudVolumeRay(vec3 origin,vec3 ray,vec4 spans,vec2 dx,vec2 dy,float pixelK
  float alpha=1.-transmission;hazeDistance=weightedDistance/max(alpha,1e-6);
  return vec4(radiance,alpha);
 }
+float cloudDepthAt(vec3 origin,vec3 ray,float distance){
+ float axialPerT=-(viewMatrix*vec4(ray*earthAxes,0.)).z;
+ float tNear=cloudCameraNear/max(axialPerT,1e-6);
+ vec3 depthPoint=(origin+ray*max(distance,tNear*1.01))*earthAxes;
+ vec4 projected=projectionMatrix*viewMatrix*vec4(depthPoint,1.);
+ return clamp(.5*projected.z/projected.w+.5,0.,1.);
+}
+vec4 resolvedCloudVolume(vec2 uv,out float depth){
+ vec4 color=texture2D(cloudVolumeColor,uv);
+ vec2 base=(floor(uv/cloudVolumeTexel-.5)+.5)*cloudVolumeTexel;
+ depth=min(min(texture2D(cloudVolumeDepth,base).r,texture2D(cloudVolumeDepth,base+vec2(cloudVolumeTexel.x,0.)).r),
+           min(texture2D(cloudVolumeDepth,base+vec2(0.,cloudVolumeTexel.y)).r,texture2D(cloudVolumeDepth,base+cloudVolumeTexel).r));
+ return depth<1.?color:vec4(0.);
+}
+void outputCloud(vec4 result,float depth){
+ if(result.a<.001)discard;
+ gl_FragDepth=depth;
+ gl_FragColor=vec4(result.rgb/result.a,result.a);
+ #include <tonemapping_fragment>
+ #include <colorspace_fragment>
+}
 void main(){
  vec3 origin=cameraPosition/earthAxes,ray=normalize((vPosition-cameraPosition)/earthAxes);
+ if(cloudResolved&&cloudVolumeMix>=1.){
+  vec2 outer=atmosphereIntersection(origin,ray,cloudTop);
+  if(outer.y<=max(0.,outer.x))discard;
+  float depth;vec4 result=resolvedCloudVolume(gl_FragCoord.xy/cloudOutputSize,depth);
+  outputCloud(result,depth);return;
+ }
  vec4 spans=cloudSegments(origin,ray);
  float occupiedLength=spans.y-spans.x+spans.w-spans.z;
  vec3 entry=origin+ray*max(spans.x,min(.5*occupiedLength,2./earthRadiusKm));
  vec2 uv=cloudUv(entry),dx=cloudUvDelta(dFdx(uv)),dy=cloudUvDelta(dFdy(uv));
  float pixelKm=max(length(dFdx(entry)*earthAxes),length(dFdy(entry)*earthAxes))*earthRadiusKm;
+ vec2 shellHit=atmosphereIntersection(origin,ray,1.+8./earthRadiusKm);
+ float shellDistance=shellHit.x>0.?shellHit.x:shellHit.y;
+ vec3 shellPoint=origin+ray*max(0.,shellDistance);
+ vec2 shellUv=cloudUv(shellPoint);
+ vec2 shellDx=cloudUvDelta(dFdx(shellUv)),shellDy=cloudUvDelta(dFdy(shellUv));
  if(spans.y-spans.x+spans.w-spans.z<=0.)discard;
- vec4 result=vec4(0.);float depthDistance=spans.x,hazeDistance=spans.x;
- if(cloudVolumeMix<1.){
-  vec2 shell=atmosphereIntersection(origin,ray,1.+8./earthRadiusKm);
-  float distance=shell.x>0.?shell.x:shell.y;
+ vec4 shell=vec4(0.),volume=vec4(0.);float shellDepth=1.,volumeDepth=1.;
+ if(cloudResolved&&cloudVolumeMix<1.){
   vec2 ground=atmosphereIntersection(origin,ray,1.);
-  if(distance>0.&&(ground.x<=0.||distance<ground.x)){
-   vec3 p=origin+ray*distance;
-   float alpha=cloudCoverageGrad(cloudUv(p),dx,dy)*.94;
-   float light=cloudSunlight(dot(normalize(p),normalize(sun/earthAxes)),length(p));
-   result=vec4(vec3(.99,.99,1.)*(.008+light*1.4)*alpha,alpha);
-   depthDistance=distance;hazeDistance=distance;
+  if(shellDistance>0.&&(ground.x<=0.||shellDistance<ground.x)){
+   float alpha=cloudCoverageGrad(shellUv,shellDx,shellDy)*.94;
+   if(alpha>=.001){
+    float light=cloudSunlight(dot(normalize(shellPoint),normalize(sun/earthAxes)),length(shellPoint));
+    vec3 color=throughAtmosphere(shellPoint*earthAxes,vec3(.99,.99,1.)*(.008+light*1.4));
+    shell=vec4(color*alpha,alpha);shellDepth=cloudDepthAt(origin,ray,shellDistance);
+   }
   }
  }
  if(cloudVolumeMix>0.){
-  float volumeDepth,volumeHaze;
-  vec4 volume=cloudVolumeRay(origin,ray,spans,dx,dy,pixelKm,volumeDepth,volumeHaze);
-  float alpha=mix(result.a,volume.a,cloudVolumeMix);
-  float volumeWeight=volume.a*cloudVolumeMix/max(alpha,1e-6);
-  depthDistance=mix(depthDistance,volumeDepth,volumeWeight);
-  hazeDistance=mix(hazeDistance,volumeHaze,volumeWeight);
-  result=mix(result,volume,cloudVolumeMix);
+  if(cloudResolved){volume=resolvedCloudVolume(gl_FragCoord.xy/cloudOutputSize,volumeDepth);}
+  else{
+   float depthDistance,hazeDistance;
+   volume=cloudVolumeRay(origin,ray,spans,dx,dy,pixelKm,depthDistance,hazeDistance);
+   if(volume.a>=.001){
+    vec3 hazePoint=(origin+ray*hazeDistance)*earthAxes;
+    volume.rgb=throughAtmosphere(hazePoint,volume.rgb/volume.a)*volume.a;
+    volumeDepth=cloudDepthAt(origin,ray,depthDistance);
+   }
+  }
  }
- if(result.a<.001)discard;
- vec3 hazePoint=(origin+ray*hazeDistance)*earthAxes;
- vec3 color=throughAtmosphere(hazePoint,result.rgb/result.a);
- float axialPerT=-(viewMatrix*vec4(ray*earthAxes,0.)).z;
- float tNear=cloudCameraNear/max(axialPerT,1e-6);
- vec3 depthPoint=(origin+ray*max(depthDistance,tNear*1.01))*earthAxes;
- vec4 projected=projectionMatrix*viewMatrix*vec4(depthPoint,1.);
- gl_FragDepth=clamp(.5*projected.z/projected.w+.5,0.,1.);
- gl_FragColor=vec4(color,result.a);
- #include <tonemapping_fragment>
- #include <colorspace_fragment>
+ vec4 result=volume;float depth=volumeDepth;
+ if(cloudResolved){
+  result=mix(shell,volume,cloudVolumeMix);
+  float volumeWeight=volume.a*cloudVolumeMix/max(result.a,1e-6);
+  depth=mix(shellDepth,volumeDepth,volumeWeight);
+ }
+ outputCloud(result,depth);
 }
 `;

@@ -10,9 +10,7 @@ import {
   Color,
   PerspectiveCamera,
   Scene,
-  ShaderMaterial,
-  OneFactor,
-  OneMinusSrcAlphaFactor,
+  NormalBlending,
   Vector3,
   Vector4,
 } from 'three';
@@ -214,11 +212,31 @@ textures.forEach((t) => t.dispose());
 
 assert.match(cloudVolumeFragment, /for\(int i=0;i<12;i\+\+\)/);
 assert.match(cloudVolumeFragment, /for\(int j=0;j<2;j\+\+\)/);
-assert.equal((cloudVolumeFragment.match(/throughAtmosphere\(/g) || []).length, 1);
+assert.equal((cloudVolumeFragment.match(/throughAtmosphere\(/g) || []).length, 2);
+assert.doesNotMatch(functionBody(cloudVolumeFragment, 'cloudVolumeRay'), /throughAtmosphere/);
 assert.doesNotMatch(functionBody(cloudVolumeFragment, 'cloudDensity'), /dFdx|dFdy|cloudCoverage\(/);
-assert.match(cloudVolumeFragment, /result=mix\(result,volume,cloudVolumeMix\)/);
+assert.match(cloudVolumeFragment, /result=mix\(shell,volume,cloudVolumeMix\)/);
 assert.match(cloudVolumeFragment, /result.rgb\/result.a/);
-assert.match(cloudVolumeFragment, /gl_FragDepth=clamp/);
+assert.match(cloudVolumeFragment, /gl_FragDepth=depth/);
+assert.match(cloudVolumeFragment, /resolvedCloudVolume\(gl_FragCoord.xy\/cloudOutputSize/);
+const fastResolve = cloudVolumeFragment.match(
+  /if\(cloudResolved&&cloudVolumeMix>=1\.\)\{([^}]+)\}/,
+)[1];
+assert.match(fastResolve, /atmosphereIntersection\(origin,ray,cloudTop\)/);
+assert.match(fastResolve, /outputCloud\(result,depth\);return/);
+assert.doesNotMatch(
+  fastResolve,
+  /cloudUv|cloudSegments|cloudCoverage|cloudVolumeRay|throughAtmosphere|dFdx|dFdy/,
+);
+assert.ok(
+  cloudVolumeFragment.indexOf(fastResolve) <
+    cloudVolumeFragment.indexOf('vec4 spans=cloudSegments(origin,ray)'),
+);
+assert.match(cloudVolumeFragment, /cloudCoverageGrad\(shellUv,shellDx,shellDy\)/);
+assert.ok(
+  cloudVolumeFragment.indexOf('dFdx(shellUv)') <
+    cloudVolumeFragment.indexOf('if(cloudResolved&&cloudVolumeMix<1.)'),
+);
 assert.match(cloudVolumeFragment, /length\(ray\*earthAxes\)/);
 assert.match(cloudVolumeFragment, /length\(light\*earthAxes\)/);
 assert.match(cloudVolumeFragment, /if\(density<=0\.\)continue/);
@@ -273,23 +291,25 @@ for (const [width, height] of [
   assert.ok(w <= Math.max(1, width / 2) && h <= Math.max(1, height / 2));
 }
 for (const hdr of [true, false]) {
-  const parentTarget = {};
+  const parentTarget = { width: 2000, height: 1000 };
   const originalColor = new Color(0.1, 0.2, 0.3);
   let current = parentTarget;
   let color = originalColor.clone();
   let clearAlpha = 0.7;
-  let throwOnCloud = false;
+  let throwOnPass = '';
   let renders = 0;
   const scene = new Scene();
   const camera = new PerspectiveCamera(34, 2, 0.0001, 4);
   camera.position.set(1.1, 0, 0);
   camera.updateMatrixWorld();
-  const material = new ShaderMaterial({ depthWrite: false });
+  const inputs = [new Texture(), new Texture(), new Texture()];
+  const appearance = createEarthAppearance(...inputs, 0, null, false);
+  const material = appearance.clouds;
   const renderer = {
     autoClear: true,
     extensions: { has: () => hdr },
     domElement: { dataset: {} },
-    getDrawingBufferSize: (v) => v.set(2243, 847),
+    getDrawingBufferSize: (v) => v.set(3840, 2160),
     getRenderTarget: () => current,
     setRenderTarget: (v) => {
       current = v;
@@ -307,45 +327,97 @@ for (const hdr of [true, false]) {
     },
     render: (object) => {
       renders++;
-      if (object === scene) {
+      assert.equal(object, scene);
+      if (!material.uniforms.cloudResolved.value) {
         assert.equal(material.depthWrite, true);
         assert.notEqual(current, parentTarget);
-        if (throwOnCloud) throw new Error('injected draw failure');
+        assert.equal(material.uniforms.cloudVolumeColor.value, null);
+        assert.equal(material.uniforms.cloudVolumeDepth.value, null);
+        if (throwOnPass === 'volume') throw new Error('injected draw failure');
       } else {
         assert.equal(current, parentTarget);
         assert.equal(material.depthWrite, false);
-        assert.equal(object.material.blendSrc, OneFactor);
-        assert.equal(object.material.blendDst, OneMinusSrcAlphaFactor);
-        assert.equal(object.material.depthWrite, false);
-        assert.equal(object.material.depthTest, true);
-        assert.equal(object.material.toneMapped, false);
+        assert.equal(material.blending, NormalBlending);
+        assert.equal(material.depthTest, true);
+        assert.deepEqual(material.uniforms.cloudOutputSize.value.toArray(), [2000, 1000]);
+        if (material.uniforms.cloudVolumeMix.value > 0) {
+          assert.equal(material.uniforms.cloudVolumeColor.value, pass.target.texture);
+          assert.equal(material.uniforms.cloudVolumeDepth.value, pass.target.depthTexture);
+        } else {
+          assert.equal(material.uniforms.cloudVolumeColor.value, null);
+          assert.equal(material.uniforms.cloudVolumeDepth.value, null);
+        }
+        if (throwOnPass === 'resolve') throw new Error('injected draw failure');
       }
     },
   };
   const pass = new CloudVolumePass(renderer);
   pass.resize();
-  assert.deepEqual([pass.target.width, pass.target.height], cloudPassSize(2243, 847));
+  assert.deepEqual([pass.target.width, pass.target.height], cloudPassSize(3840, 2160));
   assert.equal(pass.target.samples, 0);
   assert.ok(pass.target.depthTexture);
-  pass.render(scene, camera, material);
-  assert.equal(renders, 2);
+  for (const weight of [0, 0.25, 1]) {
+    material.uniforms.cloudVolumeMix.value = weight;
+    renders = 0;
+    pass.render(scene, camera, material);
+    assert.equal(renders, weight ? 2 : 1);
+    assert.equal(material.uniforms.cloudResolved.value, false);
+    assert.equal(material.uniforms.cloudVolumeColor.value, null);
+    assert.equal(material.uniforms.cloudVolumeDepth.value, null);
+  }
   assert.equal(current, parentTarget);
   assert.equal(renderer.autoClear, true);
   assert.equal(clearAlpha, 0.7);
   assert.ok(color.equals(originalColor));
-  throwOnCloud = true;
-  assert.throws(() => pass.render(scene, camera, material), /injected draw failure/);
-  assert.equal(current, parentTarget);
-  assert.equal(renderer.autoClear, true);
-  assert.equal(material.depthWrite, false);
-  assert.equal(clearAlpha, 0.7);
-  assert.ok(color.equals(originalColor));
+  for (const failingPass of ['volume', 'resolve']) {
+    throwOnPass = failingPass;
+    assert.throws(() => pass.render(scene, camera, material), /injected draw failure/);
+    assert.equal(current, parentTarget);
+    assert.equal(renderer.autoClear, true);
+    assert.equal(material.depthWrite, false);
+    assert.equal(material.uniforms.cloudResolved.value, false);
+    assert.equal(material.uniforms.cloudVolumeColor.value, null);
+    assert.equal(material.uniforms.cloudVolumeDepth.value, null);
+    assert.equal(clearAlpha, 0.7);
+    assert.ok(color.equals(originalColor));
+  }
   let released = 0;
   pass.target.addEventListener('dispose', () => released++);
-  pass.material.addEventListener('dispose', () => released++);
   pass.dispose();
-  assert.equal(released, 2);
-  material.dispose();
+  assert.equal(released, 1);
+  appearance.dispose();
+  inputs.forEach((texture) => texture.dispose());
+}
+
+// Evaluate the actual shader mix and compare against a weighted composite reference.
+const blendExpression = cloudVolumeFragment.match(
+  /result=(mix\(shell,volume,cloudVolumeMix\));/,
+)[1];
+const layerMix = new Function(
+  'shell',
+  'volume',
+  'cloudVolumeMix',
+  'mix',
+  `return ${blendExpression};`,
+);
+const vectorMix = (a, b, t) => a.map((v, i) => v * (1 - t) + b[i] * t);
+for (const shellAlpha of [0, 0.02, 0.5, 1]) {
+  for (const volumeAlpha of [0, 0.1, 0.9, 1]) {
+    for (const weight of [0, 1e-6, 0.2, 0.5, 0.9, 1 - 1e-6, 1]) {
+      const shell = [0.8 * shellAlpha, 0.9 * shellAlpha, shellAlpha, shellAlpha];
+      const volume = [0.2 * volumeAlpha, 0.3 * volumeAlpha, 0.4 * volumeAlpha, volumeAlpha];
+      const combined = layerMix(shell, volume, weight, vectorMix);
+      const background = [0.12, 0.18, 0.24];
+      for (let channel = 0; channel < 3; channel++) {
+        const actual = combined[channel] + (1 - combined[3]) * background[channel];
+        const expected =
+          (1 - weight) * (shell[channel] + (1 - shellAlpha) * background[channel]) +
+          weight * (volume[channel] + (1 - volumeAlpha) * background[channel]);
+        assert.ok(Math.abs(actual - expected) < 1e-14);
+      }
+      assert.ok(Math.abs(combined[3] - ((1 - weight) * shellAlpha + weight * volumeAlpha)) < 1e-14);
+    }
+  }
 }
 console.log(
   'Cloud volume checks passed: bounded shared noise, actual optical-depth/profile calibration, outside/inside/below/limb ray intervals, continuous shell fallback and material/resource contract. GPU appearance and frame timing remain separate.',
