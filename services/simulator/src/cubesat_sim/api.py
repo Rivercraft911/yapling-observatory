@@ -10,10 +10,13 @@ from pathlib import Path
 import re
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.staticfiles import StaticFiles
 
 from . import __version__
 from .antenna_lab import router as antenna_lab_router
@@ -161,6 +164,40 @@ class RequestBodyLimit:
         return await self.app(scope, replay_receive, send)
 
 
+def install_packaged_web(app):
+    directory = os.environ.get("CUBESAT_WEB_DIST")
+    if directory is None:
+        return
+    try:
+        configured = Path(directory)
+        if not configured.is_absolute():
+            raise ValueError("Frontend directory must be absolute")
+        root = configured.resolve(strict=True)
+        index = (root / "index.html").resolve(strict=True)
+        if not root.is_dir() or not index.is_relative_to(root) or not index.is_file():
+            raise ValueError("Frontend index is unavailable")
+    except (OSError, ValueError) as error:
+        raise RuntimeError(
+            "CUBESAT_WEB_DIST must name an absolute built frontend directory containing index.html"
+        ) from error
+    files = StaticFiles(directory=root, html=False, follow_symlink=False)
+
+    @app.exception_handler(404)
+    async def web_or_not_found(request, error):
+        path = request.scope["path"]
+        parts = path.replace("\\", "/").split("/")
+        if (request.method not in ("GET", "HEAD") or path == "/api" or path.startswith("/api/")
+                or any(part.startswith(".") or part.casefold() == "private" for part in parts)):
+            return await http_exception_handler(request, error)
+        filename = "index.html" if path == "/" else files.get_path(request.scope)
+        try:
+            response = await files.get_response(filename, request.scope)
+            response.headers["Cache-Control"] = "no-cache"
+            return response
+        except StarletteHTTPException as static_error:
+            return await http_exception_handler(request, static_error)
+
+
 def create_app():
     @asynccontextmanager
     async def lifespan(app):
@@ -188,7 +225,10 @@ def create_app():
     app.include_router(live_mission_router)
 
     @app.get("/api/health")
-    def health():
+    def health(response: Response):
+        token = os.environ.get("CUBESAT_LAUNCH_TOKEN")
+        if token:
+            response.headers["X-Yapling-Launch-Token"] = token
         return dict(status="ok", version=__version__, model_version=MODEL_VERSION,
                     mode="local_analytical_example", max_samples=7201, worker_processes=1)
 
@@ -247,6 +287,7 @@ def create_app():
     def get_preview(preview: Literal["cutaway", "v45_outward"]):
         return asset_response(asset_entries(ASSET_PREVIEWS)[preview])
 
+    install_packaged_web(app)
     return app
 
 

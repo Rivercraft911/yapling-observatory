@@ -5,15 +5,14 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 import shutil
-import signal
 import sys
 import tempfile
 from uuid import uuid4
 
 from .models import Scenario
+from .worker_process import create_owned_process, terminate_owned
 
 TERMINAL = {"complete", "failed", "cancelled"}
 
@@ -35,27 +34,6 @@ class Job:
         return dict(run_id=self.run_id, status=self.status, scenario_id=scenario_id,
                     scenario_hash=scenario_hash, created_at_utc=self.created_at_utc,
                     result=self.result if self.status == "complete" else None, error=self.error)
-
-
-async def terminate_owned(process):
-    if process.returncode is not None:
-        return
-    def send(sig):
-        try:
-            if os.name == "posix":
-                os.killpg(process.pid, sig)
-            elif sig == signal.SIGTERM:
-                process.terminate()
-            else:
-                process.kill()
-        except ProcessLookupError:
-            pass
-    send(signal.SIGTERM)
-    try:
-        await asyncio.wait_for(process.wait(), timeout=1)
-    except asyncio.TimeoutError:
-        send(signal.SIGKILL)
-        await process.wait()
 
 
 class JobManager:
@@ -88,17 +66,11 @@ class JobManager:
                 job.directory = tempfile.mkdtemp(prefix="cubesat-run-")
                 directory = Path(job.directory)
                 scenario_path, result_path = directory/"scenario.json", directory/"result.json"
-                scenario_path.write_text(job.scenario.model_dump_json())
-                spawn_task = asyncio.create_task(asyncio.create_subprocess_exec(
+                scenario_path.write_text(job.scenario.model_dump_json(), encoding="utf-8")
+                job.process = await create_owned_process(
                     sys.executable, "-m", "cubesat_sim.worker", str(scenario_path), str(result_path),
                     stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
-                    start_new_session=(os.name == "posix"),
-                ))
-                try:
-                    job.process = await asyncio.shield(spawn_task)
-                except asyncio.CancelledError:
-                    job.process = await spawn_task
-                    raise
+                )
                 try:
                     _, stderr = await asyncio.wait_for(job.process.communicate(), timeout=self.timeout_s)
                 except asyncio.TimeoutError:
@@ -113,7 +85,7 @@ class JobManager:
                     # Do not return machine paths or arbitrary unbounded worker output.
                     job.error = "Numerical worker failed: "+stderr.decode(errors="replace").strip().splitlines()[-1][:500] if stderr else "Numerical worker failed"
                     return
-                result = json.loads(result_path.read_text())
+                result = json.loads(result_path.read_text(encoding="utf-8"))
                 if result.get("manifest", {}).get("scenario_hash") != job.scenario.identity()[1]:
                     raise ValueError("Worker result scenario identity mismatch")
                 job.result = result

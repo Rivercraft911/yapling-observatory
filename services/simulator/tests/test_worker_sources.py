@@ -1,6 +1,7 @@
 """Frozen worker imports, bundled data, edit races and guarded source identity."""
 import asyncio
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -21,6 +22,7 @@ from cubesat_sim.models import canonical_json
 def mission():
     values = default_mission_scenario().model_dump(mode="json")
     values["duration_s"] = 30
+    values["name"] = "Unicode transport: Δοκιμή 衛星"
     return MissionScenario.model_validate(values)
 
 
@@ -43,6 +45,7 @@ def test_actual_import_uses_snapshot_data_and_preserves_dependency_paths(tmp_pat
     options = worker_sources.frozen_worker_options(directory)
     code = """
 import json
+import os
 from pathlib import Path
 import cubesat_sim
 import pydantic
@@ -113,7 +116,12 @@ def test_copy_is_limited_to_package_python_data_and_rejects_symlinks(tmp_path, m
     }
     external = tmp_path / "outside.json"
     external.write_text('{"private": "not copied"}')
-    (package / "external.json").symlink_to(external)
+    try:
+        (package / "external.json").symlink_to(external)
+    except OSError:
+        if os.name == "nt":
+            pytest.skip("Creating symlinks requires additional Windows privileges")
+        raise
     other = tmp_path / "other-job"
     other.mkdir()
     with pytest.raises(ValueError, match="symlinks"):

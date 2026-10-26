@@ -12,11 +12,11 @@ def main():
     parser.add_argument("input")
     parser.add_argument("output")
     args = parser.parse_args()
-    scenario = Scenario.model_validate_json(Path(args.input).read_text())
+    scenario = Scenario.model_validate_json(Path(args.input).read_text(encoding="utf-8"))
     result = run_scenario(scenario)
     destination = Path(args.output)
     temporary = destination.with_suffix(".tmp")
-    temporary.write_text(json.dumps(result, allow_nan=False, separators=(",", ":")))
+    temporary.write_text(json.dumps(result, allow_nan=False, separators=(",", ":")), encoding="utf-8")
     temporary.replace(destination)
 
 

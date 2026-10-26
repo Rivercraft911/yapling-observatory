@@ -22,7 +22,7 @@ def atomic_json(path, value, *, maximum_bytes=None):
 
 def main():
     source, destination, progress_path = map(Path, sys.argv[1:4])
-    config = MissionScenario.model_validate_json(source.read_text())
+    config = MissionScenario.model_validate_json(source.read_text(encoding="utf-8"))
     last_progress = [0.0]
     limits = mission_execution_limits(config)
     started = time.monotonic()
