@@ -5,6 +5,7 @@ import type { EarthCameraMode } from './earth/EarthScene';
 import type { FollowStatus } from './earth/SpacecraftFollow';
 import type { DisplayTimeSource } from './graphics/displayInterpolation';
 import './earth.css';
+import { linkDisplayState } from './mission/linkDisplay';
 
 export interface EarthViewProps {
   snapshot: RunSnapshot | null;
@@ -88,20 +89,7 @@ export function EarthView({ snapshot, sampleIndex, displayTime, asset, variant }
     scene.current?.setThermalView(thermalView);
   }, [thermalView, retry]);
   const samples = snapshot?.run.result?.samples;
-  const direction = samples?.active_direction[sampleIndex];
-  const visible = samples?.visible[sampleIndex];
-  const margin = direction ? samples?.[direction].margin_db[sampleIndex] : null;
-  const state = !samples
-    ? 'NO RUN'
-    : samples.radio_active?.[sampleIndex] === false
-      ? 'RADIO IDLE'
-      : !visible
-        ? 'BELOW MASK'
-        : margin == null
-          ? 'RF UNRESOLVED'
-          : margin < 0
-            ? 'BELOW THRESHOLD'
-            : 'IDEAL LINK';
+  const state = linkDisplayState(samples, sampleIndex);
   const time = samples?.time_s[sampleIndex] ?? 0;
   const date = snapshot
     ? new Date(new Date(snapshot.scenario.epoch_utc).getTime() + time * 1000)

@@ -28,7 +28,7 @@ import {
 const emptyTimes: number[] = [];
 const compactPresets: { label: string; values: PlotId[] }[] = [
   { label: 'Link', values: plotLayouts.compact.defaults },
-  { label: 'GNC', values: ['pointing', 'wheel_capacity', 'saturation'] },
+  { label: 'GNC', values: ['pointing', 'wheel_speed', 'wheel_capacity'] },
   { label: 'Power', values: ['power', 'battery_soc', 'battery_current'] },
   { label: 'Thermal', values: ['temperatures', 'bus_heat'] },
   { label: 'Battery', values: ['battery_soc', 'battery_voltage', 'battery_current'] },

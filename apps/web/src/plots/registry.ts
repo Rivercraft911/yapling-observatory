@@ -1,5 +1,6 @@
 import type { RunSnapshot, Samples, Scalar } from '../types';
 import type { Trace } from './TracePlot';
+import { visibleLinkMargins } from '../mission/linkDisplay.ts';
 
 export type PlotId =
   | 'pointing'
@@ -74,8 +75,13 @@ export const plotDefinitions: PlotDefinition[] = [
     id: 'margin',
     title: 'Link margin',
     unit: 'dB',
-    description: 'Separate counterfactual uplink and downlink margins.',
-    read: (s) => paired(s, 'margin_db'),
+    description:
+      'Potential UL/DL margins above the station mask. Gaps mean no ground contact or unresolved RF. Scheduling and receiver lock are separate.',
+    read: (s) =>
+      (['uplink', 'downlink'] as const).map((direction) => ({
+        label: direction === 'uplink' ? 'UL' : 'DL',
+        values: visibleLinkMargins(s, direction),
+      })),
   },
   {
     id: 'rate',

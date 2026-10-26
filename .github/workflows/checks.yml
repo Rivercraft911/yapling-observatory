@@ -41,3 +41,7 @@ jobs:
       - run: node --experimental-strip-types apps/web/src/plots/time-window.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/trace-navigation.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/power-readout.test.mjs
+      - run: node --experimental-strip-types apps/web/src/mission/link-display.test.mjs
+      - run: node --experimental-strip-types apps/web/src/graphics/workbench-camera.test.mjs
+      - run: node --experimental-strip-types apps/web/src/antenna/run-reference.test.mjs
+      - run: node --experimental-strip-types apps/web/src/antenna/antenna-run-path.test.mjs

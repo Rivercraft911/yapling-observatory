@@ -1,4 +1,5 @@
 import { FrameSize } from '../graphics/frameSize';
+import { linkDisplayState } from '../mission/linkDisplay';
 import {
   BufferGeometry,
   Color,
@@ -428,9 +429,8 @@ export class EarthScene {
         )
       : samples.q_body_from_inertial_wxyz[index];
     if (pose) this.follow.setPose(pose, visualTime, snapshot.scenario.duration_s, angle);
-    const direction = samples.active_direction[index],
-      margin = samples[direction]?.margin_db[index];
-    const positive = samples.visible[index] && margin != null && margin >= 0;
+    const direction = samples.active_direction[index];
+    const positive = linkDisplayState(samples, index) === 'IDEAL LINK';
     const color = positive
       ? direction === 'uplink'
         ? '#ef6771'
