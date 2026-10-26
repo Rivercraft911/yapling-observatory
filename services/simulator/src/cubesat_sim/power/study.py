@@ -10,7 +10,12 @@ from .models import StudyConfig, Stage
 from .solar import pv_generation
 from .battery import advance_battery, capacity_wh, nominal_pack_voltage_v
 from .loads import load_ledger, resolved_stage, solar_visibility
-from .profiles import PLANNING_TRANSMITTER
+from .profiles import (
+    PLANNING_ACTIVE_CAMERAS_W,
+    PLANNING_ACTIVE_OBC_W,
+    PLANNING_ACTIVITY_LOAD_SOURCE,
+    PLANNING_TRANSMITTER,
+)
 from .radio import transmit_power
 from ..thermal.models import NodeForcing
 from ..thermal.network import advance_thermal, thermal_rates
@@ -63,7 +68,11 @@ def default_study_config() -> StudyConfig:
 
     def loads(transmit=False):
         return [
-            dict(component_id="obc", thermal_node_id="obc", electrical_w=2),
+            dict(
+                component_id="obc",
+                thermal_node_id="obc",
+                electrical_w=PLANNING_ACTIVE_OBC_W if transmit else 2,
+            ),
             dict(component_id="eps", thermal_node_id="bus", electrical_w=0.5),
             dict(
                 component_id="radio",
@@ -71,7 +80,11 @@ def default_study_config() -> StudyConfig:
                 electrical_w=tx.electrical_w if transmit else 0.5,
                 escaped_rf_w=transmitter.escaped_rf_w if transmit else 0,
             ),
-            dict(component_id="camera", thermal_node_id="camera", electrical_w=0),
+            dict(
+                component_id="camera",
+                thermal_node_id="camera",
+                electrical_w=PLANNING_ACTIVE_CAMERAS_W if transmit else 0,
+            ),
         ]
 
     return StudyConfig.model_validate(
@@ -156,6 +169,7 @@ def default_study_config() -> StudyConfig:
                 "PV29% is user-proposed. Area.03m2,normals,60deg ground-phase incidence,thermal capacities,optical properties,contacts,EPS efficiencies/power limits,initial state and loads are provisional examples,not flight or model-metadata values.",
                 tx.source
                 + " Standalone study deposits transmitter/feed/antenna heat at the radio node and counts only radiation crossing the vehicle boundary as escaped RF.",
+                PLANNING_ACTIVITY_LOAD_SOURCE,
                 "Storage-chain losses are assigned to bus,not fabricated cellI2R/entropic heat. Battery-node temperature is a lumped conduction prediction with missing cell-loss/temperature-dependent capacity physics.",
                 "Albedo/EarthIR entries are prescribed incident irradiances at surfaces,not Earth OLR. No atmosphere,cloud shader,orbit ephemeris or geographic illumination is sampled.",
             ],
@@ -171,9 +185,9 @@ def stage_templates() -> dict[str, dict]:
     imaging_loads = [load.model_dump(mode="json") for load in sun.loads]
     for load in imaging_loads:
         if load["component_id"] == "camera":
-            load["electrical_w"] = 3
+            load["electrical_w"] = PLANNING_ACTIVE_CAMERAS_W
         if load["component_id"] == "obc":
-            load["electrical_w"] = 3
+            load["electrical_w"] = PLANNING_ACTIVE_OBC_W
     detumble_loads = [load.model_dump(mode="json") for load in sun.loads]
     detumble_loads.append(
         dict(component_id="magnetorquers", thermal_node_id="bus", electrical_w=0.75)

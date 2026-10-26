@@ -246,7 +246,7 @@ def test_initial_capacity_pin_and_pa_feed_radiated_power_planes():
     assert result["summary"]["ideal_capacity_bits"]["downlink"] > 0
     expected = c["downlink"]["tx_power_w"] * 0.1 * 0.5
     assert result["summary"]["energy_j"]["escaped_rf_j"] == pytest.approx(expected * 30)
-    assert result["samples"]["power"]["component_electrical_w"]["radio"][-1] == 10.0
+    assert result["samples"]["power"]["component_electrical_w"]["radio"][-1] == 14.0
     assert abs(result["summary"]["energy_j"]["closure_residual_j"]) < 1e-6
 
 

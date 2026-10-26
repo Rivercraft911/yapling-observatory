@@ -5,9 +5,10 @@ import json
 from pathlib import Path
 from ..models import default_scenario
 from ..power.study import default_study_config, stage_templates
-from ..power.profiles import PLANNING_TRANSMITTER
+from ..power.profiles import PLANNING_ACTIVITY_LOAD_SOURCE, PLANNING_TRANSMITTER
 from ..power.battery_electrical import electrical_defaults
 from ..rf.uhf_beacon import default_uhf_beacon
+from ..rf.bandwidth import BANDWIDTH_SOURCE, CHANNEL_ASSUMPTIONS
 from ..operations.radio_delivery_models import delivery_example
 from ..orbit.elements import (
     OrbitElements,
@@ -25,6 +26,7 @@ from ..attitude.kinematics import boresight_reference
 from ..mission_models import MissionScenario
 from ..attitude.wheel_profiles import mission_wheel_example, wheel_example_metadata
 from .ephemeris import mean_sun_ra_deg, sun_direction_inertial
+from .radio_channel import resolve_radio_channel
 
 
 def orbit_preset(
@@ -74,6 +76,10 @@ def orbit_metadata(elements: OrbitElements):
 
 def default_mission_scenario():
     legacy = default_scenario()
+    radio_channels = {
+        direction: resolve_radio_channel(getattr(legacy, direction).profile, None, 20e6, 0.35)
+        for direction in ("uplink", "downlink")
+    }
     example = default_study_config()
     geometry = json.loads(Path(__file__).with_name("solar_geometry.json").read_text())
     panels = []
@@ -143,9 +149,14 @@ def default_mission_scenario():
             schedule=dict(
                 first_direction="downlink", downlink_duration_s=60, uplink_duration_s=5
             ),
-            uplink=legacy.uplink.model_dump(mode="json"),
+            uplink=legacy.uplink.model_dump(mode="json")
+            | dict(profile=radio_channels["uplink"]["profile"]),
             downlink=legacy.downlink.model_dump(mode="json")
-            | dict(tx_power_w=tx.pa_output_w, tx_feed_loss_db=tx.feed_loss_db),
+            | dict(
+                tx_power_w=tx.pa_output_w,
+                tx_feed_loss_db=tx.feed_loss_db,
+                profile=radio_channels["downlink"]["profile"],
+            ),
             spacecraft=dict(
                 **actuator_presets()["wheels_and_magnetic"],
                 pointing_reference="moving_boresight",
@@ -172,6 +183,11 @@ def default_mission_scenario():
                 "PV29% is userproposed and relative to coveredfootprint here. Thermalcapacities,externaloptics,contacts,EPS efficiency/powerlimits,uncoveredbusarea .04m2, initialconditions andmodeprofiles are provisional examples,not flightproperties.",
                 tx.source
                 + " Ground-uplink transmitter watts do not heat the spacecraft.",
+                PLANNING_ACTIVITY_LOAD_SOURCE,
+                "User-selected editable 20 MHz allocated bandwidth in each S-band direction; "
+                "rolloff 0.35 is the provisional starting choice. Symbol rate is derived as "
+                f"{radio_channels['downlink']['symbol_rate_sps']:.12g} symbol/s. "
+                + CHANNEL_ASSUMPTIONS + " " + BANDWIDTH_SOURCE,
                 "NCR18650GA electrical reference uses published 25°C OCV and steady DC resistance. Charge SOC, terminal voltage/current and resistive heat are computed; cell I²R heats the battery node. OCV, resistance and capacity do not vary with temperature or age. The thermal network and pack interfaces remain provisional.",
                 "Sun,hard spherical eclipse,anduniformEarth albedo/IR use the shared propagatedorbit/attitude. No cloudshader,geographicweather or selfshadow. Exterior bodycellfronts only; deployablepetal fronts+backs use the same provisional nodeoptics.",
                 *[

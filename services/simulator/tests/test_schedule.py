@@ -170,16 +170,21 @@ def test_coupled_radio_energy_uses_all_60_tx_and_5_rx_seconds_without_output_ali
     samples = result["samples"]
     assert all(samples["radio_active"])
     assert result["summary"]["energy_j"]["requested_load_j"] == pytest.approx(
-        60 * 12.5 + 5 * 4
+        60 * 23.5 + 5 * 11
     )
-    escaped_per_second = 4 * 10 ** (-1 / 10)
+    escaped_per_second = 2.5 * 10 ** (-1 / 10)
     assert result["summary"]["energy_j"]["escaped_rf_j"] == pytest.approx(
         60 * escaped_per_second
     )
     # Power columns retain the preceding accepted interval; direction is the endpoint state.
     assert samples["active_direction"][60] == "uplink"
-    assert samples["power"]["component_electrical_w"]["radio"][60] == 10
+    assert samples["power"]["component_electrical_w"]["radio"][60] == 14
     assert samples["power"]["component_electrical_w"]["radio"][61] == 1.5
     assert samples["active_direction"][65] == "downlink"
     assert samples["power"]["component_electrical_w"]["radio"][65] == 1.5
+    for component, expected in (("obc", 8), ("camera", 1), ("eps", 0.5)):
+        assert all(
+            value == expected
+            for value in samples["power"]["component_electrical_w"][component]
+        )
     assert abs(result["summary"]["energy_j"]["closure_residual_j"]) < 1e-6

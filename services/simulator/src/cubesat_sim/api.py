@@ -20,6 +20,7 @@ from .antenna_lab import router as antenna_lab_router
 from .power_lab import router as power_lab_router
 from .dynamics_lab import router as dynamics_lab_router
 from .mission_lab import router as mission_router
+from .mission_radio_channel import router as mission_radio_channel_router
 from .mission_jobs import MissionJobManager
 from .live_mission_jobs import LiveMissionJobManager
 from .live_mission_lab import router as live_mission_router
@@ -169,6 +170,7 @@ def create_app():
     app.include_router(power_lab_router)
     app.include_router(dynamics_lab_router)
     app.include_router(mission_router)
+    app.include_router(mission_radio_channel_router)
     app.include_router(live_mission_router)
 
     @app.get("/api/health")

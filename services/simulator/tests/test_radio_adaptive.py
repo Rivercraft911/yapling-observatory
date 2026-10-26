@@ -269,7 +269,11 @@ def test_adaptive_archive_guard_preserves_zero_margin_and_distinguishes_unknown_
             summary["radio_delivery"]["downlink"].update(ready_payload_rate_bps=rate, selected_margin_db=margin)
 
     rate = rows["ready_payload_rate_bps"][index]
-    cn0 = 10 * math.log10(mode.symbol_rate_sps) + mode.decode_threshold_esn0_db
+    # Keep the constructed boundary on the nonnegative side after float cancellation.
+    cn0 = math.nextafter(
+        10 * math.log10(mode.symbol_rate_sps) + mode.decode_threshold_esn0_db,
+        math.inf,
+    )
     margin = cn0 - 10 * math.log10(mode.symbol_rate_sps) - mode.decode_threshold_esn0_db
     assert abs(margin) < 1e-12
     fields(cn0, "valid", rate, 0.0)

@@ -74,6 +74,9 @@ def test_legacy_schema_is_preserved_after_projecting_explicit_extensions():
     schedule_properties = scenario["$defs"]["Schedule"]["properties"]
     for direction in ("uplink", "downlink"):
         assert schedule_properties.pop(f"{direction}_duration_s")["default"] is None
+    radio_properties = scenario["$defs"]["RadioProfile"]["properties"]
+    for name in ("channel_bandwidth_hz", "rolloff"):
+        assert radio_properties.pop(name)["default"] is None
     assert scenario == schemas["scenario"]
     pattern = PatternRequest.model_json_schema()
     properties = pattern["properties"]

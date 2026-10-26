@@ -18,6 +18,7 @@ from pydantic import (
 from .rf.antennas import HALF_WAVE_PEAK_DBI
 from .rf.spherical_harmonic_models import SphericalHarmonicProfile
 from .rf.modem import net_rate_bps as profile_net_rate_bps
+from .rf.bandwidth import symbol_rate_for_bandwidth
 
 SCHEMA_VERSION = "0.1.0"
 ETSI_URL = "https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf"
@@ -102,6 +103,8 @@ class RadioProfile(FrozenModel):
     waveform: Literal["lora", "dvb_s2"]
     modulation: Literal["LoRa", "QPSK", "8PSK"]
     symbol_rate_sps: float | None = Field(default=None, ge=1, le=1e8)
+    channel_bandwidth_hz: float | None = Field(default=None, gt=0, le=2e8)
+    rolloff: Literal[0.2, 0.25, 0.35] | None = None
     code_rate: float = Field(default=1, gt=0, le=1)
     net_efficiency: float = Field(default=1, gt=0, le=1)
     information_rate_bps: float | None = Field(default=None, gt=0, le=1e8)
@@ -112,6 +115,16 @@ class RadioProfile(FrozenModel):
 
     @model_validator(mode="after")
     def consistent_profile(self):
+        if (self.channel_bandwidth_hz is None) != (self.rolloff is None):
+            raise ValueError("Set channel_bandwidth_hz and rolloff together or omit both")
+        if self.channel_bandwidth_hz is not None:
+            if self.waveform != "dvb_s2":
+                raise ValueError("Allocated channel bandwidth currently applies to DVB-S2 only")
+            derived = symbol_rate_for_bandwidth(self.channel_bandwidth_hz, self.rolloff)
+            if self.symbol_rate_sps is None or not math.isclose(
+                self.symbol_rate_sps, derived, rel_tol=1e-12, abs_tol=1e-9
+            ):
+                raise ValueError("symbol_rate_sps must match channel_bandwidth_hz / (1 + rolloff)")
         if self.waveform == "lora":
             if self.modulation != "LoRa" or self.threshold_metric != "cn0":
                 raise ValueError("LoRa example uses an editable C/N0 threshold; no LoRa symbol/decoder model exists")
@@ -132,6 +145,14 @@ class RadioProfile(FrozenModel):
         if (self.threshold_status == "unresolved") != (self.threshold_db is None):
             raise ValueError("unresolved threshold must be null; other statuses require a value")
         return self
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_channel_shape(self, handler):
+        values = handler(self)
+        if self.channel_bandwidth_hz is None:
+            values.pop("channel_bandwidth_hz", None)
+            values.pop("rolloff", None)
+        return values
 
     def net_rate_bps(self) -> float:
         return profile_net_rate_bps(self)
