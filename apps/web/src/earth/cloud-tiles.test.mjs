@@ -43,6 +43,26 @@ if (typeof ASSET_DIR === 'undefined') {
     manifest,
     JSON.parse(await readFile(ASSET_DIR + '/../../src/earth/cloud-tiles.json')),
   );
+  const globalCloud = JSON.parse(await readFile(ASSET_DIR + '/cloud-global.json'));
+  assert.deepEqual(
+    globalCloud,
+    JSON.parse(await readFile(ASSET_DIR + '/../../src/earth/cloud-global.json')),
+  );
+  // Changing detail must not switch to a different cloud composite, especially at the poles.
+  assert.deepEqual(globalCloud.sources, manifest.sources);
+  assert.equal(globalCloud.acquisition_epoch, manifest.acquisition_epoch);
+  for (const [level, dimensions] of [
+    ['8k', [8192, 4096]],
+    ['4k', [4096, 2048]],
+  ]) {
+    const map = globalCloud.maps[level];
+    const bytes = await readFile(ASSET_DIR + map.url.replace('/earth', ''));
+    assert.deepEqual(map.runtime_dimensions, dimensions);
+    assert.equal(bytes.length, map.runtime_bytes);
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), map.runtime_sha256);
+    assert.equal(bytes.toString('ascii', 0, 4), 'RIFF');
+    assert.equal(bytes.toString('ascii', 8, 12), 'WEBP');
+  }
   const {
     width,
     height,
