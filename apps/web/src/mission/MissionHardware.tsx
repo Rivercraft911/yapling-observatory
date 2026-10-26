@@ -43,6 +43,17 @@ export function MissionHardware({
   }, []);
   return (
     <>
+      <div className="mission-field-model">
+        <span>Earth field</span>
+        <a
+          href="https://www.ncei.noaa.gov/products/international-geomagnetic-reference-field"
+          target="_blank"
+          rel="noreferrer"
+          title="IGRF-14 degree 1 only: a tilted dipole using 2025 coefficients and 2025–2030 secular variation. Higher harmonics and external disturbance fields are omitted."
+        >
+          IGRF-14 · n = 1 ↗
+        </a>
+      </div>
       <fieldset>
         <legend>
           ACTUATORS <span>mission</span>

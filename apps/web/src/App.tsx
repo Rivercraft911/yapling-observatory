@@ -15,6 +15,8 @@ import { MissionHardware } from './mission/MissionHardware';
 import { MissionPowerControls } from './mission/MissionPowerControls';
 import { MissionThermalControls } from './mission/MissionThermalControls';
 import { MissionArchiveControls } from './mission/MissionArchiveControls';
+import { ResultsWorkspace } from './mission/ResultsWorkspace';
+import { setMissionDuration } from './mission/missionDuration';
 import { Field } from './controls/RadioControls';
 import { missionDisplaySnapshot } from './mission/displaySnapshot';
 import './systems/systems.css';
@@ -24,11 +26,12 @@ const DynamicsLab = lazy(() =>
 const PowerLab = lazy(() => import('./systems/PowerLab').then((m) => ({ default: m.PowerLab })));
 const EarthView = lazy(() => import('./EarthView').then((m) => ({ default: m.EarthView })));
 const AntennaLab = lazy(() => import('./AntennaLab').then((m) => ({ default: m.AntennaLab })));
-type WorkspaceView = 'earth' | 'spacecraft' | 'antenna';
+type WorkspaceView = 'earth' | 'spacecraft' | 'antenna' | 'results';
 const workspaceViews: { id: WorkspaceView; label: string }[] = [
   { id: 'earth', label: 'Earth' },
   { id: 'spacecraft', label: 'Spacecraft' },
   { id: 'antenna', label: 'Antenna lab' },
+  { id: 'results', label: 'Results' },
 ];
 const EMPTY: number[] = [];
 
@@ -230,6 +233,7 @@ export default function App() {
   };
   const showTimeline =
     view === 'earth' ||
+    view === 'results' ||
     (view === 'spacecraft' ? !independentStudy && followsMission : antennaFollowsRun);
   const stopped =
     !!snapshot?.run.result?.summary.end_reason &&
@@ -249,6 +253,12 @@ export default function App() {
           : run?.status || 'Ready';
   const currentDirection = samples?.active_direction[index];
   const radioIdle = samples?.radio_active?.[index] === false;
+  const receiver = currentDirection ? samples?.radio_delivery?.[currentDirection] : undefined;
+  const receiverMode = currentDirection
+    ? mission.snapshot?.scenario.radio_delivery?.[currentDirection].modes.find(
+        (mode) => mode.mode_id === receiver?.mode_id[index],
+      )
+    : undefined;
   const visible = samples?.visible[index];
   const displayedId = snapshot?.run.run_id.slice(0, 8);
 
@@ -265,7 +275,7 @@ export default function App() {
           <span className="local-indicator" />
           LOCAL
           <span className="header-divider" />
-          {view === 'earth'
+          {view === 'earth' || view === 'results'
             ? 'COUPLED MISSION'
             : view === 'spacecraft'
               ? independentStudy
@@ -274,7 +284,9 @@ export default function App() {
                   ? 'MODEL PREVIEW'
                   : 'COUPLED MISSION'
               : 'ANTENNA REFERENCE'}
-          {(view === 'earth' || (view === 'spacecraft' && !independentStudy)) && (
+          {(view === 'earth' ||
+            view === 'results' ||
+            (view === 'spacecraft' && !independentStudy)) && (
             <span className={`run-state ${busy ? 'working' : ''}`}>
               {busy && <span className="spinner" />}
               {status}
@@ -296,7 +308,11 @@ export default function App() {
         className="workspace"
         ref={workspaceRef}
         style={
-          compact ? undefined : { gridTemplateColumns: `minmax(0,1fr) 7px ${actualPanelWidth}px` }
+          view === 'results'
+            ? { gridTemplateColumns: 'minmax(0,1fr)' }
+            : compact
+              ? undefined
+              : { gridTemplateColumns: `minmax(0,1fr) 7px ${actualPanelWidth}px` }
         }
       >
         <div
@@ -348,6 +364,29 @@ export default function App() {
                     displayTime={displayTime}
                     asset={assets.variants[selectedVariant]}
                     variant={selectedVariant}
+                  />
+                ) : view === 'results' ? (
+                  <ResultsWorkspace
+                    snapshot={snapshot}
+                    baseline={baseline}
+                    cursorTime={time}
+                    onScrub={scrub}
+                    liveReport={busy ? mission.run?.progress?.reporting : undefined}
+                    actions={
+                      <>
+                        <button className="text-button" onClick={() => setInspector(true)}>
+                          Inputs ↗
+                        </button>
+                        <button
+                          className="text-button"
+                          disabled={!snapshot}
+                          onClick={() => setBaseline(baseline ? null : snapshot)}
+                        >
+                          {baseline ? 'Clear comparison' : 'Pin comparison'}
+                        </button>
+                        <MissionArchiveControls mission={mission} />
+                      </>
+                    }
                   />
                 ) : view === 'antenna' ? (
                   <AntennaLab
@@ -458,6 +497,14 @@ export default function App() {
                   </span>
                 </div>
                 <div>
+                  {receiverMode && !radioIdle && (
+                    <span title="Selected receiver mode and modeled lock state at this sample.">
+                      <b>
+                        {receiverMode.modulation} {receiverMode.code_rate}
+                      </b>{' '}
+                      · {receiver?.receiver_state[index].toUpperCase()}
+                    </span>
+                  )}
                   <span>
                     EL <b>{formatValue(samples?.elevation_deg[index])}°</b>
                   </span>
@@ -482,7 +529,13 @@ export default function App() {
             </>
           )}
           {view === 'earth' && (
-            <PlotDock snapshot={snapshot} baseline={baseline} cursorTime={time} onScrub={scrub} />
+            <PlotDock
+              snapshot={snapshot}
+              baseline={baseline}
+              cursorTime={time}
+              onScrub={scrub}
+              liveReport={busy ? mission.run?.progress?.reporting : undefined}
+            />
           )}
           {showTimeline && (
             <>
@@ -591,13 +644,18 @@ export default function App() {
                   : snapshot
                     ? `${mission.snapshot?.imported ? 'IMPORTED RUN' : 'RUN'} ${displayedId} · ${times.length} SAMPLES · Δt ${snapshot.scenario.step_s} s`
                     : 'NO COMPUTED HISTORY'}
-              {(view === 'earth' || (view === 'spacecraft' && !independentStudy)) && dirty
+              {(view === 'earth' ||
+                view === 'results' ||
+                (view === 'spacecraft' && !independentStudy)) &&
+              dirty
                 ? ' · UNRUN EDITS'
                 : ''}
             </span>
             <span>
-              {view === 'earth'
-                ? 'Ideal threshold capacity · no packet dynamics'
+              {view === 'earth' || view === 'results'
+                ? mission.snapshot?.scenario.radio_delivery
+                  ? 'Assumed receiver · modeled frame payload'
+                  : 'Ideal threshold capacity · receiver not modeled'
                 : view === 'antenna'
                   ? 'Analytical patterns · nominal geometry'
                   : independentStudy === 'gnc'
@@ -612,7 +670,7 @@ export default function App() {
             </span>
           </footer>
         </div>
-        {!compact && (
+        {!compact && view !== 'results' && (
           <PaneDivider
             orientation="vertical"
             reverse
@@ -624,171 +682,177 @@ export default function App() {
             onReset={() => setPanelWidth(310)}
           />
         )}
-        <aside
-          className={`controls ${view !== 'earth' ? 'contextual-controls' : ''}`}
-          aria-label={
-            view === 'earth'
-              ? 'Scenario controls'
-              : view === 'spacecraft'
-                ? 'Spacecraft controls'
-                : 'Antenna controls'
-          }
-        >
-          {view === 'spacecraft' ? (
-            <>
-              <div className="controls-title">
-                <span className="eyebrow">MISSION SPACECRAFT</span>
-                <button className="text-button" onClick={() => setInspector(true)}>
-                  Inputs ↗
-                </button>
-                <MissionArchiveControls mission={mission} />
-              </div>
-              <nav className="spacecraft-sections" aria-label="Spacecraft sections">
-                {(['geometry', 'hardware', 'power', 'thermal', 'gnc'] as const).map((section) => (
-                  <button
-                    key={section}
-                    aria-pressed={!independentStudy && spacecraftSection === section}
-                    onClick={() => {
-                      setIndependentStudy(null);
-                      setSpacecraftSection(section);
-                      if (section === 'hardware' && cutawayAsset?.available) setCutaway(true);
-                    }}
-                  >
-                    {section === 'geometry'
-                      ? 'Geometry'
-                      : section === 'hardware'
-                        ? 'Hardware'
-                        : section === 'power'
-                          ? 'Power'
-                          : section === 'thermal'
-                            ? 'Thermal'
-                            : 'GNC'}
+        {view !== 'results' && (
+          <aside
+            className={`controls ${view !== 'earth' ? 'contextual-controls' : ''}`}
+            aria-label={
+              view === 'earth'
+                ? 'Scenario controls'
+                : view === 'spacecraft'
+                  ? 'Spacecraft controls'
+                  : 'Antenna controls'
+            }
+          >
+            {view === 'spacecraft' ? (
+              <>
+                <div className="controls-title">
+                  <span className="eyebrow">MISSION SPACECRAFT</span>
+                  <button className="text-button" onClick={() => setInspector(true)}>
+                    Inputs ↗
                   </button>
-                ))}
-              </nav>
-              <details className="mission-study-menu" open={!!independentStudy}>
-                <summary>Independent studies</summary>
-                <div className="mission-mode-selector" aria-label="Independent study">
-                  {(['power', 'thermal', 'gnc'] as const).map((study) => (
+                  <MissionArchiveControls mission={mission} />
+                </div>
+                <nav className="spacecraft-sections" aria-label="Spacecraft sections">
+                  {(['geometry', 'hardware', 'power', 'thermal', 'gnc'] as const).map((section) => (
                     <button
-                      key={study}
-                      aria-pressed={independentStudy === study}
-                      onClick={() => setIndependentStudy(study)}
+                      key={section}
+                      aria-pressed={!independentStudy && spacecraftSection === section}
+                      onClick={() => {
+                        setIndependentStudy(null);
+                        setSpacecraftSection(section);
+                        if (section === 'hardware' && cutawayAsset?.available) setCutaway(true);
+                      }}
                     >
-                      {study === 'gnc' ? 'GNC' : study[0].toUpperCase() + study.slice(1)}
+                      {section === 'geometry'
+                        ? 'Geometry'
+                        : section === 'hardware'
+                          ? 'Hardware'
+                          : section === 'power'
+                            ? 'Power'
+                            : section === 'thermal'
+                              ? 'Thermal'
+                              : 'GNC'}
                     </button>
                   ))}
-                  {independentStudy && (
-                    <button onClick={() => setIndependentStudy(null)}>Mission ↩</button>
-                  )}
-                </div>
-              </details>
-              {independentStudy ? (
-                <div ref={setSystemsInspector} />
-              ) : spacecraftSection !== 'geometry' ? (
-                scenario ? (
-                  <>
-                    <div className="study-scope">
-                      Shared mission · configure here, watch on Earth
-                    </div>
-                    {spacecraftSection === 'power' ? (
-                      <MissionPowerControls config={scenario} edit={mission.edit} />
-                    ) : spacecraftSection === 'thermal' ? (
-                      <MissionThermalControls config={scenario} edit={mission.edit} />
-                    ) : (
-                      <MissionHardware config={scenario} edit={mission.edit} />
+                </nav>
+                <details className="mission-study-menu" open={!!independentStudy}>
+                  <summary>Independent studies</summary>
+                  <div className="mission-mode-selector" aria-label="Independent study">
+                    {(['power', 'thermal', 'gnc'] as const).map((study) => (
+                      <button
+                        key={study}
+                        aria-pressed={independentStudy === study}
+                        onClick={() => setIndependentStudy(study)}
+                      >
+                        {study === 'gnc' ? 'GNC' : study[0].toUpperCase() + study.slice(1)}
+                      </button>
+                    ))}
+                    {independentStudy && (
+                      <button onClick={() => setIndependentStudy(null)}>Mission ↩</button>
                     )}
-                    <div className="mission-run-actions">
-                      <Field
-                        label="Mission duration"
-                        unit="h"
-                        value={scenario.duration_s / 3600}
-                        min={1 / 3}
-                        max={168}
-                        step={1}
-                        onChange={(v) =>
-                          mission.edit((d) => {
-                            d.duration_s = v * 3600;
-                          })
-                        }
-                      />
-                      <button
-                        className={`primary ${busy ? 'cancel' : ''}`}
-                        disabled={
-                          submitting || mission.orbitPending || mission.importing || mission.loading
-                        }
-                        onClick={
-                          busy
-                            ? () => void mission.cancel()
-                            : () => {
-                                setView('earth');
-                                startMission();
-                              }
-                        }
-                      >
-                        {busy ? 'Cancel run' : 'Run on Earth'} <span>{busy ? '■' : '↗'}</span>
-                      </button>
-                      <button
-                        className="text-button"
-                        disabled={!snapshot}
-                        onClick={() => setView('earth')}
-                      >
-                        Watch displayed history ↗
-                      </button>
-                      {dirty && (
-                        <span className="eyebrow">UNRUN EDITS · displayed history retained</span>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="offline-note">
-                    {mission.loading ? 'Loading mission' : 'Mission unavailable'}
                   </div>
-                )
-              ) : (
-                <SpacecraftInspector
-                  variant={modelVariant}
-                  asset={modelAsset}
-                  cutaway={cutaway}
-                  onCutaway={setCutaway}
-                  cutawayAvailable={cutawayAsset?.available === true}
-                  starTrackerVisible={starTrackerVisible}
-                  onStarTrackerVisible={setStarTrackerVisible}
-                  moduleVisibility={renderModules}
-                  availableModules={availableModules}
-                  onModuleVisibility={(groups, visible) =>
-                    setModuleVisibility((current) => ({
-                      ...current,
-                      ...Object.fromEntries(groups.map((name) => [name, visible])),
-                    }))
-                  }
-                  onVariant={setPreviewVariant}
-                  followAttitude={followAttitude}
-                  onFollowAttitude={setFollowAttitude}
-                  hasRun={!!samples}
-                  onApply={() => {
-                    mission.edit((draft) => {
-                      draft.antenna_variant = modelVariant;
-                    });
-                    setView('earth');
-                  }}
-                />
-              )}
-            </>
-          ) : view === 'antenna' ? (
-            <div className="antenna-inspector-host" ref={setAntennaInspector} />
-          ) : (
-            <MissionInspector
-              mission={mission}
-              catalog={catalog}
-              onRun={startMission}
-              onInspect={() => setInspector(true)}
-              canPin={!!snapshot}
-              hasBaseline={!!baseline}
-              onPin={() => setBaseline(baseline ? null : snapshot)}
-            />
-          )}
-        </aside>
+                </details>
+                {independentStudy ? (
+                  <div ref={setSystemsInspector} />
+                ) : spacecraftSection !== 'geometry' ? (
+                  scenario ? (
+                    <>
+                      <div className="study-scope">
+                        Shared mission · configure here, watch on Earth
+                      </div>
+                      {spacecraftSection === 'power' ? (
+                        <MissionPowerControls config={scenario} edit={mission.edit} />
+                      ) : spacecraftSection === 'thermal' ? (
+                        <MissionThermalControls config={scenario} edit={mission.edit} />
+                      ) : (
+                        <MissionHardware config={scenario} edit={mission.edit} />
+                      )}
+                      <div className="mission-run-actions">
+                        <Field
+                          label="Mission duration"
+                          unit="h"
+                          value={scenario.duration_s / 3600}
+                          min={1 / 3}
+                          max={720}
+                          step={1}
+                          onChange={(v) =>
+                            mission.edit((d) => {
+                              if (v > 168) d.run_kind = 'long_mission';
+                              setMissionDuration(d, v * 3600);
+                            })
+                          }
+                        />
+                        <button
+                          className={`primary ${busy ? 'cancel' : ''}`}
+                          disabled={
+                            submitting ||
+                            mission.orbitPending ||
+                            mission.importing ||
+                            mission.loading
+                          }
+                          onClick={
+                            busy
+                              ? () => void mission.cancel()
+                              : () => {
+                                  setView('earth');
+                                  startMission();
+                                }
+                          }
+                        >
+                          {busy ? 'Cancel run' : 'Run on Earth'} <span>{busy ? '■' : '↗'}</span>
+                        </button>
+                        <button
+                          className="text-button"
+                          disabled={!snapshot}
+                          onClick={() => setView('earth')}
+                        >
+                          Watch displayed history ↗
+                        </button>
+                        {dirty && (
+                          <span className="eyebrow">UNRUN EDITS · displayed history retained</span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="offline-note">
+                      {mission.loading ? 'Loading mission' : 'Mission unavailable'}
+                    </div>
+                  )
+                ) : (
+                  <SpacecraftInspector
+                    variant={modelVariant}
+                    asset={modelAsset}
+                    cutaway={cutaway}
+                    onCutaway={setCutaway}
+                    cutawayAvailable={cutawayAsset?.available === true}
+                    starTrackerVisible={starTrackerVisible}
+                    onStarTrackerVisible={setStarTrackerVisible}
+                    moduleVisibility={renderModules}
+                    availableModules={availableModules}
+                    onModuleVisibility={(groups, visible) =>
+                      setModuleVisibility((current) => ({
+                        ...current,
+                        ...Object.fromEntries(groups.map((name) => [name, visible])),
+                      }))
+                    }
+                    onVariant={setPreviewVariant}
+                    followAttitude={followAttitude}
+                    onFollowAttitude={setFollowAttitude}
+                    hasRun={!!samples}
+                    onApply={() => {
+                      mission.edit((draft) => {
+                        draft.antenna_variant = modelVariant;
+                      });
+                      setView('earth');
+                    }}
+                  />
+                )}
+              </>
+            ) : view === 'antenna' ? (
+              <div className="antenna-inspector-host" ref={setAntennaInspector} />
+            ) : (
+              <MissionInspector
+                mission={mission}
+                catalog={catalog}
+                onRun={startMission}
+                onInspect={() => setInspector(true)}
+                canPin={!!snapshot}
+                hasBaseline={!!baseline}
+                onPin={() => setBaseline(baseline ? null : snapshot)}
+              />
+            )}
+          </aside>
+        )}
       </main>
       {inspector && (
         <div className="modal-backdrop" onClick={() => setInspector(false)}>

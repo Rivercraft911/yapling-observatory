@@ -1,3 +1,4 @@
+import type { RadioDeliveryConfig } from './radioDeliveryTypes';
 import type { Radio, Run, RunResult, Samples, Scenario, Variant } from '../types';
 import type { WheelConfig, Vector3 } from '../systems/dynamicsTypes';
 import type { PowerConfig, PowerLoad, PowerPanel } from '../systems/powerTypes';
@@ -22,6 +23,7 @@ export interface MissionWindow {
 }
 export interface MissionConfig {
   schema_version: string;
+  radio_delivery?: RadioDeliveryConfig | null;
   name: string;
   run_kind: 'single_pass' | 'targeted' | 'long_mission';
   duration_s: number;
@@ -112,10 +114,11 @@ export interface MissionResult extends RunResult {
 export interface MissionRun extends Omit<Run, 'result'> {
   result: MissionResult | null;
   progress?: {
-    fraction: number;
-    completed_time_s: number;
-    requested_duration_s: number;
+    fraction?: number;
+    completed_time_s?: number;
+    requested_duration_s?: number;
     state: string;
+    reporting?: unknown;
   };
 }
 export interface MissionSnapshot {

@@ -5,6 +5,9 @@ export type PlotId =
   | 'pointing'
   | 'margin'
   | 'rate'
+  | 'payload'
+  | 'receiver_lock'
+  | 'lost_frames'
   | 'elevation'
   | 'range'
   | 'doppler'
@@ -77,6 +80,46 @@ export const plotDefinitions: PlotDefinition[] = [
     stepped: true,
     description: 'Scheduled ideal threshold rate. Receiver lock and packet losses are not modeled.',
     read: (s) => paired(s, 'ideal_rate_bps', 1000),
+  },
+  {
+    id: 'payload',
+    title: 'Modeled frame payload',
+    unit: 'MB',
+    description:
+      'Completed-frame application payload under the selected receiver assumptions. Unknown receiver intervals remain unavailable.',
+    read: (s) =>
+      (['uplink', 'downlink'] as const).map((direction) => ({
+        label: direction === 'uplink' ? 'UL' : 'DL',
+        values: (s.radio_delivery?.[direction].delivered_useful_bits || []).map((value, index) =>
+          s.radio_delivery?.[direction].delivery_available[index] ? value / 8e6 : null,
+        ),
+      })),
+  },
+  {
+    id: 'receiver_lock',
+    title: 'Receiver lock',
+    unit: '0 / 1',
+    stepped: true,
+    description:
+      'Assumed receiver lock state, including any configured hold grace. Lock does not guarantee a complete successful frame.',
+    read: (s) =>
+      (['uplink', 'downlink'] as const).map((direction) => ({
+        label: direction === 'uplink' ? 'UL' : 'DL',
+        values: (s.radio_delivery?.[direction].locked || []).map(Number),
+      })),
+  },
+  {
+    id: 'lost_frames',
+    title: 'Lost frames',
+    unit: 'frames',
+    stepped: true,
+    description:
+      'Modeled failed and aborted frames. Unresolved or still-pending frames are tracked separately in the run.',
+    read: (s) =>
+      (['uplink', 'downlink'] as const).map((direction) => ({
+        label: direction === 'uplink' ? 'UL' : 'DL',
+        values: s.radio_delivery?.[direction].lost_frames || [],
+      })),
   },
   {
     id: 'elevation',

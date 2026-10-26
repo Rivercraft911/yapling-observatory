@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { Field, Select, RadioControls } from '../controls/RadioControls';
 import type { RadioCatalog } from '../types';
 import { OrbitalElementsFields } from '../systems/OrbitalElementsFields';
+import { MissionDeliveryControls } from './MissionDeliveryControls';
 import { MissionHardware } from './MissionHardware';
 import { MissionArchiveControls } from './MissionArchiveControls';
 import { MissionPowerControls } from './MissionPowerControls';
 import { MissionConopsControls } from './MissionConopsControls';
 import { MissionThermalControls } from './MissionThermalControls';
 import type { MissionSession } from './useMission';
+import { setMissionDuration } from './missionDuration';
 import './mission.css';
 
 export function MissionInspector({
@@ -83,7 +85,7 @@ export function MissionInspector({
                   onClick={() => {
                     edit((d) => {
                       d.run_kind = choice.id as typeof config.run_kind;
-                      d.duration_s = choice.duration;
+                      setMissionDuration(d, choice.duration);
                       d.conops.windows = d.conops.windows.filter((w) => w.end_s <= d.duration_s);
                       if (choice.id === 'targeted' && !d.conops.windows.length)
                         d.conops.windows.push({
@@ -102,17 +104,30 @@ export function MissionInspector({
                 </button>
               ))}
             </div>
+            {config.run_kind === 'long_mission' && (
+              <div className="mission-duration-presets" aria-label="Mission duration">
+                {[1, 7, 30].map((days) => (
+                  <button
+                    key={days}
+                    aria-pressed={config.duration_s === days * 86400}
+                    onClick={() => edit((d) => setMissionDuration(d, days * 86400))}
+                  >
+                    {days === 1 ? 'Day' : days === 7 ? 'Week' : '30 days'}
+                  </button>
+                ))}
+              </div>
+            )}
             <Field
               label="Duration"
-              unit="h"
-              value={config.duration_s / 3600}
-              min={1 / 3}
-              max={168}
+              unit={config.run_kind === 'long_mission' ? 'd' : 'h'}
+              value={config.duration_s / (config.run_kind === 'long_mission' ? 86400 : 3600)}
+              min={config.run_kind === 'long_mission' ? 1 : 1 / 3}
+              max={config.run_kind === 'long_mission' ? 30 : 168}
               step={1}
               onChange={(v) =>
-                edit((d) => {
-                  d.duration_s = v * 3600;
-                })
+                edit((d) =>
+                  setMissionDuration(d, v * (d.run_kind === 'long_mission' ? 86400 : 3600)),
+                )
               }
             />
             <OrbitalElementsFields
@@ -185,6 +200,32 @@ export function MissionInspector({
                   edit((d) => {
                     d.clocks.controller_period_s = v;
                     d.clocks.fidelity = 'user-edited';
+                  })
+                }
+              />
+              <Field
+                label="Orbit substeps"
+                unit=""
+                value={config.clocks.orbit_substeps}
+                min={1}
+                max={100}
+                step={1}
+                onChange={(v) =>
+                  edit((d) => {
+                    d.clocks.orbit_substeps = v;
+                  })
+                }
+              />
+              <Field
+                label="Δt thermal / environment"
+                unit="s"
+                value={config.clocks.thermal_step_s}
+                min={0.02}
+                max={60}
+                step={1}
+                onChange={(v) =>
+                  edit((d) => {
+                    d.clocks.thermal_step_s = v;
                   })
                 }
               />
@@ -265,6 +306,7 @@ export function MissionInspector({
         )}
         {section === 'link' && (
           <>
+            <MissionDeliveryControls config={config} edit={edit} />
             {(['uplink', 'downlink'] as const).map((direction) => (
               <RadioControls
                 key={direction}
@@ -316,7 +358,9 @@ export function MissionInspector({
         {mission.busy && (
           <span className="eyebrow">
             {mission.run?.status || 'Submitting'}{' '}
-            {mission.run?.progress ? `${(100 * mission.run.progress.fraction).toFixed(0)}%` : ''}
+            {Number.isFinite(mission.run?.progress?.fraction)
+              ? `${(100 * mission.run!.progress!.fraction!).toFixed(0)}%`
+              : ''}
           </span>
         )}
         {mission.snapshot?.run.result?.summary.end_reason !== undefined &&

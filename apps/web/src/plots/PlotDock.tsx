@@ -4,6 +4,8 @@ import type { RunSnapshot, Samples } from '../types';
 import { TracePlot, closestIndex } from './TracePlot';
 import { plotDefinitions, plotTraces } from './registry';
 import type { PlotId } from './registry';
+import { MissionReport } from '../mission/MissionReport';
+import { missionReport } from '../mission/missionReporting';
 
 const emptyTimes: number[] = [];
 const defaults: PlotId[] = ['pointing', 'margin', 'rate'];
@@ -53,12 +55,17 @@ export function PlotDock({
   baseline,
   cursorTime,
   onScrub,
+  liveReport,
+  showReportTab = true,
 }: {
   snapshot: RunSnapshot | null;
   baseline: RunSnapshot | null;
   cursorTime: number;
   onScrub: (time: number) => void;
+  liveReport?: unknown;
+  showReportTab?: boolean;
 }) {
+  const [reportOpen, setReportOpen] = useState(false);
   const [selection, setSelection] = useState(readSelection);
   const [choosing, setChoosing] = useState(false);
   const chooser = useRef<HTMLDivElement>(null);
@@ -120,13 +127,21 @@ export function PlotDock({
         {presets.map((preset) => (
           <button
             key={preset.label}
-            aria-pressed={selection.join() === preset.values.join()}
-            onClick={() => setSelection(preset.values)}
+            aria-pressed={!reportOpen && selection.join() === preset.values.join()}
+            onClick={() => {
+              setReportOpen(false);
+              setSelection(preset.values);
+            }}
           >
             {preset.label}
           </button>
         ))}
-        {outsideBatteryReference && (
+        {showReportTab && (
+          <button aria-pressed={reportOpen} onClick={() => setReportOpen(true)}>
+            Report
+          </button>
+        )}
+        {!reportOpen && outsideBatteryReference && (
           <span
             className="battery-reference-badge"
             title="OCV and resistance stay at the fixed 25°C reference outside the 25±1°C tests. Operating temperature gates are separate and do not validate cold/hot electrical predictions."
@@ -138,7 +153,10 @@ export function PlotDock({
           <button
             aria-expanded={choosing}
             aria-controls="plot-options"
-            onClick={() => setChoosing(!choosing)}
+            onClick={() => {
+              setReportOpen(false);
+              setChoosing(!choosing);
+            }}
           >
             Plots <span>{selection.length}</span>
           </button>
@@ -165,31 +183,42 @@ export function PlotDock({
           )}
         </div>
       </nav>
-      <div
-        className="trace-stack"
-        data-dense={selection.length > 3}
-        style={
-          {
-            '--plot-count': selection.length,
-            '--plot-pairs': Math.ceil(selection.length / 2),
-          } as CSSProperties
-        }
-      >
-        {panels.map(({ definition, traces, baseline: comparison }) => (
-          <TracePlot
-            key={definition.id}
-            title={definition.title}
-            unit={definition.unit}
-            minimumSpan={definition.minimumSpan}
-            stepped={definition.stepped}
-            times={snapshot?.run.result?.samples.time_s || emptyTimes}
-            traces={traces}
-            baseline={comparison}
-            cursorTime={cursorTime}
-            onScrub={onScrub}
-          />
-        ))}
-      </div>
+      {reportOpen ? (
+        <MissionReport
+          report={missionReport(
+            liveReport ?? snapshot?.run.result?.summary.reporting,
+            !!liveReport,
+          )}
+          live={!!liveReport}
+          onScrub={onScrub}
+        />
+      ) : (
+        <div
+          className="trace-stack"
+          data-dense={selection.length > 3}
+          style={
+            {
+              '--plot-count': selection.length,
+              '--plot-pairs': Math.ceil(selection.length / 2),
+            } as CSSProperties
+          }
+        >
+          {panels.map(({ definition, traces, baseline: comparison }) => (
+            <TracePlot
+              key={definition.id}
+              title={definition.title}
+              unit={definition.unit}
+              minimumSpan={definition.minimumSpan}
+              stepped={definition.stepped}
+              times={snapshot?.run.result?.samples.time_s || emptyTimes}
+              traces={traces}
+              baseline={comparison}
+              cursorTime={cursorTime}
+              onScrub={onScrub}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }

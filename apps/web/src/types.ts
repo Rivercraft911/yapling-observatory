@@ -68,7 +68,24 @@ export interface LinkSamples {
   ideal_rate_bps: Scalar[];
   cumulative_ideal_bits: Scalar[];
 }
+export interface ReceiverSamples {
+  delivered_useful_bits: number[];
+  delivered_data_field_bits: number[];
+  delivered_frames: number[];
+  lost_frames: number[];
+  aborted_frames: number[];
+  acquisition_count: number[];
+  lock_loss_count: number[];
+  locked_time_s: number[];
+  ready_time_s: number[];
+  delivery_available: boolean[];
+  locked: boolean[];
+  mode_index: number[];
+  mode_id: string[];
+  receiver_state: string[];
+}
 export interface Samples {
+  radio_delivery?: { uplink: ReceiverSamples; downlink: ReceiverSamples };
   time_s: number[];
   mode?: string[];
   radio_active?: boolean[];
