@@ -43,7 +43,10 @@ SAMPLE_BUDGETS = {
 }
 RF_BUDGETS = dict.fromkeys(("cn0_dbhz", "esn0_db", "fspl_db", "margin_db", "noise_density_dbw_hz",
                            "polarization_loss_db", "received_power_dbw", "rx_gain_dbi", "tx_gain_dbi"), DB)
-RF_BUDGETS.update(polarization_coupling=NORMALIZED, doppler_hz=DOPPLER_HZ)
+# Near-horizon polarization projection and log10(coupling) amplify roundoff.
+# Keep this allowance out of antenna gain, path loss and noise comparisons.
+RF_BUDGETS.update(dict.fromkeys(("polarization_loss_db", "received_power_dbw", "cn0_dbhz", "esn0_db", "margin_db"), 1e-11))
+RF_BUDGETS.update(polarization_coupling=128 * EPSILON, doppler_hz=DOPPLER_HZ)
 
 
 def sha256_json(value):
@@ -216,6 +219,8 @@ def nested_payload(path, value):
     (("samples", "elevation_deg", 0), 90.0, 90.0 - ANGLE_DEG / 2),
     (("samples", "attitude_angle_deg", 0), 8.537736462515939e-7, 0.0),
     (("samples", "uplink", "margin_db", 0), 0.13387020181477283, 0.13387020181471598),
+    (("samples", "downlink", "polarization_coupling", 0), 0.36882181948229964, 0.3688218194823182),
+    (("samples", "downlink", "polarization_loss_db", 0), 27.27990429983501, 27.27990429983251),
     (("samples", "uplink", "doppler_hz", 0), 0.0, DOPPLER_HZ / 2),
     (("samples", "tracking_rate_deg_s", 0), 0.0, ANGULAR_RATE_DEG_S / 2),
     (("pattern", "grid", "field_real", 0, 0), -1.470393538023152e-16, -9.749348458631769e-17),
@@ -232,6 +237,8 @@ def test_portable_comparison_accepts_bounded_output_roundoff(path, expected, act
     (("samples", "attitude_angle_deg", 0), 0.0, 1e-3),
     (("samples", "attitude_angle_deg", 0), 0.0, -1e-7),
     (("samples", "uplink", "margin_db", 0), 0.0, 1e-9),
+    (("samples", "downlink", "polarization_coupling", 0), 0.5, 0.5 + 1e-12),
+    (("samples", "downlink", "fspl_db", 0), 150.0, 150.0 + 2e-12),
     (("samples", "uplink", "doppler_hz", 0), 0.0, 1e-8),
     (("samples", "tracking_rate_deg_s", 0), 0.0, 1e-10),
     (("pattern", "grid", "field_real", 0, 0), 0.0, 1e-12),
