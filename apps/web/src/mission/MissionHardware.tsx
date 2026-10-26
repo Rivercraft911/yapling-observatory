@@ -2,15 +2,20 @@ import { useEffect, useState } from 'react';
 import { api, cloneScenario } from '../api';
 import { Field } from '../controls/RadioControls';
 
+import type { Variant } from '../types';
 import type { MissionConfig } from './missionTypes';
+import { MissionAntennaControls } from './MissionAntennaControls';
 
 export function MissionHardware({
   config,
   edit,
+  onAntennaVariant,
 }: {
   config: MissionConfig;
   edit: (change: (draft: MissionConfig) => void) => void;
+  onAntennaVariant?: (variant: Variant) => void;
 }) {
+  const [section, setSection] = useState<'actuators' | 'antennas'>('actuators');
   const craft = config.spacecraft;
   const wheelsEnabled = craft.wheels.some((wheel) => wheel.enabled);
   const [presets, setPresets] = useState<
@@ -37,8 +42,25 @@ export function MissionHardware({
       .catch(() => {});
     return () => abort.abort();
   }, []);
+  const navigation = (
+    <nav className="mission-mode-selector" aria-label="Hardware controls">
+      {(['actuators', 'antennas'] as const).map((choice) => (
+        <button key={choice} aria-pressed={section === choice} onClick={() => setSection(choice)}>
+          {choice === 'actuators' ? 'Actuators' : 'Antennas'}
+        </button>
+      ))}
+    </nav>
+  );
+  if (section === 'antennas')
+    return (
+      <>
+        {navigation}
+        <MissionAntennaControls config={config} edit={edit} onVariant={onAntennaVariant} />
+      </>
+    );
   return (
     <>
+      {navigation}
       <fieldset>
         <legend>
           ACTUATOR HARDWARE <span>shared</span>

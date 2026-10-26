@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0",
+  "revision": "nasa-blue-marble-cloud-2001-global-matched-v1",
+  "publisher_page": "https://science.nasa.gov/earth/earth-observatory/the-blue-marble-true-color-global-imagery-at-1km-resolution/",
+  "license_url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+  "license": "NASA imagery-use guidelines; educational/informational use with source acknowledgment; no endorsement.",
+  "credit": "NASA Goddard Space Flight Center / Reto Stöckli; compositing enhancements by Robert Simmon.",
+  "acquisition_epoch": "2001 multiday composite, released 2002; not simulated epoch or live weather",
+  "derived_utc": "2026-10-26T20:09:02.957628+00:00",
+  "sources": [
+    {
+      "hemisphere": "W",
+      "source_url": "https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud.W.2001210.21600x21600.png",
+      "source_dimensions": [21600, 21600],
+      "source_bytes": 210808929,
+      "source_sha256": "d7a6b03bb54b8ba56f72af6d1d49f191a25c12e911c43739c900e893d10eb814"
+    },
+    {
+      "hemisphere": "E",
+      "source_url": "https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud.E.2001210.21600x21600.png",
+      "source_dimensions": [21600, 21600],
+      "source_bytes": 211800444,
+      "source_sha256": "11eb1aaf8e6056b9aebc0de4894dc5ad8a21cbe8738c6ddc92e88701eb7e1b99"
+    }
+  ],
+  "native_grid_dimensions": [43200, 21600],
+  "bounds_deg": {
+    "west": -180,
+    "east": 180,
+    "south": -90,
+    "north": 90
+  },
+  "transform": "Process each checked 21600 x 21600 L hemisphere separately with Pillow BOX area resampling to 4096 x 4096; concatenate W then E into 8192 x 4096. Reduce that map to 4096 x 2048 with BOX. Encode lossless WebP. Coverage changes are limited to area averaging. No full native global mosaic, sharpening, inpainting, or synthetic cloud detail.",
+  "processing": {
+    "pillow": "11.2.1",
+    "libwebp": "1.5.0",
+    "peak_native_decode": "One 21600 x 21600 L hemisphere at a time, about 445 MiB; never both native hemispheres or a full native RGBA mosaic",
+    "temporary_runtime_canvas": "No runtime conversion added; current TextureLoader decodes the global map as RGB/RGBA"
+  },
+  "maps": {
+    "8k": {
+      "file": "earth-clouds-nasa-8k.webp",
+      "url": "/earth/earth-clouds-nasa-8k.webp",
+      "runtime_dimensions": [8192, 4096],
+      "runtime_bytes": 15403658,
+      "runtime_sha256": "7ec41e8824c47ff131560ada2acf083a5f691ecfcbefe56e2f09d501967cd51b",
+      "encoding": "lossless WebP; achromatic RGB decode of one grayscale coverage channel",
+      "gpu_format": "RGBA8 with the existing TextureLoader; sampled as NoColorSpace coverage",
+      "gpu_bytes_with_mipmaps": 178956972,
+      "packing_note": "One coverage value is repeated in RGB; runtime samples red. No R8 conversion is claimed for the current global loader.",
+      "validation": {
+        "maximum_channel_error": 0,
+        "grayscale_channels_equal": true,
+        "comparison": "Complete decoded image compared with the BOX-reduced L image before encoding"
+      }
+    },
+    "4k": {
+      "file": "earth-clouds-nasa-4k.webp",
+      "url": "/earth/earth-clouds-nasa-4k.webp",
+      "runtime_dimensions": [4096, 2048],
+      "runtime_bytes": 4280062,
+      "runtime_sha256": "444f51ccfe2b576ccd040008c7b573795fb5e4943e66c0afd252d08d5e7cd909",
+      "encoding": "lossless WebP; achromatic RGB decode of one grayscale coverage channel",
+      "gpu_format": "RGBA8 with the existing TextureLoader; sampled as NoColorSpace coverage",
+      "gpu_bytes_with_mipmaps": 44739244,
+      "packing_note": "One coverage value is repeated in RGB; runtime samples red. No R8 conversion is claimed for the current global loader.",
+      "validation": {
+        "maximum_channel_error": 0,
+        "grayscale_channels_equal": true,
+        "comparison": "Complete decoded image compared with the BOX-reduced L image before encoding"
+      }
+    }
+  },
+  "limits": [
+    "Static display coverage from the same 2001 NASA composite as the native tiles; not simulated-date weather, cloud-water, radiance, RF loss, or a thermal input.",
+    "Downsampling removes spatial detail. Blank source coverage, polar gaps, mosaic boundaries and other source artifacts remain; absent coverage is not filled.",
+    "Matching the source prevents camera LOD changes from switching between different cloud composites. Native lossy WebP tiles and the area-reduced global map can still differ at the pixel and filtering scale.",
+    "Original Solar System Scope cloud maps remain bundled as legacy assets with their original provenance and license.",
+    "The checked western and eastern source images have a hard cloud-coverage discontinuity at longitude 0 degrees, visible over the Southern Ocean. This fixed geographical seam is preserved in both the global maps and native tiles; it is not a runtime tile boundary."
+  ]
+}

@@ -60,12 +60,20 @@
   padding: 12px 0;
   border-bottom: 1px solid var(--rule);
 }
+.mission-details[open] > summary {
+  margin-bottom: 14px;
+}
+.contextual-controls fieldset,
+.mission-controls-body fieldset {
+  margin-top: 16px;
+}
 .mission-details summary {
   cursor: pointer;
   color: var(--muted);
   font-size: 11px;
 }
-.mission-details > small {
+.mission-details > small,
+.contextual-controls fieldset > small {
   display: block;
   color: var(--muted);
   font-size: 10px;

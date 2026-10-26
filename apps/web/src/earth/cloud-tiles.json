@@ -44,10 +44,10 @@
   "tile_count": 242,
   "limits": [
     "Static visual coverage artwork only; not cloud-water, historical weather, RF attenuation or thermal-environment truth.",
-    "Source composite artifacts, including a western-US mosaic wedge, are preserved.",
+    "Source composite artifacts, including the western-US mosaic wedge and the fixed longitude 0 degree west/east join over the Southern Ocean, are preserved.",
     "Native nominal1km is coarser than the500m regional land imagery.",
     "Nine tile resident limit, two concurrent loads, single-channel R8 textures; GPU mips at most48MiB and retained CPU mask data at most36MiB.",
-    "Only camera-neighborhood coverage is resident; global artwork remains beyond loaded tiles and near some horizon/polar edges."
+    "Only camera-neighborhood coverage is resident; matched area-reduced NASA global coverage remains beyond loaded tiles and near some horizon/polar edges."
   ],
   "tiles": [
     {
@@ -2488,5 +2488,6 @@
         0.9875925925925926, -0.00037037037037035425, 1.0001851851851853, 0.05962962962962959
       ]
     }
-  ]
+  ],
+  "global_fallback_manifest": "/earth/cloud-global.json"
 }

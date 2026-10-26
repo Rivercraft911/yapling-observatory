@@ -38,6 +38,7 @@ jobs:
       - run: node --experimental-strip-types apps/web/src/graphics/thermal-picking.test.mjs
       - run: node --experimental-strip-types apps/web/src/mission/mission-requests.test.mjs
       - run: node apps/web/src/mission/shared-spacecraft.test.mjs
+      - run: node apps/web/src/mission/mission-antenna-controls.test.mjs
       - run: node apps/web/src/mission/mission-gnc-controls.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/battery-plots.test.mjs
       - run: node apps/web/src/mission/mission-report.test.mjs

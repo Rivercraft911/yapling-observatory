@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
-import { Field, Select } from '../controls/RadioControls';
+import { AntennaMountControls, Field, Select } from '../controls/RadioControls';
 import type { MissionConfig } from './missionTypes';
 import type { UhfBeaconConfig } from './uhfTypes';
 
@@ -14,9 +14,13 @@ interface UhfPreview {
 export function MissionUhfControls({
   config,
   edit,
+  antennaOnly = false,
+  onVariant,
 }: {
   config: MissionConfig;
   edit: (change: (draft: MissionConfig) => void) => void;
+  antennaOnly?: boolean;
+  onVariant?: (variant: UhfBeaconConfig['antenna_variant']) => void;
 }) {
   const radio = config.uhf_beacon;
   const [loading, setLoading] = useState(false);
@@ -85,6 +89,70 @@ export function MissionUhfControls({
       if (draft.uhf_beacon) update(draft.uhf_beacon);
     });
   const data = preview?.key === key ? preview.data : null;
+  const antennaFields = radio && (
+    <>
+      <Select
+        label="Spacecraft UHF antenna"
+        value={radio.antenna_variant}
+        options={[
+          { value: 'dipole', label: 'Dipole' },
+          { value: 'turnstile', label: 'Turnstile' },
+        ]}
+        onChange={(value) => {
+          const variant = value as UhfBeaconConfig['antenna_variant'];
+          if (onVariant) onVariant(variant);
+          else
+            change((draft) => {
+              draft.antenna_variant = variant;
+            });
+        }}
+      />
+      <Field
+        label="Ground Yagi gain"
+        unit="dBi"
+        value={radio.ground_peak_gain_dbi}
+        min={0}
+        max={40}
+        step={0.1}
+        onChange={(value) =>
+          change((d) => {
+            d.ground_peak_gain_dbi = value;
+          })
+        }
+      />
+      <small title="User-reported 15 dBi ground Yagi also applies reciprocally to the UHF uplink antenna at the same frequency and antenna state. This beacon model evaluates spacecraft-to-ground only; ground TX power and the spacecraft receiver threshold are not configured here.">
+        15 dBi reported · UHF uplink chain unresolved
+      </small>
+      <Field
+        label="Radiation efficiency"
+        unit="%"
+        value={radio.radiation_efficiency * 100}
+        min={0}
+        max={100}
+        step={1}
+        onChange={(value) =>
+          change((d) => {
+            d.radiation_efficiency = value / 100;
+          })
+        }
+      />
+      <AntennaMountControls
+        orientationDeg={radio.antenna_orientation_deg}
+        groundFeedRollDeg={radio.ground_feed_roll_deg}
+        onOrientation={(axis, value) =>
+          change((draft) => {
+            draft.antenna_orientation_deg[axis] = value;
+          })
+        }
+        onGroundFeedRoll={(value) =>
+          change((draft) => {
+            draft.ground_feed_roll_deg = value;
+          })
+        }
+      />
+    </>
+  );
+
   return (
     <>
       <label className="spacecraft-follow">
@@ -97,7 +165,13 @@ export function MissionUhfControls({
         {loading ? 'Loading UHF' : 'LoRa beacon'}
       </label>
       {error && <small role="alert">{error}</small>}
-      {radio && (
+      {radio && antennaOnly && (
+        <fieldset>
+          <legend>UHF ANTENNAS</legend>
+          {antennaFields}
+        </fieldset>
+      )}
+      {radio && !antennaOnly && (
         <>
           <fieldset>
             <legend>
@@ -272,35 +346,7 @@ export function MissionUhfControls({
           </fieldset>
           <details className="mission-details">
             <summary>Beacon antennas & ground receiver</summary>
-            <Select
-              label="Spacecraft UHF antenna"
-              value={radio.antenna_variant}
-              options={[
-                { value: 'dipole', label: 'Dipole' },
-                { value: 'turnstile', label: 'Turnstile' },
-              ]}
-              onChange={(value) =>
-                change((d) => {
-                  d.antenna_variant = value as UhfBeaconConfig['antenna_variant'];
-                })
-              }
-            />
-            <Field
-              label="Ground Yagi gain"
-              unit="dBi"
-              value={radio.ground_peak_gain_dbi}
-              min={0}
-              max={40}
-              step={0.1}
-              onChange={(value) =>
-                change((d) => {
-                  d.ground_peak_gain_dbi = value;
-                })
-              }
-            />
-            <small title="User-reported 15 dBi ground Yagi also applies reciprocally to the UHF uplink antenna at the same frequency and antenna state. This beacon model evaluates spacecraft-to-ground only; ground TX power and the spacecraft receiver threshold are not configured here.">
-              15 dBi reported · UHF uplink chain unresolved
-            </small>
+            {antennaFields}
             <Field
               label="Ground RX sensitivity"
               unit="dBm"
@@ -317,19 +363,6 @@ export function MissionUhfControls({
             {radio.receiver_threshold_dbm == null && (
               <small>Ground sensitivity needed for beacon margin.</small>
             )}
-            <Field
-              label="Radiation efficiency"
-              unit="%"
-              value={radio.radiation_efficiency * 100}
-              min={0}
-              max={100}
-              step={1}
-              onChange={(value) =>
-                change((d) => {
-                  d.radiation_efficiency = value / 100;
-                })
-              }
-            />
           </details>
         </>
       )}

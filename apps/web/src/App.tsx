@@ -13,6 +13,7 @@ import { useLiveMission } from './live/useLiveMission';
 import { useMission } from './mission/useMission';
 import { MissionInspector } from './mission/MissionInspector';
 import { MissionHardware } from './mission/MissionHardware';
+import { MissionGncControls } from './mission/MissionGncControls';
 import { MissionPowerControls } from './mission/MissionPowerControls';
 import { MissionThermalControls } from './mission/MissionThermalControls';
 import { MissionArchiveControls } from './mission/MissionArchiveControls';
@@ -868,8 +869,19 @@ export default function App() {
                           nodeId={thermalNodeId}
                           onNodeChange={setThermalNodeId}
                         />
+                      ) : spacecraftSection === 'gnc' ? (
+                        <MissionGncControls
+                          config={scenario}
+                          edit={mission.edit}
+                          samples={samples}
+                          sampleIndex={index}
+                        />
                       ) : (
-                        <MissionHardware config={scenario} edit={mission.edit} />
+                        <MissionHardware
+                          config={scenario}
+                          edit={mission.edit}
+                          onAntennaVariant={setPreviewVariant}
+                        />
                       )}
                       <div className="mission-run-actions">
                         <Field

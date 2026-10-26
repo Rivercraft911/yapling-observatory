@@ -39,7 +39,7 @@ export function MissionGncControls({
     <>
       <div
         className="mission-field-model"
-        title="Actuator sizing and hardware switches are shared inputs in Spacecraft → GNC."
+        title="Actuator sizing and hardware switches are shared inputs in Spacecraft → Hardware."
       >
         <span>Shared actuators</span>
         <span>
@@ -49,7 +49,7 @@ export function MissionGncControls({
       </div>
       <fieldset>
         <legend>
-          CONTROLLER <span>Earth inputs</span>
+          CONTROLLER <span>shared</span>
         </legend>
         <Select
           label="Controller"

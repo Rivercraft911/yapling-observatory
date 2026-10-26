@@ -220,6 +220,11 @@ assert.match(inspector, /<MissionGncControls/);
 assert.match(inspector, /samples=\{mission\.snapshot\?\.run\.result\?\.samples\}/);
 assert.match(inspector, /sampleIndex=\{sampleIndex\}/);
 assert.doesNotMatch(inspector, /<MissionHardware/);
+const app = await readFile(new URL('../App.tsx', import.meta.url), 'utf8');
+assert.match(
+  app,
+  /spacecraftSection === 'gnc' \? \(\s*<MissionGncControls\s+config=\{scenario\}\s+edit=\{mission\.edit\}\s+samples=\{samples\}\s+sampleIndex=\{index\}\s*\/>\s*\) : \(\s*<MissionHardware/,
+);
 console.log(
   'Earth GNC controls passed: explicit unloading intent, retained decay time, actual replay states, unavailable legacy telemetry, shared hardware edits, preserved history, guidance and initial wheel speed routing.',
 );

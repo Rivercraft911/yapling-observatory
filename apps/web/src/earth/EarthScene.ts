@@ -38,6 +38,7 @@ import { SunDisplay } from './SunDisplay';
 import { TargetDisplay, activeTargetAtSample } from './TargetDisplay';
 import regionalImagery from './regional-lod.json';
 import cloudImagery from './cloud-tiles.json';
+import globalCloudImagery from './cloud-global.json';
 import nightImagery from './night-map.json';
 import { loadDetailedNightMap } from './nightMap';
 import { CloudTileLayer, cloudTileBudget, readCloudTile } from './CloudTiles';
@@ -271,9 +272,10 @@ export class EarthScene {
     this.renderer.domElement.dataset.mapResolution = highResolution
       ? '8192×4096'
       : '4096×2048 GPU fallback';
+    const globalCloud = globalCloudImagery.maps[highResolution ? '8k' : '4k'];
     const urls = [
       highResolution ? '/earth/earth-day-8k.jpg' : '/earth/earth-day-4k.jpg',
-      highResolution ? '/earth/earth-clouds-8k.jpg' : '/earth/earth-clouds-4k.png',
+      globalCloud.url,
       '/earth/earth-ocean-2k.png',
     ];
     let detailedNight = false;
@@ -320,6 +322,9 @@ export class EarthScene {
       texture.anisotropy = Math.min(this.renderer.capabilities.getMaxAnisotropy(), 16);
       texture.needsUpdate = true;
     });
+    this.renderer.domElement.dataset.cloudGlobalRevision = globalCloudImagery.revision;
+    this.renderer.domElement.dataset.cloudGlobalResolution =
+      globalCloud.runtime_dimensions.join('x');
     this.renderer.domElement.dataset.nightLights = textures[3]
       ? detailedNight
         ? '13500x6750 NASA 2016 R8'
