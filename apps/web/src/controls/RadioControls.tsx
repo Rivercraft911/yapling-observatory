@@ -256,9 +256,12 @@ export function RadioControls({
           min={0.000001}
           max={100}
           step={0.1}
+          disabled={link.profile.channel_bandwidth_hz != null}
           onChange={(value) =>
             onChange((draft) => {
               draft.profile.symbol_rate_sps = value * 1e6;
+              delete draft.profile.channel_bandwidth_hz;
+              delete draft.profile.rolloff;
             })
           }
         />

@@ -171,9 +171,11 @@ The UI's **RF estimate** retains its original approximate `net_efficiency`; **Fr
 
 The `esp32_s3_short_pair` option accepts the supported fixed short-frame/pilot combinations at 1 or 5 Msym/s, with 8PSK pairing at 5 Msym/s. Local source revision `f6149796044796f83fe10a27dc381554df21a2d8` documents normal-frame VCM transmission to an E200, while the S3 receiver evidence uses short frames. The paired option therefore rejects scheduled policy; generic scheduled studies remain explicit assumptions. No hardware ACM support is inferred.
 
+Allocated S-band channel edits use `rf/bandwidth.py` and `mission/radio_channel.py`. For the ideal raised-cosine spectrum, B = Rs (1 + α), from ETSI EN 302 307-1 V1.4.1 clause 5.6, printed p.35. α is 0.20, 0.25 or 0.35. The user-selected starting allocation is 20 MHz at α = 0.35, or 14.8148148 Msymbol/s. Allocation edits update the RF profile and all modes in the chosen receiver direction together. Existing policy, thresholds, timing and frame accounting remain unchanged. Legacy profiles omit both allocation fields and retain their stored symbol rates and serialized identity. This is full ideal support width without an extra guard band, not a measured occupied-bandwidth or hardware-throughput claim.
+
 ## Transmitter planning inputs
 
-The editable user-confirmed example in `power/profiles.py` uses 10 W electrical input and 4 W RF at the radio/PA output, before the feed. `power/radio.py` derives 6 W transmitter heat. The provisional 1 dB feed loss and unit radiation efficiency give approximately 0.82 W feed heat, 3.18 W escaping RF and 6.82 W heat from the radio chain. Antenna loss is additionally retained when radiation efficiency is below unity. These inputs are not a calibrated flight transmitter. Draft previews, the coupled mission and standalone power-study examples share this partition.
+The editable user-confirmed example in `power/profiles.py` uses 14 W electrical input and 2.5 W RF at the radio/PA output, before the feed. `power/radio.py` derives 11.5 W transmitter heat. The provisional 1 dB feed loss and unit radiation efficiency give approximately 0.514 W feed heat, 1.986 W escaping RF and 12.014 W heat from the radio chain. Antenna loss is additionally retained when radiation efficiency is below unity. These inputs are not a calibrated flight transmitter. Draft previews, the coupled mission and standalone power-study examples share this partition.
 
 ## Complex antenna profiles
 

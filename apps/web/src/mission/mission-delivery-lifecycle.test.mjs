@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import ts from 'typescript';
+import { APIError } from '../api.ts';
 
 // Execute the actual component with deterministic hooks and deferred API replies.
 const slots = [];
@@ -48,13 +49,16 @@ const exports = {};
 vm.runInNewContext(compiled, {
   exports,
   AbortController,
+  Error,
   require(name) {
     if (name === 'react') return hooks;
     if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'fragment' };
     if (name === '../controls/RadioControls') return { Field: 'field', Select: 'select' };
     if (name === '../api')
       return {
-        api: (_url, options) => new Promise((resolve) => requests.push({ resolve, options })),
+        APIError,
+        api: (url, options) =>
+          new Promise((resolve, reject) => requests.push({ url, resolve, reject, options })),
       };
     throw new Error(`Unexpected dependency ${name}`);
   },
@@ -193,3 +197,62 @@ assert.equal(config.radio_delivery.uplink.acquisition_s, 99);
 assert.equal(config.radio_delivery.downlink.acquisition_s, 88);
 assert.equal(checkbox(render()).props.disabled, false);
 console.log('A stale receiver reply cannot replace settings loaded from another mission.');
+
+function alert(element) {
+  if (!element || typeof element !== 'object') return;
+  if (element.props?.role === 'alert') return element;
+  const children = element.props?.children;
+  for (const child of Array.isArray(children) ? children : [children]) {
+    const found = alert(child);
+    if (found) return found;
+  }
+}
+
+config = { ...config, radio_delivery: undefined };
+checkbox(render()).props.onChange({ target: { checked: true } });
+const beforeFailure = JSON.stringify(config);
+const editsBeforeFailure = edits;
+assert.equal(requests[3].url, '/api/mission/delivery-example');
+assert.equal(JSON.parse(requests[3].options.body).preset, 'adaptive_psk');
+requests[3].reject(
+  new APIError('preset: Extra inputs are not permitted', 422, [
+    { type: 'extra_forbidden', loc: ['body', 'preset'], msg: 'Extra inputs are not permitted' },
+  ]),
+);
+await new Promise(setImmediate);
+tree = render();
+assert.match(alert(tree).props.children, /Receiver modes could not load/);
+assert.match(alert(tree).props.children, /local service.*older than this interface/);
+assert.equal(checkbox(tree).props.disabled, false);
+assert.equal(edits, editsBeforeFailure);
+assert.equal(JSON.stringify(config), beforeFailure);
+assert.equal(requests.length, 4, 'A schema mismatch must not trigger an automatic fallback');
+
+checkbox(tree).props.onChange({ target: { checked: true } });
+assert.equal(alert(render()), undefined, 'Retry clears the previous failure');
+assert.equal(requests[4].options.body, requests[3].options.body);
+requests[4].resolve({
+  schema_version: '0.1.0',
+  uplink: structuredClone(profile),
+  downlink: structuredClone(profile),
+});
+await new Promise(setImmediate);
+assert.equal(config.radio_delivery.downlink.acquisition_s, profile.acquisition_s);
+assert.equal(checkbox(render()).props.disabled, false);
+
+config = { ...config, radio_delivery: undefined };
+checkbox(render()).props.onChange({ target: { checked: true } });
+requests[5].reject(
+  new APIError('uplink.preset: Extra inputs are not permitted', 422, [
+    {
+      type: 'extra_forbidden',
+      loc: ['body', 'uplink', 'preset'],
+      msg: 'Extra inputs are not permitted',
+    },
+  ]),
+);
+await new Promise(setImmediate);
+assert.equal(alert(render()).props.children, 'uplink.preset: Extra inputs are not permitted');
+console.log(
+  'Receiver preset incompatibility preserves inputs, reports a matching-service remedy and permits an unchanged retry without masking other validation errors.',
+);

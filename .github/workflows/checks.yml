@@ -40,6 +40,9 @@ jobs:
       - run: node --experimental-strip-types apps/web/src/plots/battery-plots.test.mjs
       - run: node apps/web/src/mission/mission-report.test.mjs
       - run: node apps/web/src/mission/mission-delivery-lifecycle.test.mjs
+      - run: node apps/web/src/api-errors.test.mjs
+      - run: node apps/web/src/mission/mission-preset-lifecycle.test.mjs
+      - run: node apps/web/src/mission/mission-channel-lifecycle.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/gnc-plots.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/plot-preferences.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/trace-formatting.test.mjs

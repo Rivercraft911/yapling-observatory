@@ -1,6 +1,6 @@
 import type { MissionPresetId } from './MissionPresetSelect';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, cloneScenario } from '../api';
+import { api, APIError, cloneScenario } from '../api';
 import {
   downloadMissionArchive,
   prepareMissionArchive,
@@ -71,7 +71,7 @@ export function useMission() {
   );
 
   const loadStartingMission = useCallback(
-    async (path: string) => {
+    async (path: string, presetLabel?: string) => {
       if (isBusy() || importingRef.current) return;
       invalidateInputs();
       const request = requests.begin('defaults');
@@ -85,7 +85,13 @@ export function useMission() {
         if (request.current()) commitConfig(scenario);
       } catch (cause) {
         if (request.current())
-          setError(cause instanceof Error ? cause.message : 'Mission unavailable');
+          setError(
+            presetLabel && cause instanceof APIError && cause.status === 404
+              ? `${presetLabel} could not load: the local service does not provide this preset. It may be older than this interface. Open the app paired with the current service, then retry.`
+              : cause instanceof Error
+                ? cause.message
+                : 'Mission unavailable',
+          );
       } finally {
         if (request.current()) {
           loadingRef.current = false;
@@ -100,13 +106,14 @@ export function useMission() {
     [loadStartingMission],
   );
   const loadDaylightDemo = useCallback(
-    () => loadStartingMission('/api/mission/demo/daytime-pass'),
+    () => loadStartingMission('/api/mission/demo/daytime-pass', 'Daylight passes'),
     [loadStartingMission],
   );
   const loadPreset = useCallback(
     (preset: MissionPresetId) =>
       loadStartingMission(
         preset === 'terminator' ? '/api/mission/demo/terminator' : '/api/mission/demo/daytime-pass',
+        preset === 'terminator' ? 'Terminator SSO' : 'Daylight passes',
       ),
     [loadStartingMission],
   );

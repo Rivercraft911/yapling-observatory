@@ -7,6 +7,8 @@ export type Quaternion = [number, number, number, number];
 export interface RadioProfile {
   waveform: 'dvb_s2' | 'lora';
   symbol_rate_sps: number | null;
+  channel_bandwidth_hz?: number | null;
+  rolloff?: 0.2 | 0.25 | 0.35 | null;
   modulation: 'QPSK' | '8PSK' | 'LoRa';
   code_rate: number;
   net_efficiency: number;

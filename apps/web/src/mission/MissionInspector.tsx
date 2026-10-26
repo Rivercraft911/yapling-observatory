@@ -4,6 +4,7 @@ import { Field, Select, RadioControls } from '../controls/RadioControls';
 import type { RadioCatalog } from '../types';
 import { OrbitalElementsFields } from '../systems/OrbitalElementsFields';
 import { MissionDeliveryControls } from './MissionDeliveryControls';
+import { MissionChannelControls } from './MissionChannelControls';
 import { MissionRadioSchedule } from './MissionRadioSchedule';
 import { MissionUhfControls } from './MissionUhfControls';
 import { MissionGncControls } from './MissionGncControls';
@@ -131,9 +132,9 @@ export function MissionInspector({
               label="Duration"
               unit={config.run_kind === 'long_mission' ? 'd' : 'h'}
               value={config.duration_s / (config.run_kind === 'long_mission' ? 86400 : 3600)}
-              min={config.run_kind === 'long_mission' ? 1 : 1 / 3}
+              min={config.run_kind === 'long_mission' ? 1 / 72 : 1 / 3}
               max={config.run_kind === 'long_mission' ? 30 : 168}
-              step={1}
+              step={config.run_kind === 'long_mission' ? 0.25 : 1}
               onChange={(v) =>
                 edit((d) =>
                   setMissionDuration(d, v * (d.run_kind === 'long_mission' ? 86400 : 3600)),
@@ -330,6 +331,14 @@ export function MissionInspector({
               <>
                 <MissionDeliveryControls config={config} edit={edit} />
                 <MissionRadioSchedule config={config} edit={edit} />
+                {(['uplink', 'downlink'] as const).map((direction) => (
+                  <MissionChannelControls
+                    key={direction}
+                    direction={direction}
+                    config={config}
+                    edit={edit}
+                  />
+                ))}
                 {(['uplink', 'downlink'] as const).map((direction) => (
                   <RadioControls
                     key={direction}

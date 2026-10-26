@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../api';
+import { api, APIError } from '../api';
 import { Field, Select } from '../controls/RadioControls';
 import type { MissionConfig } from './missionTypes';
 import type { DeliveryMode, DirectionDelivery, RadioDeliveryConfig } from './radioDeliveryTypes';
@@ -51,7 +51,21 @@ export function MissionDeliveryControls({
         });
     } catch (cause) {
       if (version.current === request)
-        setError(cause instanceof Error ? cause.message : 'Receiver profile unavailable');
+        setError(
+          cause instanceof APIError &&
+            cause.status === 422 &&
+            cause.issues.some(
+              (issue) =>
+                issue.type === 'extra_forbidden' &&
+                issue.loc.length === 2 &&
+                issue.loc[0] === 'body' &&
+                issue.loc[1] === 'preset',
+            )
+            ? 'Receiver modes could not load: the local service does not support receiver presets. It may be older than this interface. Open the app paired with the current service, then retry.'
+            : cause instanceof Error
+              ? cause.message
+              : 'Receiver profile unavailable',
+        );
     } finally {
       if (version.current === request) setPending(false);
     }

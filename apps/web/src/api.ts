@@ -1,3 +1,21 @@
+export interface APIValidationIssue {
+  type: string;
+  loc: (string | number)[];
+  msg: string;
+}
+
+export class APIError extends Error {
+  readonly status: number;
+  readonly issues: APIValidationIssue[];
+
+  constructor(message: string, status: number, issues: APIValidationIssue[] = []) {
+    super(message);
+    this.name = 'APIError';
+    this.status = status;
+    this.issues = issues;
+  }
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -12,25 +30,31 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!response.ok) {
     const value = body && typeof body === 'object' && 'detail' in body ? body.detail : null;
+    const issues: APIValidationIssue[] = Array.isArray(value)
+      ? value.map((issue) => ({
+          type: typeof issue?.type === 'string' ? issue.type : '',
+          loc: Array.isArray(issue?.loc)
+            ? issue.loc.filter(
+                (part: unknown) => typeof part === 'string' || typeof part === 'number',
+              )
+            : [],
+          msg: typeof issue?.msg === 'string' ? issue.msg : 'Invalid input',
+        }))
+      : [];
     const detail =
       typeof value === 'string'
         ? value
         : Array.isArray(value)
-          ? value
+          ? issues
               .slice(0, 3)
               .map((issue) => {
-                const path = Array.isArray(issue?.loc)
-                  ? issue.loc.filter((part: unknown) => part !== 'body').join('.')
-                  : '';
-                const message =
-                  typeof issue?.msg === 'string'
-                    ? issue.msg.replace(/^Value error, /, '')
-                    : 'Invalid input';
+                const path = issue.loc.filter((part) => part !== 'body').join('.');
+                const message = issue.msg.replace(/^Value error, /, '');
                 return path ? `${path}: ${message}` : message;
               })
               .join('\n')
           : text.slice(0, 180);
-    throw new Error(detail || response.statusText);
+    throw new APIError(detail || response.statusText, response.status, issues);
   }
   if (!body || typeof body !== 'object')
     throw new Error('The local service returned no JSON data.');
