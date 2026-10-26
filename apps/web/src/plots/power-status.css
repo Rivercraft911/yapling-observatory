@@ -1,0 +1,56 @@
+.power-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px 28px;
+  padding: 5px 30px;
+  border-bottom: 1px solid #29292b;
+  background: #19181b;
+}
+.power-status dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 22px;
+  margin: 0;
+}
+.power-status dl > div {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.power-status dt {
+  color: #a69d9d;
+  font-size: 10px;
+}
+.power-status dd {
+  margin: 0;
+  color: #e4ddd7;
+  font: 11px var(--mono);
+  white-space: nowrap;
+}
+.power-status .power-surplus {
+  color: #a9c9ba;
+}
+.power-status .power-deficit {
+  color: #e49b9b;
+}
+.power-status .power-run {
+  margin-left: auto;
+}
+.power-status .power-run > span {
+  font: 9px var(--mono);
+  color: #8d8689;
+  align-self: center;
+}
+.plot-dock[data-power-status='true'][data-time-navigation='true'],
+.results-workspace .plot-dock[data-power-status='true'][data-time-navigation='true'] {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+@media (max-width: 760px) {
+  .power-status {
+    padding-inline: 12px;
+  }
+  .power-status .power-run {
+    margin-left: 0;
+  }
+}

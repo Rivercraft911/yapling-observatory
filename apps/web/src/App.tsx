@@ -1,10 +1,10 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
 import type { Assets, RadioCatalog, Variant, RunSnapshot } from './types';
-import { Workbench } from './Workbench';
 import { PaneDivider } from './Resizer';
 import { closestIndex, formatValue } from './plots/TracePlot';
 import { PlotDock } from './plots/PlotDock';
+import { clampTimeRange, sampleTimeDomain, type TimeRange } from './plots/timeWindow';
 import { SpacecraftInspector } from './spacecraft/SpacecraftInspector';
 import { advanceDisplayTime } from './graphics/displayInterpolation';
 import type { DynamicsSession } from './systems/dynamicsTypes';
@@ -20,6 +20,7 @@ import { setMissionDuration } from './mission/missionDuration';
 import { Field } from './controls/RadioControls';
 import { missionDisplaySnapshot } from './mission/displaySnapshot';
 import './systems/systems.css';
+const Workbench = lazy(() => import('./Workbench').then((m) => ({ default: m.Workbench })));
 const DynamicsLab = lazy(() =>
   import('./systems/DynamicsLab').then((m) => ({ default: m.DynamicsLab })),
 );
@@ -93,6 +94,17 @@ export default function App() {
   const samples = snapshot?.run.result?.samples,
     times = samples?.time_s || EMPTY,
     time = times[index] ?? 0;
+  const presentationId = mission.snapshot?.presentation_id || snapshot?.run.run_id || '';
+  const [plotWindow, setPlotWindow] = useState<{ identity: string; range: TimeRange | null }>({
+    identity: '',
+    range: null,
+  });
+  const timeRange = plotWindow.identity === presentationId ? plotWindow.range : null;
+  const changeTimeRange = useCallback(
+    (range: TimeRange | null) => setPlotWindow({ identity: presentationId, range }),
+    [presentationId],
+  );
+  const timeDomain = useMemo(() => sampleTimeDomain(times), [times]);
   const renderModules = useMemo(() => {
     const values = { ...moduleVisibility };
     if (!independentStudy && spacecraftSection !== 'geometry' && scenario) {
@@ -190,6 +202,15 @@ export default function App() {
       setIndex(selected);
     },
     [times, paintDisplayTime],
+  );
+  const focusRange = useCallback(
+    (start: number, end: number) => {
+      if (!timeDomain || !Number.isFinite(start) || !Number.isFinite(end)) return;
+      const padding = Math.max(timeDomain.minimumSpan, (end - start) * 0.1);
+      changeTimeRange(clampTimeRange([start - padding, end + padding], timeDomain));
+      scrub(start);
+    },
+    [timeDomain, changeTimeRange, scrub],
   );
   const segments = useMemo(() => {
     if (!samples?.time_s.length) return [];
@@ -371,6 +392,9 @@ export default function App() {
                     baseline={baseline}
                     cursorTime={time}
                     onScrub={scrub}
+                    timeRange={timeRange}
+                    onTimeRangeChange={changeTimeRange}
+                    onFocusRange={focusRange}
                     liveReport={busy ? mission.run?.progress?.reporting : undefined}
                     actions={
                       <>
@@ -534,6 +558,9 @@ export default function App() {
               baseline={baseline}
               cursorTime={time}
               onScrub={scrub}
+              timeRange={timeRange}
+              onTimeRangeChange={changeTimeRange}
+              onFocusRange={focusRange}
               liveReport={busy ? mission.run?.progress?.reporting : undefined}
             />
           )}

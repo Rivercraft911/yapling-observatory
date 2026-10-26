@@ -1,7 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import uPlot from 'uplot';
 import { formatAxisValues, formatElapsedSeconds, formatValue } from './traceFormatting';
+import {
+  attachTimeWindowNavigation,
+  clampTimeRange,
+  sampleTimeDomain,
+  type TimeRange,
+} from './timeWindow';
 export { formatValue } from './traceFormatting';
 
 export interface Trace {
@@ -21,6 +27,8 @@ export function TracePlot({
   minimumSpan = 0,
   stepped = false,
   titleControl,
+  timeRange = null,
+  onTimeRangeChange,
 }: {
   title: string;
   unit: string;
@@ -32,18 +40,25 @@ export function TracePlot({
   minimumSpan?: number;
   stepped?: boolean;
   titleControl?: ReactNode;
+  timeRange?: TimeRange | null;
+  onTimeRangeChange?: (range: TimeRange | null) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   const scrub = useRef(onScrub);
   scrub.current = onScrub;
+  const domain = useMemo(() => sampleTimeDomain(times), [times]);
+  const navigation = useRef({ domain, range: timeRange, onChange: onTimeRangeChange });
+  navigation.current = { domain, range: timeRange, onChange: onTimeRangeChange };
   const hovering = useRef(false);
+  const hoverX = useRef<number | null>(null);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const cursor = useRef(cursorTime);
   cursor.current = cursorTime;
   useEffect(() => {
     const element = host.current;
-    if (!element || times.length < 2) return;
+    if (!element || !domain) return;
+    const initialRange = clampTimeRange(navigation.current.range, domain);
     const allTraces = [...traces, ...(baseline?.traces || [])];
     const own: uPlot.AlignedData = [times, ...traces.map((trace) => trace.values)];
     const data: uPlot.AlignedData = baseline
@@ -57,7 +72,7 @@ export function TracePlot({
       cursor: { y: false, points: { show: false }, drag: { x: false, y: false, setScale: false } },
       select: { show: false, left: 0, top: 0, width: 0, height: 0 },
       scales: {
-        x: { time: false },
+        x: { time: false, auto: false, min: initialRange[0], max: initialRange[1] },
         y: {
           auto: true,
           ...(minimumSpan
@@ -117,6 +132,7 @@ export function TracePlot({
       if (!event.isPrimary || event.button !== 0) return;
       event.preventDefault();
       activePointer = event.pointerId;
+      instance.over.focus({ preventScroll: true });
       instance.over.setPointerCapture(event.pointerId);
       scrubAt(event);
     };
@@ -124,10 +140,12 @@ export function TracePlot({
       hovering.current = true;
       const bounds = instance.over.getBoundingClientRect();
       const x = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left));
+      hoverX.current = x;
       setHoverTime(instance.posToVal(x, 'x'));
     };
     const leavePlot = () => {
       hovering.current = false;
+      hoverX.current = null;
       setHoverTime(null);
       instance.setCursor({ left: instance.valToPos(cursor.current, 'x'), top: -10 }, false);
     };
@@ -140,6 +158,27 @@ export function TracePlot({
         instance.over.releasePointerCapture(activePointer);
       activePointer = null;
     };
+    if (navigation.current.onChange) {
+      instance.over.tabIndex = 0;
+      instance.over.setAttribute('role', 'group');
+      instance.over.setAttribute('aria-label', `${title} time navigation`);
+      instance.over.setAttribute('aria-keyshortcuts', '+ - ArrowLeft ArrowRight Home');
+      instance.over.title =
+        'Wheel: zoom. Shift + wheel or horizontal wheel: pan. Keys: + / −, ← / →, Home. Drag: scrub.';
+    }
+    const detachNavigation = attachTimeWindowNavigation(
+      instance.over,
+      () => {
+        const current = navigation.current;
+        return current.domain && current.onChange && activePointer === null
+          ? { domain: current.domain, range: current.range }
+          : null;
+      },
+      (range) => {
+        navigation.current.range = range;
+        navigation.current.onChange?.(range);
+      },
+    );
     instance.over.addEventListener('pointerenter', inspectAt);
     instance.over.addEventListener('pointerleave', leavePlot);
     instance.over.addEventListener('pointerdown', beginScrub);
@@ -165,11 +204,25 @@ export function TracePlot({
       instance.over.removeEventListener('pointerup', endScrub);
       instance.over.removeEventListener('pointercancel', endScrub);
       instance.over.removeEventListener('lostpointercapture', endScrub);
+      detachNavigation();
       observer.disconnect();
       plot.current = null;
       instance.destroy();
     };
-  }, [times, traces, baseline, minimumSpan, stepped]);
+  }, [times, traces, baseline, minimumSpan, stepped, domain, title]);
+  useEffect(() => {
+    const instance = plot.current;
+    if (!instance || !domain) return;
+    const range = clampTimeRange(timeRange, domain);
+    // Commit the scale before projecting the paused cursor or hover position.
+    instance.batch(() => instance.setScale('x', { min: range[0], max: range[1] }));
+    if (hovering.current && hoverX.current !== null) {
+      setHoverTime(instance.posToVal(hoverX.current, 'x'));
+      instance.setCursor({ left: hoverX.current, top: -10 }, false);
+    } else {
+      instance.setCursor({ left: instance.valToPos(cursor.current, 'x'), top: -10 }, false);
+    }
+  }, [timeRange, domain]);
   useEffect(() => {
     const instance = plot.current;
     if (instance && !hovering.current)

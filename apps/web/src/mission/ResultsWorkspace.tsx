@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import type { RunSnapshot } from '../types';
 import { PlotDock } from '../plots/PlotDock';
+import type { TimeRange } from '../plots/timeWindow';
 import { MissionReport } from './MissionReport';
 import { missionReport, reportMegabytes, type MissionReport as Report } from './missionReporting';
 import './results-workspace.css';
@@ -39,6 +40,9 @@ export function ResultsWorkspace({
   baseline,
   cursorTime,
   onScrub,
+  timeRange,
+  onTimeRangeChange,
+  onFocusRange,
   liveReport,
   actions,
 }: {
@@ -46,6 +50,9 @@ export function ResultsWorkspace({
   baseline: RunSnapshot | null;
   cursorTime: number;
   onScrub: (time: number) => void;
+  timeRange: TimeRange | null;
+  onTimeRangeChange: (range: TimeRange | null) => void;
+  onFocusRange: (start: number, end: number) => void;
   liveReport?: unknown;
   actions?: ReactNode;
 }) {
@@ -180,11 +187,21 @@ export function ResultsWorkspace({
             baseline={baseline}
             cursorTime={cursorTime}
             onScrub={onScrub}
+            timeRange={timeRange}
+            onTimeRangeChange={onTimeRangeChange}
             showReportTab={false}
             layout="results"
           />
         ) : (
-          <MissionReport report={report} live={showingLive} onScrub={onScrub} />
+          <MissionReport
+            report={report}
+            live={showingLive}
+            onScrub={onScrub}
+            onFocusRange={(start, end) => {
+              onFocusRange(start, end);
+              setView('charts');
+            }}
+          />
         )}
       </div>
     </section>

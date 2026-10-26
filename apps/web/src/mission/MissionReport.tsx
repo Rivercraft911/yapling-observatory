@@ -5,10 +5,12 @@ import { reportCsv, reportMegabytes } from './missionReporting';
 export function MissionReport({
   report,
   onScrub,
+  onFocusRange,
   live = false,
 }: {
   report: Report | null;
   onScrub: (time: number) => void;
+  onFocusRange?: (start: number, end: number) => void;
   live?: boolean;
 }) {
   const [view, setView] = useState<'days' | 'passes'>('days');
@@ -100,8 +102,10 @@ export function MissionReport({
                     <td>
                       <button
                         disabled={live}
-                        onClick={() => onScrub(day.start_s)}
-                        title={`${day.start_utc} to ${day.end_utc}${day.endpoint_only ? '; frames completing exactly at the final UTC midnight, with no following duration computed' : day.partial_day ? '; partial UTC day' : ''}`}
+                        onClick={() =>
+                          onFocusRange ? onFocusRange(day.start_s, day.end_s) : onScrub(day.start_s)
+                        }
+                        title={`${onFocusRange ? 'Focus charts · ' : ''}${day.start_utc} to ${day.end_utc}${day.endpoint_only ? '; frames completing exactly at the final UTC midnight, with no following duration computed' : day.partial_day ? '; partial UTC day' : ''}`}
                       >
                         {day.date_utc}
                         {day.partial_day && (
@@ -121,8 +125,12 @@ export function MissionReport({
                   <tr key={pass.pass_index}>
                     <td>
                       <button
-                        onClick={() => onScrub(pass.start_s)}
-                        title={`${pass.start_utc} to ${pass.end_utc}`}
+                        onClick={() =>
+                          onFocusRange
+                            ? onFocusRange(pass.start_s, pass.end_s)
+                            : onScrub(pass.start_s)
+                        }
+                        title={`${onFocusRange ? 'Focus charts · ' : ''}${pass.start_utc} to ${pass.end_utc}`}
                       >
                         {pass.start_utc.replace('T', ' ').replace('Z', '')}
                         {(pass.start_clipped || pass.end_clipped) && <sup> clipped</sup>}

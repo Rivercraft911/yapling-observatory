@@ -1,0 +1,54 @@
+.plot-dock[data-time-navigation='true'],
+.results-workspace .plot-dock[data-time-navigation='true'] {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+.plot-dock[data-time-navigation='true'] > .plot-groups {
+  min-height: 34px;
+}
+.plot-time-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  min-height: 28px;
+  padding: 1px 30px;
+  border-bottom: 1px solid #29292b;
+  color: #9e9693;
+  font: 10px var(--mono);
+}
+.plot-time-range {
+  margin-right: 10px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.plot-time-navigation button {
+  min-width: 25px;
+  height: 24px;
+  padding: 1px 6px;
+  border: 0;
+  background: transparent;
+  color: #d4c9c5;
+  font: 13px var(--mono);
+}
+.plot-time-navigation .plot-time-full {
+  margin-left: 4px;
+  font-size: 10px;
+}
+.plot-time-navigation button:hover:enabled {
+  background: #342b30;
+  color: #fff3ec;
+}
+.plot-time-navigation button:disabled {
+  color: #595257;
+  cursor: default;
+}
+.plot-time-navigation button:focus-visible,
+.trace-panel .u-over:focus-visible {
+  outline: 1px solid #c86772;
+  outline-offset: -1px;
+}
+@media (max-width: 680px) {
+  .plot-time-navigation {
+    padding-inline: 12px;
+  }
+}

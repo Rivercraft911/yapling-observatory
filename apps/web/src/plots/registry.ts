@@ -320,13 +320,13 @@ export const plotDefinitions: PlotDefinition[] = [
   },
   {
     id: 'power',
-    title: 'Bus power',
+    title: 'Power balance',
     unit: 'W',
     description:
-      'Available solar generation and requested loads, averaged over preceding dynamics interval.',
+      'Available solar power at the bus, requested draw and their difference over the preceding dynamics interval. Positive net is available surplus before battery limits and curtailment, not stored power.',
     read: (s) => [
       { label: 'Solar available', values: s.power?.potential_bus_w || [] },
-      { label: 'Load', values: s.power?.requested_load_w || [] },
+      { label: 'Draw', values: s.power?.requested_load_w || [] },
       { label: 'Net', values: s.power?.net_bus_w || [] },
     ],
   },

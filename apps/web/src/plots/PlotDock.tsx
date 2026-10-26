@@ -5,6 +5,16 @@ import { TracePlot, closestIndex } from './TracePlot';
 import { plotDefinitions, plotTraces } from './registry';
 import type { PlotId } from './registry';
 import { MissionReport } from '../mission/MissionReport';
+import { PowerStatus } from './PowerStatus';
+import { formatElapsedSeconds } from './traceFormatting';
+import {
+  clampTimeRange,
+  fullRangeOrNull,
+  keyTimeRange,
+  sampleTimeDomain,
+  type TimeRange,
+} from './timeWindow';
+import './plots.css';
 import { missionReport } from '../mission/missionReporting';
 import {
   plotLayouts,
@@ -19,7 +29,7 @@ const emptyTimes: number[] = [];
 const compactPresets: { label: string; values: PlotId[] }[] = [
   { label: 'Link', values: plotLayouts.compact.defaults },
   { label: 'GNC', values: ['pointing', 'wheel_capacity', 'saturation'] },
-  { label: 'Power', values: ['power', 'charge', 'actuator_power'] },
+  { label: 'Power', values: ['power', 'battery_soc', 'battery_current'] },
   { label: 'Thermal', values: ['temperatures', 'bus_heat'] },
   { label: 'Battery', values: ['battery_soc', 'battery_voltage', 'battery_current'] },
 ];
@@ -47,7 +57,14 @@ const resultsPresets: { label: string; values: PlotId[] }[] = [
   },
   {
     label: 'Power',
-    values: ['power', 'energy', 'charge', 'actuator_power', 'battery_voltage', 'battery_current'],
+    values: [
+      'power',
+      'battery_soc',
+      'energy',
+      'battery_current',
+      'battery_voltage',
+      'actuator_power',
+    ],
   },
   { label: 'Thermal', values: ['temperatures', 'bus_heat', 'battery_heat'] },
   {
@@ -96,6 +113,9 @@ interface PlotDockProps {
   liveReport?: unknown;
   showReportTab?: boolean;
   layout?: PlotLayout;
+  timeRange?: TimeRange | null;
+  onTimeRangeChange?: (range: TimeRange | null) => void;
+  onFocusRange?: (start: number, end: number) => void;
 }
 export function PlotDock(props: PlotDockProps) {
   return <PlotDockContent key={props.layout || 'compact'} {...props} />;
@@ -108,8 +128,22 @@ function PlotDockContent({
   liveReport,
   showReportTab = true,
   layout = 'compact',
+  timeRange,
+  onTimeRangeChange,
+  onFocusRange,
 }: PlotDockProps) {
   const [reportOpen, setReportOpen] = useState(false);
+  const [localTimeRange, setLocalTimeRange] = useState<TimeRange | null>(null);
+  const activeTimeRange = timeRange === undefined ? localTimeRange : timeRange;
+  const changeTimeRange = onTimeRangeChange ?? setLocalTimeRange;
+  const times = snapshot?.run.result?.samples.time_s || emptyTimes;
+  const timeDomain = useMemo(() => sampleTimeDomain(times), [times]);
+  const shownRange = timeDomain ? clampTimeRange(activeTimeRange, timeDomain) : null;
+  const navigate = (key: string) => {
+    if (!timeDomain) return;
+    const range = keyTimeRange(activeTimeRange, timeDomain, key);
+    if (range) changeTimeRange(fullRangeOrNull(range, timeDomain));
+  };
   const [preferences, setPreferences] = useState(() =>
     readPlotPreferences(
       layout,
@@ -171,6 +205,10 @@ function PlotDockContent({
     <section
       className={`plot-dock ${layout === 'results' ? 'results-plot-dock' : ''}`}
       data-columns={preferences.columns}
+      data-time-navigation={!reportOpen}
+      data-power-status={
+        !reportOpen && selection.includes('power') && !!snapshot?.run.result?.samples.power
+      }
       aria-label={layout === 'results' ? 'Results charts' : 'Run plots'}
     >
       <nav className="plot-groups" aria-label="Plot groups">
@@ -262,6 +300,70 @@ function PlotDockContent({
           )}
         </div>
       </nav>
+      {!reportOpen && selection.includes('power') && (
+        <PowerStatus snapshot={snapshot} cursorTime={cursorTime} expanded={layout === 'results'} />
+      )}
+      {!reportOpen && (
+        <div
+          className="plot-time-navigation"
+          role="group"
+          aria-label="Graph time window"
+          title="Wheel over a chart: zoom at pointer. Shift + wheel or horizontal wheel: pan. Focus a chart for + / −, ← / → and Home. Drag to scrub."
+        >
+          <span className="plot-time-range">
+            X ·{' '}
+            {shownRange
+              ? `${formatElapsedSeconds(shownRange[0])}–${formatElapsedSeconds(shownRange[1])} s`
+              : 'No samples'}
+          </span>
+          <button
+            aria-label="Pan graphs earlier"
+            title="Pan earlier (←)"
+            disabled={!shownRange || shownRange[0] <= timeDomain!.bounds[0]}
+            onClick={() => navigate('ArrowLeft')}
+          >
+            ←
+          </button>
+          <button
+            aria-label="Zoom graphs out"
+            title="Zoom out (−)"
+            disabled={
+              !shownRange ||
+              shownRange[1] - shownRange[0] >= timeDomain!.bounds[1] - timeDomain!.bounds[0]
+            }
+            onClick={() => navigate('-')}
+          >
+            −
+          </button>
+          <button
+            aria-label="Zoom graphs in"
+            title="Zoom in (+)"
+            disabled={!shownRange || shownRange[1] - shownRange[0] <= timeDomain!.minimumSpan}
+            onClick={() => navigate('+')}
+          >
+            +
+          </button>
+          <button
+            aria-label="Pan graphs later"
+            title="Pan later (→)"
+            disabled={!shownRange || shownRange[1] >= timeDomain!.bounds[1]}
+            onClick={() => navigate('ArrowRight')}
+          >
+            →
+          </button>
+          <button
+            className="plot-time-full"
+            title="Show the full returned time range (Home)"
+            disabled={
+              !shownRange ||
+              (shownRange[0] === timeDomain!.bounds[0] && shownRange[1] === timeDomain!.bounds[1])
+            }
+            onClick={() => navigate('Home')}
+          >
+            Full
+          </button>
+        </div>
+      )}
       {reportOpen ? (
         <MissionReport
           report={missionReport(
@@ -270,6 +372,14 @@ function PlotDockContent({
           )}
           live={!!liveReport}
           onScrub={onScrub}
+          onFocusRange={
+            onFocusRange
+              ? (start, end) => {
+                  setReportOpen(false);
+                  onFocusRange(start, end);
+                }
+              : undefined
+          }
         />
       ) : (
         <div
@@ -289,11 +399,13 @@ function PlotDockContent({
               unit={definition.unit}
               minimumSpan={definition.minimumSpan}
               stepped={definition.stepped}
-              times={snapshot?.run.result?.samples.time_s || emptyTimes}
+              times={times}
               traces={traces}
               baseline={comparison}
               cursorTime={cursorTime}
               onScrub={onScrub}
+              timeRange={activeTimeRange}
+              onTimeRangeChange={changeTimeRange}
             />
           ))}
         </div>
