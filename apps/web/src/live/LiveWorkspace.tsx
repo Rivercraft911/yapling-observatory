@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { EarthView } from '../EarthView';
 import { PaneDivider } from '../Resizer';
 import { PlotDock } from '../plots/PlotDock';
-import { closestIndex, formatValue } from '../plots/TracePlot';
+import { formatValue } from '../plots/TracePlot';
+import { displayBracket } from '../graphics/displayInterpolation';
 import type { TimeRange } from '../plots/timeWindow';
 import type { Assets } from '../types';
 import type { MissionConfig } from '../mission/missionTypes';
 import { MissionPresetSelect, type MissionPresetId } from '../mission/MissionPresetSelect';
 import { setMissionDuration } from '../mission/missionDuration';
 import type { LiveMissionSession } from './useLiveMission';
+import { LiveDisplayClock, type LiveDisplayState } from './liveDisplayClock';
+import { unloadingStatusLabels } from '../mission/unloadingStatus';
 import './live.css';
 
 export function LiveWorkspace({
@@ -54,6 +57,7 @@ export function LiveWorkspace({
     null,
   );
   const [inspectedTime, setInspectedTime] = useState<number | null>(null);
+  const [presentationTime, setPresentationTime] = useState(0);
   const [timeRange, setTimeRange] = useState<TimeRange | null>(null);
   const displayTime = useRef(0);
   const pickRequest = useRef(0);
@@ -62,11 +66,39 @@ export function LiveWorkspace({
   currentSession.current = { id: session?.live_id, active: live.active };
   const times = snapshot?.run.result?.samples.time_s;
   const latest = times?.at(-1) ?? 0;
-  const currentTime = inspectedTime === null ? latest : Math.min(latest, inspectedTime);
-  const index = closestIndex(times || [], currentTime);
+  const currentTime = Math.max(
+    times?.[0] ?? 0,
+    Math.min(latest, inspectedTime ?? presentationTime),
+  );
+  const index = displayBracket(times || [], currentTime)?.lower ?? 0;
   const samples = snapshot?.run.result?.samples;
-  const visualTarget = useRef(currentTime);
-  visualTarget.current = currentTime;
+  const unloadingStatus = samples?.gnc?.unloading_status?.[index];
+  const visualClock = useRef(new LiveDisplayClock());
+  const nextVisualState: LiveDisplayState = {
+    sessionId: session?.live_id ?? snapshot?.run.run_id,
+    firstTime: times?.[0] ?? 0,
+    latestTime: latest,
+    running:
+      live.active && session?.status !== 'paused' && !session?.paused && !session?.lease_expired,
+    speed: session?.speed ?? 1,
+    inspectedTime,
+  };
+  const visualState = useRef(nextVisualState);
+  visualState.current = nextVisualState;
+  useLayoutEffect(() => {
+    displayTime.current = visualClock.current.advance(
+      visualState.current,
+      performance.now() / 1000,
+    );
+    setPresentationTime(displayTime.current);
+  }, [
+    nextVisualState.sessionId,
+    nextVisualState.firstTime,
+    nextVisualState.latestTime,
+    nextVisualState.running,
+    nextVisualState.speed,
+    nextVisualState.inspectedTime,
+  ]);
   const freshConfig = useMemo(() => {
     if (!config) return null;
     const next = structuredClone(config) as MissionConfig & {
@@ -83,13 +115,13 @@ export function LiveWorkspace({
   }, [config, durationH]);
   useEffect(() => {
     let frame = 0;
-    let last = performance.now();
+    let lastReadout = 0;
     const animate = (now: number) => {
-      const elapsed = Math.max(0, (now - last) / 1000);
-      last = now;
-      // Presentation follows returned states and never predicts beyond the newest state.
-      displayTime.current +=
-        (visualTarget.current - displayTime.current) * (1 - Math.exp(-6 * elapsed));
+      displayTime.current = visualClock.current.advance(visualState.current, now / 1000);
+      if (now - lastReadout >= 100) {
+        setPresentationTime(displayTime.current);
+        lastReadout = now;
+      }
       frame = requestAnimationFrame(animate);
     };
     frame = requestAnimationFrame(animate);
@@ -101,7 +133,6 @@ export function LiveWorkspace({
     setInspectedTime(null);
     setTimeRange(null);
     setTarget(null);
-    displayTime.current = 0;
     return () => {
       pickRequest.current += 1;
       pickAbort.current?.abort();
@@ -214,11 +245,22 @@ export function LiveWorkspace({
           <span>
             T+ <b>{currentTime.toFixed(1)}</b> s
           </span>
-          <button aria-pressed={inspectedTime === null} onClick={() => setInspectedTime(null)}>
+          <button
+            aria-pressed={inspectedTime === null}
+            onClick={() => setInspectedTime(null)}
+            title="Follow returned telemetry with a 1.5–3 s receipt buffer. Readouts and plots follow the displayed time; no future states are predicted."
+          >
             Now
           </button>
           <span title="Pointing error from the current returned numerical state.">
             θ <b>{formatValue(samples?.attitude_angle_deg?.[index])}°</b>
+          </span>
+          <span
+            aria-label="Simulated wheel unloading"
+            title="Returned unloading status at the displayed sample. Active controller does not imply nonzero achieved torque; inspect the unloading torque plot."
+          >
+            Unloading{' '}
+            <b>{unloadingStatus ? unloadingStatusLabels[unloadingStatus] : 'Unavailable'}</b>
           </span>
         </div>
         <PlotDock

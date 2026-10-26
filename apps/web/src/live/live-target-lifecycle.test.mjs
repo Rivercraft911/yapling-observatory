@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import ts from 'typescript';
+import { LiveDisplayClock } from './liveDisplayClock.ts';
+import { displayBracket } from '../graphics/displayInterpolation.ts';
+import { unloadingStatusLabels } from '../mission/unloadingStatus.ts';
 
 const source = await readFile(new URL('./LiveWorkspace.tsx', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, {
@@ -25,6 +28,9 @@ function harness() {
   const slots = [];
   let cursor = 0;
   let effects = [];
+  let now = 0;
+  let animationId = 0;
+  const animationFrames = new Map();
   const requests = [],
     commands = [];
   const changed = (before, after) =>
@@ -61,6 +67,7 @@ function harness() {
         });
     },
   };
+  hooks.useLayoutEffect = hooks.useEffect;
   const jsx = (type, props) => ({ type, props });
   const exports = {};
   vm.runInNewContext(compiled, {
@@ -68,9 +75,15 @@ function harness() {
     AbortController,
     Error,
     structuredClone,
-    performance: { now: () => 0 },
-    requestAnimationFrame: () => 1,
-    cancelAnimationFrame() {},
+    performance: { now: () => now },
+    requestAnimationFrame(callback) {
+      const id = ++animationId;
+      animationFrames.set(id, callback);
+      return id;
+    },
+    cancelAnimationFrame(id) {
+      animationFrames.delete(id);
+    },
     require(name) {
       if (name === 'react') return hooks;
       if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'Fragment' };
@@ -83,16 +96,28 @@ function harness() {
       if (name === '../Resizer') return { PaneDivider: 'PaneDivider' };
       if (name === '../plots/PlotDock') return { PlotDock: 'PlotDock' };
       if (name === '../plots/TracePlot') return { closestIndex: () => 0, formatValue: () => '—' };
+      if (name === '../graphics/displayInterpolation') return { displayBracket };
+      if (name === '../mission/unloadingStatus') return { unloadingStatusLabels };
       if (name === '../mission/MissionPresetSelect')
         return { MissionPresetSelect: 'MissionPresetSelect' };
       if (name === '../mission/missionDuration') return { setMissionDuration() {} };
       if (name === './live.css') return {};
+      if (name === './liveDisplayClock') return { LiveDisplayClock };
       throw new Error(`Unexpected component dependency: ${name}`);
     },
   });
   return {
     requests,
     commands,
+    at(milliseconds) {
+      now = milliseconds;
+    },
+    frame(milliseconds) {
+      now = milliseconds;
+      const frames = [...animationFrames.values()];
+      animationFrames.clear();
+      for (const frame of frames) frame(now);
+    },
     live(id) {
       return {
         session: {
@@ -200,4 +225,85 @@ unmounted.requests[0].reject(new Error('stale map conversion failure'));
 await flush();
 console.log(
   'LIVE target lifecycle passed: session replacement, out-of-order picks, late command acknowledgments and unmount aborts cannot send or display stale targets.',
+);
+
+const content = (tree) => {
+  if (typeof tree === 'string' || typeof tree === 'number') return String(tree);
+  if (!tree || typeof tree !== 'object') return '';
+  return (Array.isArray(tree) ? tree : [tree?.props?.children])
+    .flat(Infinity)
+    .map(content)
+    .join('');
+};
+const livePresentation = harness();
+const presentation = livePresentation.live('presented');
+presentation.session.speed = 1;
+const statuses = [
+  'disabled',
+  'active',
+  'hardware_unavailable',
+  'controller_inactive',
+  'field_unavailable',
+];
+const sampleModes = ['sun_pointing', 'ground_tracking', 'imaging', 'auto', 'sun_pointing'];
+const snapshots = (last) => ({
+  scenario: {},
+  run: {
+    run_id: 'presented',
+    result: {
+      samples: {
+        time_s: Array.from({ length: last + 1 }, (_, i) => i),
+        mode: sampleModes.slice(0, last + 1),
+        gnc: { unloading_status: statuses.slice(0, last + 1) },
+      },
+    },
+  },
+});
+for (let second = 0; second <= 3; second++) {
+  livePresentation.at(second * 1000);
+  presentation.snapshot = snapshots(second);
+  livePresentation.render(presentation);
+}
+let shown = livePresentation.render(presentation);
+const earth = (tree) => find(tree, (item) => item.type === 'EarthView');
+const plots = (tree) => find(tree, (item) => item.type === 'PlotDock');
+const unloading = (tree) =>
+  find(tree, (item) => item.props?.['aria-label'] === 'Simulated wheel unloading');
+const strip = (tree) => find(tree, (item) => item.props?.className === 'live-strip');
+assert.equal(plots(shown).props.cursorTime, 1.5);
+assert.equal(earth(shown).props.sampleIndex, 1);
+assert.equal(earth(shown).props.displayTime.current, 1.5);
+assert.match(content(strip(shown)), /ground tracking/);
+assert.match(content(unloading(shown)), /Active controller/);
+assert.doesNotMatch(content(unloading(shown)), /hardware/);
+const originalSamples = JSON.stringify(presentation.snapshot);
+livePresentation.frame(3200);
+shown = livePresentation.render(presentation);
+assert.ok(Math.abs(plots(shown).props.cursorTime - 1.7) < 1e-10);
+assert.equal(earth(shown).props.sampleIndex, 1);
+plots(shown).props.onScrub(2.75);
+livePresentation.render(presentation);
+shown = livePresentation.render(presentation);
+assert.equal(plots(shown).props.cursorTime, 2.75);
+assert.equal(earth(shown).props.displayTime.current, 2.75);
+assert.equal(earth(shown).props.sampleIndex, 2);
+assert.match(content(unloading(shown)), /Inactive · hardware/);
+find(shown, (item) => item.type === 'button' && item.props.children === 'Now').props.onClick();
+livePresentation.render(presentation);
+shown = livePresentation.render(presentation);
+assert.equal(plots(shown).props.cursorTime, 3);
+assert.equal(earth(shown).props.displayTime.current, 3);
+assert.match(content(unloading(shown)), /Inactive · controller \/ mode/);
+assert.equal(JSON.stringify(presentation.snapshot), originalSamples);
+presentation.snapshot = snapshots(4);
+presentation.session.status = 'paused';
+presentation.session.paused = true;
+livePresentation.render(presentation);
+shown = livePresentation.render(presentation);
+assert.equal(plots(shown).props.cursorTime, 4);
+assert.equal(earth(shown).props.displayTime.current, 4);
+assert.match(content(unloading(shown)), /Inactive · field/);
+livePresentation.dispose();
+console.log(
+  'LIVE cursor passed: scene, plots, mode and returned unloading readout share displayed time; scrub, Now and pause synchronize without changing history.',
 );

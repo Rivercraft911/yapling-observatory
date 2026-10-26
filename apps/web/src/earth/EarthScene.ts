@@ -415,12 +415,14 @@ export class EarthScene {
   }
 
   updateSample(index: number, displayTimeS?: number) {
+    displayTimeS ??= this.displayTimeSource?.current;
     if (displayTimeS === undefined) this.lastDisplayTime = NaN;
     this.sampleIndex = index;
     const snapshot = this.snapshot,
       samples = snapshot?.run.result?.samples;
     const bracket =
       samples && displayTimeS !== undefined ? displayBracket(samples.time_s, displayTimeS) : null;
+    index = bracket?.lower ?? index;
     const p = bracket
       ? interpolateVector3(
           samples!.satellite_position_ecef_m[bracket.lower],
