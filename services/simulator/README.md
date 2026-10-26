@@ -10,7 +10,7 @@ Python owns the orbit, attitude, RF, power and thermal models. The browser rende
 python3 start.py
 ```
 
-Local startup is verified on macOS and Linux. Windows is not supported yet. The first launch needs internet to install project dependencies and build the interface. Later launches reuse the setup and rebuild when its inputs change. The app opens in your browser at a free localhost port. Keep the terminal open; Ctrl-C stops the server.
+Local startup is verified on macOS and Linux, and tested on Windows by the project maintainer. The first launch needs internet to install project dependencies and build the interface. Later launches reuse the setup and rebuild when its inputs change. The app opens in your browser at a free localhost port. Keep the terminal open; Ctrl-C stops the server.
 
 `--check` checks prerequisites and setup status. `--no-browser` prints the address without opening it. `--port 8765` selects a fixed port. Server logs are in `.yapling/`.
 
