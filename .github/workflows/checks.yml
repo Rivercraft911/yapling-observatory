@@ -67,3 +67,23 @@ jobs:
       - run: node --experimental-strip-types apps/web/src/controls/ground-dish-controls.test.mjs
       - run: node --experimental-strip-types apps/web/src/earth/flat-ground-track.test.mjs
       - run: node --experimental-strip-types apps/web/src/earth/flat-map-controls.test.mjs
+
+  local-start:
+    name: Local start (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: python -m unittest discover -s tests
+      - run: python scripts/check_local_start.py
