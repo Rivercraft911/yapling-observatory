@@ -111,7 +111,7 @@ export function SpacecraftInspector({
       </fieldset>
       {!cutaway ? (
         <button className="apply-assembly" onClick={onApply}>
-          Use assembly in scenario
+          Update on Earth
         </button>
       ) : null}
       <details className="spacecraft-evidence">

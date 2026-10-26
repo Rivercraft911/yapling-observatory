@@ -832,13 +832,6 @@ export default function App() {
                 ) : spacecraftSection !== 'geometry' ? (
                   scenario ? (
                     <>
-                      <button
-                        className="text-button"
-                        title="These inputs are shared with Earth. Existing results keep their original configuration."
-                        onClick={() => setView('earth')}
-                      >
-                        Use on Earth ↗
-                      </button>
                       <label className="spacecraft-follow">
                         <input
                           type="checkbox"
@@ -899,30 +892,11 @@ export default function App() {
                           }
                         />
                         <button
-                          className={`primary ${busy ? 'cancel' : ''}`}
-                          disabled={
-                            submitting ||
-                            mission.orbitPending ||
-                            mission.importing ||
-                            mission.loading
-                          }
-                          onClick={
-                            busy
-                              ? () => void mission.cancel()
-                              : () => {
-                                  setView('earth');
-                                  startMission();
-                                }
-                          }
-                        >
-                          {busy ? 'Cancel run' : 'Run on Earth'} <span>{busy ? '■' : '↗'}</span>
-                        </button>
-                        <button
-                          className="text-button"
-                          disabled={!snapshot}
+                          className="primary"
+                          title="Use these shared inputs for the next mission run. Displayed history stays unchanged."
                           onClick={() => setView('earth')}
                         >
-                          Watch displayed history ↗
+                          Update on Earth <span>↗</span>
                         </button>
                         {dirty && (
                           <span className="eyebrow">UNRUN EDITS · displayed history retained</span>
