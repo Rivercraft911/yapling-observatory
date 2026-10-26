@@ -42,6 +42,8 @@ import cloudImagery from './cloud-tiles.json';
 import globalCloudImagery from './cloud-global.json';
 import nightImagery from './night-map.json';
 import { loadDetailedNightMap } from './nightMap';
+import nightDetailImagery from './night-detail.json';
+import { NightDetailLayer, readNightDetail } from './NightDetail';
 import { CloudTileLayer, cloudTileBudget, readCloudTile } from './CloudTiles';
 import type { FollowStatus } from './SpacecraftFollow';
 import {
@@ -174,6 +176,7 @@ export class EarthScene {
   private regionalAbort: AbortController | null = null;
   private regionalFailed = false;
   private cloudTiles: CloudTileLayer | null = null;
+  private nightDetail: NightDetailLayer | null = null;
   private regionalUnusedSince = 0;
   private regionalNeededSince = 0;
   private snapshot: RunSnapshot | null = null;
@@ -242,7 +245,11 @@ export class EarthScene {
     canvas.dataset.cloudTileState = 'global-only';
     canvas.dataset.cloudTileRevision = cloudImagery.revision;
     canvas.dataset.cloudTileEpoch = cloudImagery.acquisition_epoch;
-    canvas.dataset.cloudTileBudget = String(cloudTileBudget(this.renderer.capabilities));
+    canvas.dataset.cloudTileBudget = String(cloudTileBudget(this.renderer.capabilities, 6));
+    canvas.dataset.nightDetailState = 'global-only';
+    canvas.dataset.nightDetailRevision = nightDetailImagery.revision;
+    canvas.dataset.nightDetailSha256 = nightDetailImagery.runtime_sha256;
+    canvas.dataset.nightDetailBounds = JSON.stringify(nightDetailImagery.bounds_deg);
     canvas.dataset.imageryProvenanceUrl = '/earth/asset-provenance.json';
     this.scene.add(
       this.history,
@@ -334,7 +341,7 @@ export class EarthScene {
           ? '8192x4096'
           : '2048x1024'
       : 'unavailable';
-    const tileBudget = cloudTileBudget(this.renderer.capabilities);
+    const tileBudget = cloudTileBudget(this.renderer.capabilities, 6);
     this.appearance = createEarthAppearance(
       textures[0],
       textures[1],
@@ -348,6 +355,13 @@ export class EarthScene {
       this.renderer.domElement.dataset,
       (asset, signal) =>
         readCloudTile(asset, signal, this.renderer.capabilities.getMaxAnisotropy()),
+    );
+    this.nightDetail = new NightDetailLayer(
+      nightDetailImagery,
+      (view) => this.appearance?.setNightDetail(view),
+      this.renderer.domElement.dataset,
+      (asset, signal) =>
+        readNightDetail(asset, signal, this.renderer.capabilities.getMaxAnisotropy()),
     );
     const surface = new Mesh(earthGeometry(), this.appearance.surface);
     const clouds = new Mesh(earthGeometry(8000), this.appearance.clouds);
@@ -755,6 +769,14 @@ export class EarthScene {
     this.renderer.domElement.dataset.pointingTargetActive = String(
       this.targetDisplay.group.visible,
     );
+    this.nightDetail?.update(
+      activeCamera.position,
+      this.renderer.capabilities.maxTextureSize >= nightDetailImagery.runtime_dimensions[0] &&
+        !document.hidden &&
+        this.host.clientWidth > 0 &&
+        this.host.clientHeight > 0,
+      now,
+    );
     this.updateRegionalImagery(activeCamera, now);
     this.sunDisplay.updateCue(activeCamera, this.host.clientWidth, this.host.clientHeight);
     const autoClear = this.renderer.autoClear;
@@ -1018,6 +1040,7 @@ export class EarthScene {
     this.regionalAbort?.abort();
     this.releaseRegionalImagery();
     this.cloudTiles?.dispose();
+    this.nightDetail?.dispose();
     this.clearHistory();
     this.earthMeshes.forEach((mesh) => mesh.geometry.dispose());
     this.appearance?.dispose();

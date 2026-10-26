@@ -40,10 +40,10 @@ const assets = cloudImagery.tiles as CloudTileAsset[];
 const byId = new Map(assets.map((asset) => [asset.id, asset]));
 const { width, height, interior_pixels: interior, columns, rows } = cloudImagery.grid;
 export const CLOUD_TILE_LIMIT = 9;
-export function cloudTileBudget(capabilities: CloudCapabilities) {
-  // Surface day/ocean/global-cloud/regional-day/night samplers remain active.
+export function cloudTileBudget(capabilities: CloudCapabilities, reservedSamplers = 5) {
+  // Reserve every surface sampler even while its detail opacity is zero.
   return capabilities.maxTextureSize >= 2048
-    ? Math.max(0, Math.min(CLOUD_TILE_LIMIT, capabilities.maxTextures - 5))
+    ? Math.max(0, Math.min(CLOUD_TILE_LIMIT, capabilities.maxTextures - reservedSamplers))
     : 0;
 }
 export function selectCloudTiles(position: { x: number; y: number; z: number }) {

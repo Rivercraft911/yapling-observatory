@@ -1,6 +1,7 @@
 import { AdditiveBlending, BackSide, RedFormat, ShaderMaterial, Vector3, Vector4 } from 'three';
 import type { Texture } from 'three';
 import type { CloudTileView } from './CloudTiles';
+import type { NightDetailView } from './NightDetail';
 
 // Independent compatibility implementation. Replace this boundary with Takram's
 // renderer-context/TSL atmosphere API when the app adopts that pipeline.
@@ -12,6 +13,7 @@ export interface EarthAppearance {
   setRegionalMap: (texture: Texture | null, bounds?: readonly number[]) => void;
   setRegionalOpacity: (opacity: number) => void;
   setCloudTiles: (tiles: readonly CloudTileView[]) => void;
+  setNightDetail: (view: NightDetailView) => void;
   dispose: () => void;
 }
 const vertex = `
@@ -144,6 +146,9 @@ export function createEarthAppearance(
     nightMap: { value: night || day },
     nightIntensity: { value: night ? 0.35 : 0 },
     nightGrayscale: { value: night?.format === RedFormat },
+    regionalNightMap: { value: night || day },
+    regionalNightBounds: { value: new Vector4(0, 0, 1, 1) },
+    regionalNightOpacity: { value: 0 },
     regionalDayMap: { value: day },
     regionalBounds: { value: new Vector4(0, 0, 1, 1) },
     regionalOpacity: { value: 0 },
@@ -154,8 +159,10 @@ export function createEarthAppearance(
     fragmentShader: `
 uniform sampler2D dayMap;uniform sampler2D oceanMap;uniform vec3 sun;
 uniform sampler2D nightMap;uniform float nightIntensity;uniform bool nightGrayscale;
+uniform sampler2D regionalNightMap;uniform vec4 regionalNightBounds;uniform float regionalNightOpacity;
 ${atmosphericLight}
 float nightDisplayToLinear(float value){return value<=.04045?value/12.92:pow((value+.055)/1.055,2.4);}
+vec3 nightMaskToLinear(float mask){return vec3(1.,.78,.50)*nightDisplayToLinear(pow(clamp(mask,0.,1.),.65));}
 float nightLightFade(float muSun){return 1.-smoothstep(-.14,.02,muSun);}
 
 ${cloudSampling(cloudTileCount)}
@@ -182,7 +189,17 @@ void main(){
  float fresnel=.025+.975*pow(1.-max(dot(n,view),0.),5.);
  color+=vec3(1.,.91,.77)*specular*fresnel*1.8;
  vec3 lights=texture2D(nightMap,vUv).rgb;
- if(nightGrayscale)lights=vec3(1.,.78,.50)*nightDisplayToLinear(pow(clamp(lights.r,0.,1.),.65));
+ if(nightGrayscale)lights=nightMaskToLinear(lights.r);
+ vec2 nightExtent=regionalNightBounds.zw-regionalNightBounds.xy;
+ vec2 nightUv=(vUv-regionalNightBounds.xy)/nightExtent;
+ vec2 nightDx=dFdx(vUv)/nightExtent,nightDy=dFdy(vUv)/nightExtent;
+ float nightEdge=min(min(nightUv.x,nightUv.y),min(1.-nightUv.x,1.-nightUv.y));
+ float nightMix=regionalNightOpacity*smoothstep(0.,.07,nightEdge);
+ if(nightMix>0.){
+  float mask=texture2DGradEXT(regionalNightMap,clamp(nightUv,0.,1.),nightDx,nightDy).r;
+  vec3 nativeLights=nightMaskToLinear(mask);
+  lights=mix(lights,nativeLights,nightMix);
+ }
  color+=lights*nightIntensity*nightLightFade(ndl);
  gl_FragColor=vec4(throughAtmosphere(vPosition,color),1.);
  #include <tonemapping_fragment>
@@ -254,6 +271,11 @@ void main(){
     },
     setRegionalOpacity: (opacity) => {
       uniforms.regionalOpacity.value = opacity;
+    },
+    setNightDetail: (view) => {
+      uniforms.regionalNightMap.value = view.texture || night || day;
+      uniforms.regionalNightBounds.value.fromArray(view.bounds);
+      uniforms.regionalNightOpacity.value = view.texture ? view.opacity : 0;
     },
     setCloudTiles: (tiles) => {
       for (let i = 0; i < cloudTileCount; i++) {

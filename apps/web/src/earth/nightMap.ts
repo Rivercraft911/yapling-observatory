@@ -9,11 +9,12 @@ import {
   UnsignedByteType,
 } from 'three';
 
-interface NightMapAsset {
+export interface NightMapAsset {
   url: string;
   runtime_bytes: number;
   runtime_sha256: string;
   runtime_dimensions: number[];
+  runtime_mime?: string;
 }
 
 export async function loadDetailedNightMap(
@@ -38,11 +39,14 @@ export async function loadDetailedNightMap(
     .join('');
   signal?.throwIfAborted();
   if (digest !== asset.runtime_sha256) throw new Error('Night map hash mismatch');
-  const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }), {
-    imageOrientation: 'flipY',
-    colorSpaceConversion: 'none',
-    premultiplyAlpha: 'none',
-  });
+  const bitmap = await createImageBitmap(
+    new Blob([bytes], { type: asset.runtime_mime || 'image/jpeg' }),
+    {
+      imageOrientation: 'flipY',
+      colorSpaceConversion: 'none',
+      premultiplyAlpha: 'none',
+    },
+  );
   let canvas: OffscreenCanvas | undefined;
   try {
     signal?.throwIfAborted();

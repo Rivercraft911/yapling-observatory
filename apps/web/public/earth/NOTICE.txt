@@ -69,3 +69,16 @@ Use: https://www.nasa.gov/nasa-brand-center/images-and-media/
 The original 13500 x 6750 grayscale JPEG is bundled unchanged. Its native grid covers the full globe at 0.026666667 degrees per pixel; NASA describes the product as 3 km. Runtime R8 storage keeps the complete mip chain to about 115.87 MiB on compatible GPUs, less than the previous 8K RGBA map. A power-0.65 display curve brings out faint existing lights while preserving black and peak values; a warm tint and the existing 0.35 emission gain remain visual choices. This annual composite is not the simulated date, calibrated radiance, weather, RF attenuation or a thermal input. Smaller GPUs and failed loads retain the earlier 8K/2K maps and their credits above. See night-map.json for source hashes and runtime memory bounds.
 
 The README screenshot contains the simulator's rendered NASA and Solar System Scope imagery, covered by these same credits and terms.
+
+
+Native regional NASA Black Marble 2016 night lights
+
+NASA Earth Observatory, Black Marble 2016 / Suomi NPP VIIRS
+https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps/
+https://www.nasa.gov/nasa-brand-center/images-and-media/
+
+The 4096 x 4096 lossless WebP is an exact native crop of the 21600 x 21600 A1 grayscale GeoTIFF, matching the regional daytime bounds above. GeoTIFF tags establish EPSG:4326, PixelIsArea, a (-180,90) upper-left edge and 1/240 degree spacing. NASA describes this product class as 500 m. Its angular grid is 6.4 times finer per axis than the 13500 x 6750 global night map; physical east-west spacing varies with latitude. All three source channels are equal and the derivative preserves those grayscale values exactly, with no resize, sharpening or synthetic detail. The 2016 composite retains its original blooming, saturation and processing limitations.
+
+Only the reviewed 399,288-byte derivative is bundled. The 21,888,381-byte LZW source remains in private source storage. Source and runtime SHA-256 identities, crop coordinates, georeferencing, codec versions and reproduction command are in night-detail.json; scripts/build_night_detail.py reproduces and verifies the derivative from the checked source. NASA imagery-use terms and acknowledgment apply; no NASA endorsement is implied.
+
+A close visible West Coast camera lazy-loads one R8 texture with a complete mip chain, bounded to 21.33 MiB GPU plus 16 MiB retained CPU texels for context restoration. The decode uses a temporary 64 MiB RGBA bitmap and 128-row readback strips. Camera distance, geographic edges and asynchronous arrival fade into the existing global fallback in linear light. The existing display curve, tint, emission gain, day/night fade and cloud occlusion apply unchanged. The layer cancels unneeded work, releases the texture after 15 seconds outside coverage, and releases it immediately on view disposal. Smaller GPUs and failed loads keep the global imagery. This is static display artwork, separate from calibrated radiance, simulated-date activity, RF, electrical power, weather and thermal calculations.

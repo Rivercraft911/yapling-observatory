@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0",
+  "revision": "nasa-black-marble-2016-stanford-native-v1",
+  "file": "earth-night-stanford-500m.webp",
+  "url": "/earth/earth-night-stanford-500m.webp",
+  "runtime_mime": "image/webp",
+  "publisher": "NASA Earth Observatory",
+  "credit": "NASA Earth Observatory, Black Marble 2016 / Suomi NPP VIIRS",
+  "publisher_page": "https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps/",
+  "source_url": "https://assets.science.nasa.gov/content/dam/science/esd/eo/images/imagerecords/144000/144897/BlackMarble_2016_A1_geo_gray.tif",
+  "license": "NASA imagery use guidelines; educational/informational use with acknowledgment, no endorsement.",
+  "license_url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+  "acquisition_epoch": "2016 annual composite, not a single-date observation",
+  "retrieved_utc": "2026-10-26T21:01:09Z",
+  "source_dimensions": [
+    21600,
+    21600
+  ],
+  "runtime_dimensions": [
+    4096,
+    4096
+  ],
+  "source_sha256": "6a1681c761254063240b057bdcf798ff4f502a8a94f89d83b9418cc41871c55a",
+  "runtime_sha256": "db3f2b9de3954873188777ef092bb3de232d86244691846b764ff56ba8735296",
+  "source_bytes": 21888381,
+  "runtime_bytes": 399288,
+  "source_tile_bounds_deg": {
+    "west": -180,
+    "east": -90,
+    "south": 0,
+    "north": 90
+  },
+  "source_georeferencing": {
+    "crs": "EPSG:4326",
+    "raster_type": "PixelIsArea",
+    "model_pixel_scale": [
+      0.004166666666666667,
+      0.004166666666666667,
+      0
+    ],
+    "model_tiepoint": [
+      0,
+      0,
+      0,
+      -180,
+      90,
+      0
+    ]
+  },
+  "crop_pixel_box": [
+    11840,
+    10520,
+    15936,
+    14616
+  ],
+  "bounds_deg": {
+    "west": -130.66666666666666,
+    "east": -113.6,
+    "north": 46.166666666666664,
+    "south": 29.1
+  },
+  "angular_pixel_spacing_deg": 0.004166666666666667,
+  "published_nominal_resolution_m": 500,
+  "gpu_format": "R8",
+  "gpu_bytes_with_mipmaps": 22369621,
+  "retained_cpu_bytes": 16777216,
+  "transform": "Exact native pixel crop of lossless LZW GeoTIFF. Checked all three source RGB channels equal; retain red as grayscale. Lossless WebP, method6, exact=true, Pillow12.3.0/libwebp1.6.0; decoded derivative equals source crop byte for byte. No resizing, sharpening, synthesis or adjusted pixel values. Runtime uses the existing global grayscale power0.65 display curve, sRGB decode, warm tint and0.35 emission gain, blended in linear light.",
+  "reproduction": "python scripts/build_night_detail.py /path/to/BlackMarble_2016_A1_geo_gray.tif",
+  "limits": [
+    "Regional coverage only, matching the native daytime patch. Native angular sampling is6.4 times finer per axis than the13500x6750 global night map. Physical east-west spacing varies with latitude;500m is the publisher product class.",
+    "Static display artwork, not calibrated radiance, simulated-date city activity, weather, RF attenuation, electrical power or thermal input.",
+    "One local texture, loaded after250ms in a visible close region and faded in over400ms. Distance and geographic edge feathering retain the global fallback. No external runtime requests.",
+    "R8 plus complete mip chain is21.33MiB GPU; retained native CPU texels are16MiB for context restoration. Temporary4096-square RGBA bitmap decode is64MiB plus128-row readback strips. Release after15s outside the needed view or immediately on disposal; in-flight work is cancellable.",
+    "The2016 annual display composite retains source blooming, saturation and processing limitations. Pixel identity establishes faithful artwork sampling, not independent instrument resolution or radiometric validity."
+  ]
+}

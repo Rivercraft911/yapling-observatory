@@ -466,5 +466,6 @@
   "regional_cloud_manifest": "/earth/regional-cloud.json",
   "native_cloud_manifest": "/earth/cloud-tiles.json",
   "night_map_manifest": "/earth/night-map.json",
-  "global_cloud_manifest": "/earth/cloud-global.json"
+  "global_cloud_manifest": "/earth/cloud-global.json",
+  "native_night_detail_manifest": "/earth/night-detail.json"
 }
