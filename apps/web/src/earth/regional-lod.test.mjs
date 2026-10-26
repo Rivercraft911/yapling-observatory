@@ -97,6 +97,7 @@ if (typeof ASSET_DIR === 'undefined') {
       regionalTexture: null,
       regionalBitmap: null,
       regionalAbort: null,
+      nightAbort: new AbortController(),
       regionalFailed: false,
       regionalUnusedSince: 0,
       regionalNeededSince: 0,
@@ -199,6 +200,7 @@ if (typeof ASSET_DIR === 'undefined') {
   v.renderer.domElement.remove = () => {};
   v.renderer.domElement.removeEventListener = () => {};
   v.dispose();
+  assert.equal(v.nightAbort.signal.aborted, true);
   assert.equal(closed.day, previous.day + 1);
   assert.equal(v.regionalTexture, null);
   // Visible alpha and surface shadow share native tile uniforms.

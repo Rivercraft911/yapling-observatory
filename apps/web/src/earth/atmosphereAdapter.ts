@@ -1,4 +1,4 @@
-import { AdditiveBlending, BackSide, ShaderMaterial, Vector3, Vector4 } from 'three';
+import { AdditiveBlending, BackSide, RedFormat, ShaderMaterial, Vector3, Vector4 } from 'three';
 import type { Texture } from 'three';
 import type { CloudTileView } from './CloudTiles';
 
@@ -87,6 +87,7 @@ export function createEarthAppearance(
     oceanMap: { value: ocean },
     nightMap: { value: night || day },
     nightIntensity: { value: night ? 0.35 : 0 },
+    nightGrayscale: { value: night?.format === RedFormat },
     regionalDayMap: { value: day },
     regionalBounds: { value: new Vector4(0, 0, 1, 1) },
     regionalOpacity: { value: 0 },
@@ -96,7 +97,8 @@ export function createEarthAppearance(
     vertexShader: vertex,
     fragmentShader: `
 uniform sampler2D dayMap;uniform sampler2D oceanMap;uniform vec3 sun;
-uniform sampler2D nightMap;uniform float nightIntensity;
+uniform sampler2D nightMap;uniform float nightIntensity;uniform bool nightGrayscale;
+float nightDisplayToLinear(float value){return value<=.04045?value/12.92:pow((value+.055)/1.055,2.4);}
 float nightLightFade(float muSun){return 1.-smoothstep(-.14,.02,muSun);}
 
 ${cloudSampling(cloudTileCount)}
@@ -123,7 +125,9 @@ void main(){
  float fresnel=.025+.975*pow(1.-max(dot(n,view),0.),5.);
  color+=vec3(1.,.91,.77)*specular*fresnel*1.8;
  float grazing=pow(1.-max(dot(n,view),0.),3.);color+=vec3(.015,.045,.085)*grazing*smoothstep(-.15,.35,ndl);
- color+=texture2D(nightMap,vUv).rgb*nightIntensity*nightLightFade(ndl);
+ vec3 lights=texture2D(nightMap,vUv).rgb;
+ if(nightGrayscale)lights=vec3(1.,.78,.50)*nightDisplayToLinear(pow(clamp(lights.r,0.,1.),.65));
+ color+=lights*nightIntensity*nightLightFade(ndl);
  gl_FragColor=vec4(color,1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>

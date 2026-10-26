@@ -38,6 +38,8 @@ import { SunDisplay } from './SunDisplay';
 import { TargetDisplay, activeTargetAtSample } from './TargetDisplay';
 import regionalImagery from './regional-lod.json';
 import cloudImagery from './cloud-tiles.json';
+import nightImagery from './night-map.json';
+import { loadDetailedNightMap } from './nightMap';
 import { CloudTileLayer, cloudTileBudget, readCloudTile } from './CloudTiles';
 import type { FollowStatus } from './SpacecraftFollow';
 import {
@@ -261,6 +263,8 @@ export class EarthScene {
     this.frame = requestAnimationFrame(this.animate);
   }
 
+  private readonly nightAbort = new AbortController();
+
   private async load() {
     const loader = new TextureLoader();
     const highResolution = this.renderer.capabilities.maxTextureSize >= 8192;
@@ -271,9 +275,30 @@ export class EarthScene {
       highResolution ? '/earth/earth-day-8k.jpg' : '/earth/earth-day-4k.jpg',
       highResolution ? '/earth/earth-clouds-8k.jpg' : '/earth/earth-clouds-4k.png',
       '/earth/earth-ocean-2k.png',
-      highResolution ? '/earth/earth-night-8k.jpg' : '/earth/earth-night-2k.jpg',
     ];
-    const results = await Promise.allSettled(urls.map((url) => loader.loadAsync(url)));
+    let detailedNight = false;
+    const loadNight = async () => {
+      if (this.renderer.capabilities.maxTextureSize >= nightImagery.runtime_dimensions[0]) {
+        try {
+          const texture = await loadDetailedNightMap(
+            nightImagery,
+            this.renderer.capabilities.getMaxAnisotropy(),
+            this.nightAbort.signal,
+          );
+          detailedNight = true;
+          return texture;
+        } catch (error) {
+          if (this.nightAbort.signal.aborted) throw error;
+        }
+      }
+      return loader.loadAsync(
+        highResolution ? '/earth/earth-night-8k.jpg' : '/earth/earth-night-2k.jpg',
+      );
+    };
+    const results = await Promise.allSettled([
+      ...urls.map((url) => loader.loadAsync(url)),
+      loadNight(),
+    ]);
     const textures = results.flatMap((result) =>
       result.status === 'fulfilled' ? [result.value] : [],
     );
@@ -284,6 +309,7 @@ export class EarthScene {
     }
     this.textures = textures;
     textures.forEach((texture, i) => {
+      if (i === 3 && detailedNight) return;
       texture.colorSpace = i === 0 || i === 3 ? SRGBColorSpace : NoColorSpace;
       texture.flipY = true;
       texture.wrapS = RepeatWrapping;
@@ -295,9 +321,11 @@ export class EarthScene {
       texture.needsUpdate = true;
     });
     this.renderer.domElement.dataset.nightLights = textures[3]
-      ? highResolution
-        ? '8192x4096'
-        : '2048x1024'
+      ? detailedNight
+        ? '13500x6750 NASA 2016 R8'
+        : highResolution
+          ? '8192x4096'
+          : '2048x1024'
       : 'unavailable';
     const tileBudget = cloudTileBudget(this.renderer.capabilities);
     this.appearance = createEarthAppearance(
@@ -958,6 +986,7 @@ export class EarthScene {
   }
 
   dispose() {
+    this.nightAbort.abort();
     this.disposed = true;
     cancelAnimationFrame(this.frame);
     this.observer.disconnect();

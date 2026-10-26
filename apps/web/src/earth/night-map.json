@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "revision": "nasa-black-marble-2016-global-native-v1",
+  "file": "earth-night-2016-13500.jpg",
+  "url": "/earth/earth-night-2016-13500.jpg",
+  "publisher": "NASA Earth Observatory",
+  "credit": "NASA Earth Observatory, Black Marble 2016 / Suomi NPP VIIRS",
+  "publisher_page": "https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps/",
+  "source_url": "https://assets.science.nasa.gov/content/dam/science/esd/eo/images/imagerecords/144000/144897/BlackMarble_2016_3km_gray.jpg",
+  "georeferencing_source_url": "https://assets.science.nasa.gov/content/dam/science/esd/eo/images/imagerecords/144000/144897/BlackMarble_2016_3km_gray_geo.tif",
+  "license": "NASA imagery use guidelines; educational/informational use with acknowledgment, no endorsement.",
+  "license_url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+  "acquisition_epoch": "2016 annual composite, not a single-date observation",
+  "retrieved_utc": "2026-10-26T19:48:30.189998+00:00",
+  "source_dimensions": [13500, 6750],
+  "runtime_dimensions": [13500, 6750],
+  "source_sha256": "3fbc8aae3529dc1ebfcf3aa9361bd3dfc11d19950a6af6d8ed2df61bd8b0134d",
+  "runtime_sha256": "3fbc8aae3529dc1ebfcf3aa9361bd3dfc11d19950a6af6d8ed2df61bd8b0134d",
+  "source_bytes": 3064569,
+  "runtime_bytes": 3064569,
+  "bounds_deg": {
+    "west": -180,
+    "east": 180,
+    "south": -90,
+    "north": 90
+  },
+  "angular_pixel_spacing_deg": 0.02666666666666667,
+  "published_nominal_resolution_m": 3000,
+  "gpu_format": "R8",
+  "gpu_bytes_with_mipmaps": 121494629,
+  "transform": "Unmodified publisher grayscale JPEG. Runtime extracts one channel at native resolution. A display-only power curve (exponent 0.65) lifts faint light detail before sRGB decoding; the shader applies a warm tint and the existing 0.35 emission gain. Black and peak mask values are unchanged.",
+  "limits": [
+    "Static display artwork, not current city activity, calibrated radiance, historical weather or RF/thermal input.",
+    "Loaded on GPUs supporting a texture width of at least 13500 pixels; preserved 8K/2K artwork remains the fallback.",
+    "Single-channel storage is about 115.87 MiB including mipmaps, plus 86.9 MiB retained CPU data. Bitmap decode temporarily requires about 348 MiB; conversion uses 128-row strips and releases the bitmap."
+  ]
+}

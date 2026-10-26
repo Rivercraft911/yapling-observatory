@@ -52,3 +52,12 @@ https://www.solarsystemscope.com/textures/
 https://creativecommons.org/licenses/by/4.0/
 
 The night-light maps are the unmodified 8192x4096 and 2048x1024 publisher JPEGs, distributed under CC BY 4.0. The 2K original is used when the GPU does not support the 8K texture. Runtime appearance uses a restrained emissive gain and a smooth daylight fade; cloud opacity can obscure the lights. The publisher supplies adjusted composite imagery without a single observation epoch. These maps are not current city activity, simulated-date observations, calibrated light radiance, weather or spacecraft thermal inputs. No buildings, city geometry or procedural light locations are generated. Source URLs, sizes and SHA-256 identities are recorded in asset-provenance.json.
+
+NASA Black Marble 2016 global night lights
+Source: https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps/
+Credit: NASA Earth Observatory, Black Marble 2016 / Suomi NPP VIIRS.
+Use: https://www.nasa.gov/nasa-brand-center/images-and-media/
+
+The original 13500 x 6750 grayscale JPEG is bundled unchanged. Its native grid covers the full globe at 0.026666667 degrees per pixel; NASA describes the product as 3 km. Runtime R8 storage keeps the complete mip chain to about 115.87 MiB on compatible GPUs, less than the previous 8K RGBA map. A power-0.65 display curve brings out faint existing lights while preserving black and peak values; a warm tint and the existing 0.35 emission gain remain visual choices. This annual composite is not the simulated date, calibrated radiance, weather, RF attenuation or a thermal input. Smaller GPUs and failed loads retain the earlier 8K/2K maps and their credits above. See night-map.json for source hashes and runtime memory bounds.
+
+The README screenshot contains the simulator's rendered NASA and Solar System Scope imagery, covered by these same credits and terms.
