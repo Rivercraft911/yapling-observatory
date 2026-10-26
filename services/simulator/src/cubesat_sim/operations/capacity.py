@@ -24,9 +24,8 @@ def integrate_ideal_capacity(scenario, times, state_at, evaluate_link):
                           not (scenario.antenna_variant == "v45" and getattr(scenario, direction).spacecraft_antenna == "wire")
                           for direction in channels}
     cumulative = {direction: [0.0 if capacity_available[direction] else None] for direction in channels}
-    slot = scenario.schedule.slot_duration_s
     for start, end in zip(times, times[1:]):
-        cuts = schedule_cuts(start, end, slot)
+        cuts = schedule_cuts(start, end, scenario.schedule)
         bits = {direction: 0.0 for direction in channels}
         for a, b in zip(cuts, cuts[1:]):
             state = state_at((a+b)/2)

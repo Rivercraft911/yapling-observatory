@@ -138,6 +138,9 @@ def default_mission_scenario():
         dict(
             orbit=orbit_preset(epoch),
             magnetic_model="igrf14_degree13",
+            schedule=dict(
+                first_direction="downlink", downlink_duration_s=60, uplink_duration_s=5
+            ),
             uplink=legacy.uplink.model_dump(mode="json"),
             downlink=legacy.downlink.model_dump(mode="json")
             | dict(tx_power_w=tx.pa_output_w, tx_feed_loss_db=tx.feed_loss_db),
@@ -160,6 +163,7 @@ def default_mission_scenario():
                 analytical_efficiency_semantics="pattern_times_additional_v1",
             ),
             provenance=[
+                "User-selected editable S-band timing: 60 s downlink then 5 s uplink, repeated from mission time zero. Direction slots alone do not include turnaround, receiver acquisition or hardware timing evidence.",
                 wheel_example_metadata()["label"] + ": " + wheel_example_metadata()["sources"][0]["url"],
                 example.provenance[0],
                 example.provenance[1],

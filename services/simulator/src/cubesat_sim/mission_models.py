@@ -408,13 +408,18 @@ class MissionScenario(MissionModel):
                 "Initial angular displacement exceeds0.1rad per dynamics step; choose an explicit finer dynamics timestep"
             )
         count = ticks(self.duration_s)
+        slot_durations = (
+            (self.schedule.slot_duration_s,)
+            if self.schedule.uplink_duration_s is None
+            else (self.schedule.uplink_duration_s, self.schedule.downlink_duration_s)
+        )
         strides = [
             ticks(v)
             for v in (
                 self.clocks.controller_period_s,
                 self.clocks.thermal_step_s,
                 self.clocks.output_step_s,
-                self.schedule.slot_duration_s,
+                *slot_durations,
             )
         ]
         commands = self.pointing_commands or ()

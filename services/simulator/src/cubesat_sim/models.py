@@ -7,7 +7,13 @@ import json
 import math
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
+    model_serializer,
+)
 
 from .rf.antennas import HALF_WAVE_PEAK_DBI
 from .rf.spherical_harmonic_models import SphericalHarmonicProfile
@@ -72,6 +78,24 @@ class Attitude(FrozenModel):
 class Schedule(FrozenModel):
     slot_duration_s: float = Field(default=30, ge=1, le=3600)
     first_direction: Literal["uplink", "downlink"] = "uplink"
+    uplink_duration_s: float | None = Field(default=None, ge=1, le=3600)
+    downlink_duration_s: float | None = Field(default=None, ge=1, le=3600)
+
+    @model_validator(mode="after")
+    def paired_direction_durations(self):
+        if (self.uplink_duration_s is None) != (self.downlink_duration_s is None):
+            raise ValueError(
+                "Set both direction durations together or omit both for equal slots"
+            )
+        return self
+
+    @model_serializer(mode="wrap")
+    def preserve_equal_slot_shape(self, handler):
+        values = handler(self)
+        if self.uplink_duration_s is None:
+            values.pop("uplink_duration_s", None)
+            values.pop("downlink_duration_s", None)
+        return values
 
 
 class RadioProfile(FrozenModel):
