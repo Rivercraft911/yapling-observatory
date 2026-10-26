@@ -1,0 +1,69 @@
+name: Check the workspace
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: python -m pip install -e './services/simulator[dev]'
+      - run: npm ci --prefix apps/web
+      - run: python -m pytest services/simulator/tests
+      - run: npm --prefix apps/web run format:check
+      - run: npm --prefix apps/web run build
+      - run: python3 scripts/check_third_party_notices.py --build
+      - run: node --experimental-strip-types apps/web/src/earth/geodesy.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/follow-frames.test.mjs
+      - run: node apps/web/src/earth/regional-lod.test.mjs
+      - run: node apps/web/src/earth/cloud-tiles.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/cloud-shader.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/follow-link.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/sun-display.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/target-display.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/earth-depth.test.mjs
+      - run: node --experimental-strip-types apps/web/src/graphics/display-interpolation.test.mjs
+      - run: node --experimental-strip-types apps/web/src/graphics/frame-size.test.mjs
+      - run: node --experimental-strip-types apps/web/src/spacecraft/preview-visibility.test.mjs
+      - run: node --experimental-strip-types apps/web/src/graphics/thermal-overlay.test.mjs
+      - run: node --experimental-strip-types apps/web/src/graphics/thermal-picking.test.mjs
+      - run: node --experimental-strip-types apps/web/src/mission/mission-requests.test.mjs
+      - run: node apps/web/src/mission/shared-spacecraft.test.mjs
+      - run: node apps/web/src/mission/mission-gnc-controls.test.mjs
+      - run: node --experimental-strip-types apps/web/src/plots/battery-plots.test.mjs
+      - run: node apps/web/src/mission/mission-report.test.mjs
+      - run: node apps/web/src/mission/mission-delivery-lifecycle.test.mjs
+      - run: node apps/web/src/api-errors.test.mjs
+      - run: node apps/web/src/mission/mission-preset-lifecycle.test.mjs
+      - run: node apps/web/src/mission/mission-channel-lifecycle.test.mjs
+      - run: node --experimental-strip-types apps/web/src/plots/gnc-plots.test.mjs
+      - run: node --experimental-strip-types apps/web/src/plots/plot-preferences.test.mjs
+      - run: node --experimental-strip-types apps/web/src/plots/trace-formatting.test.mjs
+      - run: node --experimental-strip-types apps/web/src/plots/time-window.test.mjs
+      - run: node --experimental-strip-types apps/web/src/plots/trace-navigation.test.mjs
+      - run: node --experimental-strip-types apps/web/src/plots/power-readout.test.mjs
+      - run: node --experimental-strip-types apps/web/src/mission/link-display.test.mjs
+      - run: node --experimental-strip-types apps/web/src/graphics/workbench-camera.test.mjs
+      - run: node --experimental-strip-types apps/web/src/antenna/run-reference.test.mjs
+      - run: node --experimental-strip-types apps/web/src/antenna/antenna-run-path.test.mjs
+      - run: node --experimental-strip-types apps/web/src/live/live-history.test.mjs
+      - run: node apps/web/src/live/live-lifecycle.test.mjs
+      - run: node apps/web/src/live/live-target-lifecycle.test.mjs
+      - run: node --experimental-strip-types apps/web/src/live/live-display-clock.test.mjs
+      - run: node apps/web/src/earth/earth-live-display.test.mjs
+      - run: node apps/web/src/earth/ground-track.test.mjs
+      - run: node apps/web/src/earth/earth-ground-track-controls.test.mjs
+      - run: node --experimental-strip-types apps/web/src/plots/radio-plots.test.mjs
+      - run: node apps/web/src/mission/mission-uhf-lifecycle.test.mjs
+      - run: node apps/web/src/earth/ground-coverage-lifecycle.test.mjs
+      - run: node --experimental-strip-types apps/web/src/controls/ground-dish-controls.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/flat-ground-track.test.mjs
+      - run: node --experimental-strip-types apps/web/src/earth/flat-map-controls.test.mjs

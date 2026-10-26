@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "revision": "nasa-bmng-200408-stanford-native-v1",
+  "file": "earth-day-stanford-500m.jpg",
+  "url": "/earth/earth-day-stanford-500m.jpg",
+  "publisher": "NASA Earth Observatory",
+  "credit": "NASA Earth Observatory / Reto St\u00f6ckli and Robert Simmon",
+  "publisher_page": "https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/base-map/",
+  "source_url": "https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-base/august/world.200408.3x21600x21600.A1.jpg",
+  "license": "NASA imagery use guidelines; generally not subject to US copyright. Educational/informational use with acknowledgment; no endorsement.",
+  "license_url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+  "retrieved_utc": "2026-10-25T11:23:29.467679+00:00",
+  "acquisition_epoch": "2004-08 monthly land-surface composite, not a single-date observation",
+  "source_dimensions": [
+    21600,
+    21600
+  ],
+  "runtime_dimensions": [
+    4096,
+    4096
+  ],
+  "source_sha256": "80351fd9ce7eb7f2fbd827fdc5f23526429baefe6eaf091876042fc94c80013c",
+  "runtime_sha256": "60ee5a189bebe442a31e608e4187b2f0f92719b5d8a141df970b53424d29197e",
+  "source_bytes": 45275119,
+  "runtime_bytes": 2696109,
+  "source_tile_bounds_deg": {
+    "west": -180,
+    "east": -90,
+    "south": 0,
+    "north": 90
+  },
+  "crop_pixel_box": [
+    11840,
+    10520,
+    15936,
+    14616
+  ],
+  "bounds_deg": {
+    "west": -130.66666666666666,
+    "east": -113.6,
+    "north": 46.166666666666664,
+    "south": 29.1
+  },
+  "angular_pixel_spacing_deg": 0.004166666666666667,
+  "published_nominal_resolution_m": 500,
+  "transform": "Exact native pixel crop, no resize, color synthesis or sharpening; RGB JPEG quality94,4:4:4. Pillow12.3.0.",
+  "extra_gpu_memory_upper_bound_bytes": 89478484,
+  "limits": [
+    "Regional coverage only.500m is the publisher product class, not global runtime resolution; angular pixel spacing is1/240degree and east-west physical spacing varies with latitude.",
+    "August2004 cloud-free MODIS composite. It is not the simulated epoch, live imagery, measured albedo or a weather product.",
+    "Global8K Solar System Scope map remains the fallback; region and camera-distance feathering blend imagery with differing dates/colors.",
+    "Daytime patch alone does not change cloud detail.A separate NASA1kmregional cloud layer is identified in regional-cloud.json;global8Kclouds remain its fallback.",
+    "Loaded only for a visible close Earth camera near this region;SHA256 checked before decode;one4096square RGBA texture+mips, at most85.34MiB additional GPU storage. Released after15s outside the active close region and immediately when Earth unmounts."
+  ]
+}

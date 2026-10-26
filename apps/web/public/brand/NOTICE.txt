@@ -1,0 +1,11 @@
+Supplied SSI/SATS artwork
+
+ssi-mark.svg is the original SSI team artwork supplied by the project maintainer
+for Yapling Observatory. The maintainer authorized public distribution with this
+application. The file retains the supplied artwork; its source filename was
+latest.svg.
+
+SSI/SATS and Stanford names and marks remain subject to their owners' rights.
+Inclusion identifies the supplied team artwork and does not imply endorsement
+or grant general permission to reuse those names or marks. A source-code license
+does not itself grant rights to these names or marks.

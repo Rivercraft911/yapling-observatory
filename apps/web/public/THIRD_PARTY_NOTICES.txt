@@ -1,0 +1,65 @@
+Yapling Observatory third-party notices
+
+Browser runtime
+
+React, React DOM, Scheduler, Three.js and uPlot are distributed under their
+respective MIT licenses. IBM Plex Sans and IBM Plex Mono font subsets supplied
+by Fontsource are distributed under the SIL Open Font License 1.1. The Latin
+400/500 Sans and Latin 400 Mono WOFF/WOFF2 files retain their package bytes.
+
+Full copyright and license texts are preserved in licenses/:
+  react-MIT.txt
+  react-dom-MIT.txt
+  scheduler-MIT.txt
+  three-MIT.txt
+  uplot-MIT.txt
+  ibm-plex-sans-OFL-1.1.txt
+  ibm-plex-mono-OFL-1.1.txt
+
+licenses/runtime-dependencies.json identifies the exact locked versions,
+package tarball integrity and license-file SHA-256 values. These files are
+copied unchanged to the browser build by Vite. Keep them with redistributed
+builds. Run python3 scripts/check_third_party_notices.py after dependency changes.
+The separately installed Python packages and build tools retain their own
+licenses; their source or binaries are not vendored by this repository.
+
+Earth imagery
+
+Solar System Scope / INOVE global day, night, cloud and ocean/specular imagery
+is CC BY 4.0: https://www.solarsystemscope.com/textures/
+The full license is licenses/CC-BY-4.0.txt. See earth/NOTICE.txt and the adjacent
+asset-provenance.json for attribution, source identities and modifications.
+
+The regional day image and native cloud derivatives are NASA imagery, with
+separate terms: https://www.nasa.gov/nasa-brand-center/images-and-media/
+Credits: NASA Earth Observatory / Reto Stöckli and Robert Simmon; NASA Goddard
+Space Flight Center / Reto Stöckli (clouds), Robert Simmon (compositing).
+See earth/NOTICE.txt, regional-lod.json, regional-cloud.json and cloud-tiles.json.
+NASA imagery is used for educational/informational graphical simulation.
+No NASA endorsement is implied. These NASA assets are not assigned the Solar
+System Scope license. No NASA logo is included.
+
+Scientific data in the Python service
+
+International Association of Geomagnetism and Aeronomy. (2024). IGRF-14,
+Zenodo v2, 25 November 2024. https://doi.org/10.5281/zenodo.14218973
+CC BY 4.0; bundled igrf14coeffs.txt is unchanged. See the geomagnetism README
+and igrf14-source.json for exact source/hash and the synthesis citation.
+
+Jinqing Linghu, Longyun Kang, Ming Liu, Bihua Hu and Zefeng Wang. (2019).
+An Improved Model Equation Based on a Gaussian Function Trinomial for State
+of Charge Estimation of Lithium-ion Batteries. Energies 12(7), 1366.
+https://doi.org/10.3390/en12071366
+Copyright 2019 by the authors; CC BY 4.0. Table 1 has been transcribed into
+power/ncr18650ga_linghu2019.json with explicit column units. It is a 25 +/-1 C
+laboratory characterization, without spacecraft-pack calibration. The article,
+figures and manufacturer PDF are not bundled. Full CC BY 4.0 text is included
+in licenses/CC-BY-4.0.txt. Other cited technical documents are references, not
+redistributed documents or blanket licenses for this project.
+
+Spacecraft and team artwork
+
+The supplied SSI/SATS mark and the authored spacecraft exports retain their
+owners' rights. See brand/NOTICE.txt and the Python service's
+assets/spacecraft/NOTICE.txt for provenance and scope. These third-party
+notices do not grant a project-wide source-code, model or trademark license.

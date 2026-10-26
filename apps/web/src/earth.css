@@ -1,0 +1,481 @@
+.earth-view {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: #060709;
+  color: #e2ddd7;
+  font-family: 'IBM Plex Sans', sans-serif;
+  height: 100%;
+  isolation: isolate;
+}
+.earth-render-host {
+  position: absolute;
+  inset: 0;
+}
+.earth-render-host canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  outline-offset: -3px;
+}
+.earth-title {
+  position: absolute;
+  top: 21px;
+  left: 25px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.earth-title > span {
+  font:
+    9px 'IBM Plex Mono',
+    monospace;
+  letter-spacing: 0.12em;
+  color: #a29b96;
+}
+.earth-title strong {
+  font:
+    15px 'IBM Plex Mono',
+    monospace;
+  font-weight: 400;
+  color: #e5dfd8;
+}
+.earth-title small {
+  font-size: 8px;
+  color: #8d8580;
+  margin-left: 8px;
+}
+.earth-link-state {
+  position: absolute;
+  right: 24px;
+  top: 24px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font:
+    8px 'IBM Plex Mono',
+    monospace;
+  letter-spacing: 0.08em;
+  color: #b49b85;
+  pointer-events: none;
+}
+.earth-link-state > i {
+  width: 4px;
+  height: 4px;
+  border: 1px solid currentColor;
+}
+.earth-link-state.positive {
+  color: #e5ddd5;
+}
+.earth-link-state.positive > i {
+  background: #ef6771;
+  border-color: #ef6771;
+}
+.earth-locator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 9px 0 0 10px;
+  font:
+    8px 'IBM Plex Mono',
+    monospace;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  color: #efe8df;
+  text-shadow:
+    0 1px 3px #000,
+    0 0 7px #000;
+  pointer-events: none;
+  will-change: transform;
+}
+.earth-locator small {
+  display: block;
+  font-size: 7px;
+  letter-spacing: 0;
+  margin-top: 3px;
+  color: #a69a91;
+}
+.earth-satellite-label {
+  color: #ef8b92;
+  margin: 7px 0 0 9px;
+  font-size: 8px;
+}
+.earth-locator[hidden] {
+  display: none;
+}
+.earth-footer {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 20px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+.earth-view-tools {
+  display: flex;
+  gap: 6px;
+}
+.earth-view-tools button {
+  background: #1d1b1dd9;
+  color: #cec4bd;
+  border: 1px solid #514449;
+  font-size: 10px;
+  border-radius: 2px;
+  padding: 6px 10px;
+}
+.earth-view-tools button:hover {
+  border-color: #a95562;
+  background: #382329;
+}
+.earth-view-tools button:focus-visible {
+  outline: 1px solid #ef6771;
+  outline-offset: 3px;
+}
+.earth-view-tools button:disabled {
+  opacity: 0.35;
+}
+.earth-credit {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: right;
+  font:
+    7px 'IBM Plex Mono',
+    monospace;
+  color: #766e68;
+}
+.earth-credit a {
+  font-size: 8px;
+  color: #a09289;
+  text-decoration: none;
+}
+.earth-credit a:hover {
+  color: #e4c6c7;
+}
+.earth-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font:
+    10px 'IBM Plex Mono',
+    monospace;
+  color: #b4aaa3;
+  pointer-events: none;
+}
+.earth-message.error {
+  flex-direction: column;
+  color: #d2a78f;
+  pointer-events: auto;
+}
+@media (max-width: 760px) {
+  .earth-title {
+    left: 18px;
+    top: 19px;
+  }
+  .earth-link-state {
+    right: 17px;
+    font-size: 7px;
+  }
+  .earth-footer {
+    left: 17px;
+    right: 17px;
+    bottom: 18px;
+    gap: 10px;
+  }
+  .earth-credit {
+    font-size: 6px;
+    max-width: 44%;
+  }
+  .earth-credit a {
+    font-size: 7px;
+  }
+  .earth-view-tools button {
+    font-size: 9px;
+    padding: 5px 8px;
+  }
+}
+.earth-view-tools {
+  flex-wrap: wrap;
+  align-items: center;
+  max-width: 75%;
+}
+.earth-camera-modes {
+  display: flex;
+  align-items: center;
+  border: 1px solid #67414c;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-right: 8px;
+}
+.earth-camera-modes button {
+  border: 0;
+  border-radius: 0;
+  background: #201c20;
+}
+.earth-camera-modes button + button {
+  border-left: 1px solid #67414c;
+}
+.earth-camera-modes button.active {
+  color: #fff1ed;
+  background: #6d2632;
+  box-shadow: inset 0 -2px #ef6771;
+}
+.earth-title > .earth-follow-revision {
+  font:
+    8px 'IBM Plex Mono',
+    monospace;
+  color: #968983;
+  margin: 0;
+  max-width: 50vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+  .earth-view-tools {
+    max-width: 68%;
+    gap: 5px;
+  }
+  .earth-camera-modes {
+    margin-right: 0;
+  }
+  .earth-camera-modes button {
+    padding: 5px 7px;
+    font-size: 8px;
+  }
+  .earth-title > .earth-follow-revision {
+    font-size: 7px;
+  }
+}
+
+.earth-thermal-scale {
+  position: absolute;
+  bottom: 51px;
+  left: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 10px var(--mono);
+  color: #b8b1ac;
+  pointer-events: none;
+}
+.earth-thermal-scale i {
+  width: 100px;
+  height: 5px;
+  background: linear-gradient(90deg, #416b9a, #aeb7b7, #e2a062, #c93b48);
+}
+.earth-thermal-scale small {
+  font-size: 9px;
+}
+
+.earth-sun-cue {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transform: translate(-50%, -50%);
+  color: #e4d4b8;
+  font:
+    8px 'IBM Plex Mono',
+    monospace;
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 4px #000;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.earth-sun-cue[hidden] {
+  display: none;
+}
+.earth-sun-cue small {
+  display: block;
+  margin-top: 3px;
+  color: #a59a8c;
+  font-size: 7px;
+  letter-spacing: 0;
+}
+.earth-sun-cue small:empty,
+.earth-sun-cue i {
+  display: none;
+}
+.earth-sun-cue[data-edge='true'] i {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-top: 1px solid currentColor;
+  border-right: 1px solid currentColor;
+  transform: rotate(var(--sun-bearing));
+}
+.earth-sun-cue[data-occluded='true'] {
+  color: #b4a896;
+}
+.earth-sun-cue[data-edge='false'][data-occluded='true'] i {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border: 1px dotted currentColor;
+  border-radius: 50%;
+}
+
+.earth-target-label {
+  color: #d8b77c;
+  margin: 8px 0 0 9px;
+}
+
+.earth-title > .earth-utc-date {
+  margin: 0;
+  font: 9px var(--mono);
+  color: #aaa19a;
+}
+.earth-track-window {
+  width: auto;
+  min-width: 64px;
+  padding: 6px 8px;
+  border: 1px solid #514449;
+  border-radius: 2px;
+  background: #1d1b1de8;
+  color: #cec4bd;
+  font: 10px var(--mono);
+}
+.earth-track-window:focus-visible {
+  outline: 1px solid #ef6771;
+  outline-offset: 3px;
+}
+.earth-track-legend {
+  position: absolute;
+  top: 112px;
+  left: 25px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: calc(100% - 50px);
+  color: #bbb2ab;
+  font: 9px var(--mono);
+  text-shadow: 0 1px 3px #000;
+}
+.earth-track-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.earth-track-legend i {
+  width: 13px;
+  height: 1px;
+  background: #77716b;
+}
+.earth-track-legend .contact {
+  background: #e6e1d9;
+}
+.earth-track-legend .rf {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ef6771;
+}
+@media (max-width: 760px) {
+  .earth-track-legend {
+    left: 18px;
+    top: 108px;
+    gap: 9px;
+  }
+  .earth-track-window {
+    min-width: 54px;
+    padding: 5px;
+    font-size: 9px;
+  }
+}
+
+.earth-view[data-flat='true'] .earth-render-host {
+  visibility: hidden;
+}
+.earth-view[data-flat='true'] .earth-locator,
+.earth-view[data-flat='true'] .earth-sun-cue,
+.earth-credit[hidden] {
+  display: none;
+}
+.ground-coverage-controls {
+  position: absolute;
+  top: 108px;
+  left: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font: 10px var(--mono);
+  color: #c6beb7;
+}
+.ground-coverage-controls select,
+.ground-coverage-controls input {
+  width: auto;
+  background: #171718e8;
+  border: 1px solid #4a4244;
+  border-radius: 2px;
+  color: #e2ddd7;
+  font: inherit;
+  padding: 4px 6px;
+}
+.ground-coverage-controls input {
+  width: 66px;
+}
+.ground-coverage-controls label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.ground-coverage-assumptions {
+  position: relative;
+}
+.ground-coverage-assumptions summary {
+  cursor: pointer;
+  color: #a69d97;
+}
+.ground-coverage-assumptions > div {
+  position: absolute;
+  top: 24px;
+  left: 0;
+  z-index: 4;
+  width: min(380px, 65vw);
+  max-height: 190px;
+  overflow: auto;
+  padding: 12px;
+  background: #171718f5;
+  border: 1px solid #4a4244;
+  font: 11px/1.5 var(--sans);
+}
+.ground-coverage-assumptions p {
+  margin: 8px 0 0;
+}
+@media (max-width: 760px) {
+  .ground-coverage-controls {
+    left: 18px;
+    right: 18px;
+    gap: 6px;
+    font-size: 9px;
+  }
+  .ground-coverage-controls input {
+    width: 52px;
+  }
+}
+.earth-view[data-flat='true'] .earth-view-tools {
+  max-width: 100%;
+}
+@media (max-width: 760px) {
+  .earth-view[data-flat='true'] .earth-camera-modes button {
+    padding-inline: 6px;
+  }
+}
+.ground-coverage-retry {
+  padding: 4px 6px;
+  border: 1px solid #78505b;
+  border-radius: 2px;
+  background: #2b1d23;
+  color: #e6bdc1;
+  font: inherit;
+}

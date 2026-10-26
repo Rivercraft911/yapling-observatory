@@ -1,0 +1,937 @@
+"""Bounded, data-only mission replay archives; integrity is not authenticity.
+
+This module never computes a mission, resolves archived paths, imports code from
+an archive, or compares recorded numerical sources with currently installed code.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import re
+from datetime import datetime, timedelta
+
+from .mission_models import MissionScenario, PointingCommand
+from .mission.numerics import NumericalStepCommand, on_grid, step_at, step_segments, planned_dynamics_ticks
+from .rf.uhf_beacon import beacon_timing, beacon_tx_airtime
+from .rf.lora import lora_airtime
+
+FORMAT = "ssi-coupled-mission"
+VERSION = 1
+CANONICALIZATION = "ssi-json-v1"
+ARCHIVE_PATHS = frozenset({"/api/mission/archive/export", "/api/mission/archive/import"})
+MAX_ARCHIVE_BYTES = 64 * 1024 * 1024
+MAX_SAMPLES = 20001
+MAX_DEPTH = 24
+MAX_NODES = 5_000_000
+MAX_STRING = 1024 * 1024
+HASH = re.compile(r"[0-9a-f]{64}\Z")
+STOP_REASONS = {
+    "power_unserved", "dynamics_step_too_large", "quaternion_integration_accuracy_guard", "user_stop",
+}
+ENERGY_FIELDS = {
+    "generated_bus_j", "requested_load_j", "served_load_j", "pv_terminal_j",
+    "regulator_loss_j", "storage_loss_j", "escaped_rf_j", "other_export_j",
+    "wheel_bus_j", "wheel_heat_j", "magnetorquer_bus_j", "external_mechanical_work_j",
+    "absorbed_environment_j", "emitted_ir_j", "thermal_residual_j", "battery_residual_j",
+    "mechanical_residual_j", "chemical_storage_delta_j", "thermal_storage_delta_j",
+    "rotational_storage_delta_j", "closure_residual_j",
+}
+BOOLEAN_SERIES = {
+    "samples.visible", "samples.radio_active", "samples.uplink.valid", "samples.downlink.valid",
+    "samples.uhf_beacon.transmitting", "samples.uhf_beacon.visible",
+    "samples.gnc.wheel_saturated", "samples.gnc.magnetic_saturated",
+    "samples.power.battery_temperature_outside_reference",
+    "samples.radio_delivery.uplink.locked", "samples.radio_delivery.downlink.locked",
+    "samples.radio_delivery.uplink.delivery_available", "samples.radio_delivery.downlink.delivery_available",
+}
+TEXT_SERIES = {
+    "samples.elapsed_ns", "samples.active_direction", "samples.mode", "samples.stage_id",
+    "samples.uhf_beacon.reason",
+    "samples.uplink.reason", "samples.downlink.reason", "samples.gnc.controller_status",
+    "samples.gnc.unloading_status", "samples.power.battery_electrical_reason",
+    "samples.radio_delivery.uplink.receiver_state", "samples.radio_delivery.downlink.receiver_state",
+    "samples.radio_delivery.uplink.mode_id", "samples.radio_delivery.downlink.mode_id",
+}
+UNLOADING_FIELDS = {
+    "wheel_momentum_body_nms", "wheel_momentum_norm_nms",
+    "unloading_requested_torque_body_nm", "unloading_allocated_torque_body_nm",
+    "unloading_achieved_torque_body_nm", "unloading_command_time_s", "unloading_status",
+}
+
+
+class ArchiveError(ValueError):
+    pass
+
+
+def require(condition, message):
+    if not condition:
+        raise ArchiveError(message)
+
+
+def canonical_json(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False)
+
+
+def content_digest(value):
+    return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def _reject_constant(_value):
+    raise ArchiveError("Archive numbers must be finite JSON numbers")
+
+
+def _float(value):
+    result = float(value)
+    require(math.isfinite(result), "Archive numbers must be finite")
+    return result
+
+
+def _object_pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        require(key not in result, "Duplicate JSON object keys are unsupported")
+        result[key] = value
+    return result
+
+
+def _bounded_tree(value):
+    pending = [(value, 0)]
+    count = 0
+    while pending:
+        item, depth = pending.pop()
+        count += 1
+        require(count <= MAX_NODES, "Archive exceeds the decoded node limit")
+        require(depth <= MAX_DEPTH, "Archive nesting exceeds the depth limit")
+        if type(item) is dict:
+            require(len(item) <= MAX_SAMPLES, "Archive object has too many fields")
+            for key, child in item.items():
+                require(type(key) is str and len(key) <= 512, "Archive keys must be bounded strings")
+                pending.append((child, depth+1))
+        elif type(item) is list:
+            require(len(item) <= 100000, "Archive array exceeds its item limit")
+            pending.extend((child, depth+1) for child in item)
+        elif type(item) is str:
+            require(len(item) <= MAX_STRING, "Archive string exceeds its size limit")
+        elif type(item) is float:
+            require(math.isfinite(item), "Archive numbers must be finite")
+        elif type(item) is int:
+            require(abs(item) <= 9007199254740991, "Archive integer exceeds exact browser precision")
+        else:
+            require(item is None or type(item) is bool, "Archive contains an unsupported value type")
+
+
+def parse_json(data: bytes):
+    require(type(data) is bytes and len(data) <= MAX_ARCHIVE_BYTES, "Archive exceeds the 64 MiB byte limit")
+    depth, quoted, escaped = 0, False, False
+    for byte in data:
+        if quoted:
+            if escaped:
+                escaped = False
+            elif byte == 92:
+                escaped = True
+            elif byte == 34:
+                quoted = False
+        elif byte == 34:
+            quoted = True
+        elif byte in (91, 123):
+            depth += 1
+            require(depth <= MAX_DEPTH, "Archive nesting exceeds the depth limit")
+        elif byte in (93, 125):
+            depth -= 1
+    try:
+        value = json.loads(data.decode("utf-8"), parse_constant=_reject_constant,
+                           parse_float=_float, object_pairs_hook=_object_pairs)
+    except (UnicodeError, ValueError, RecursionError, OverflowError) as error:
+        if isinstance(error, ArchiveError):
+            raise
+        raise ArchiveError("Invalid or truncated archive JSON") from error
+    _bounded_tree(value)
+    return value
+
+
+def _keys(value, required, optional=(), path="object"):
+    require(type(value) is dict, f"{path} must be an object")
+    require(set(required) <= value.keys(), f"{path} is missing required fields")
+    require(value.keys() <= set(required) | set(optional), f"{path} contains unsupported fields")
+
+
+def _number(value, path, *, minimum=-1e100, maximum=1e100, nullable=False):
+    if value is None and nullable:
+        return
+    require(type(value) in (int, float) and math.isfinite(value), f"{path} must be a finite number")
+    require(minimum <= value <= maximum, f"{path} is outside the supported range")
+
+
+def _integer(value, path, minimum=0, maximum=1_000_000):
+    require(type(value) is int and minimum <= value <= maximum, f"{path} must be a bounded integer")
+
+
+def _text(value, path, maximum=1000):
+    require(type(value) is str and 0 < len(value) <= maximum, f"{path} must be a bounded nonempty string")
+
+
+def _typed_projection(raw, typed, path="scenario"):
+    """Normalize existing declared numeric types; never add default fields.
+
+    A browser loses the lexical distinction between 1.0 and 1. The projected
+    candidate restores schema-declared number types for identity comparison,
+    while the archived snapshot itself remains unchanged.
+    """
+    if type(typed) is dict:
+        require(type(raw) is dict and raw.keys() <= typed.keys(), f"{path} has unsupported fields")
+        return {key: _typed_projection(value, typed[key], f"{path}.{key}") for key, value in raw.items()}
+    if type(typed) is list:
+        require(type(raw) is list and len(raw) == len(typed), f"{path} has an invalid array shape")
+        return [_typed_projection(a, b, path) for a, b in zip(raw, typed)]
+    if type(typed) is bool:
+        require(type(raw) is bool, f"{path} must be Boolean")
+    elif type(typed) is int:
+        require(type(raw) is int, f"{path} must be an integer")
+    elif type(typed) is float:
+        require(type(raw) in (int, float), f"{path} must be a number")
+    else:
+        require(type(raw) is type(typed), f"{path} has an invalid scalar type")
+    require(raw == typed, f"{path} is not a canonical scenario value")
+    return typed
+
+
+def _scenario(raw):
+    require(type(raw) is dict, "scenario must be an object")
+    try:
+        model = MissionScenario.model_validate(raw)
+    except (ValueError, TypeError, ArithmeticError) as error:
+        raise ArchiveError("Archive scenario is unsupported or invalid") from error
+    typed = model.model_dump(mode="json")
+    for name in ("numerical_step_commands", "pointing_target_diagnostics"):
+        if name in raw and raw[name] is None:
+            typed[name] = None
+    if model.power.analytical_efficiency_semantics is None and "analytical_efficiency_semantics" in raw.get("power", {}):
+        typed["power"]["analytical_efficiency_semantics"] = None
+    if model.schedule.uplink_duration_s is None:
+        for name in ("uplink_duration_s", "downlink_duration_s"):
+            if name in raw.get("schedule", {}) and raw["schedule"][name] is None:
+                typed["schedule"][name] = None
+    projected = _typed_projection(raw, typed)
+    if model.schedule.uplink_duration_s is None:
+        projected["schedule"].pop("uplink_duration_s", None)
+        projected["schedule"].pop("downlink_duration_s", None)
+    if model.power.analytical_efficiency_semantics is None:
+        projected["power"].pop("analytical_efficiency_semantics", None)
+    if model.conops.ground_tracking_min_elevation_deg is None:
+        projected["conops"].pop("ground_tracking_min_elevation_deg", None)
+    if model.spacecraft.pointing_reference is None:
+        projected["spacecraft"].pop("pointing_reference", None)
+    for name in ("numerical_step_commands", "pointing_target_diagnostics"):
+        if getattr(model, name) is None:
+            projected.pop(name, None)
+    if model.pointing_commands is None:
+        projected.pop("pointing_commands", None)
+    if model.stop_time_s is None:
+        projected.pop("stop_time_s", None)
+    if model.uhf_beacon is None:
+        projected.pop("uhf_beacon", None)
+    if model.radio_delivery is None:
+        projected.pop("radio_delivery", None)
+    if model.magnetic_model is None:
+        projected.pop("magnetic_model", None)
+    return model, projected
+
+
+def _column(samples, path):
+    value = samples
+    for key in path.split("."):
+        require(type(value) is dict and key in value, f"samples.{path} is required")
+        value = value[key]
+    require(type(value) is list, f"samples.{path} must be a series")
+    return value
+
+
+def _all_series(value, count, path="samples"):
+    if type(value) is dict:
+        for key, child in value.items():
+            _all_series(child, count, f"{path}.{key}")
+    else:
+        require(type(value) is list and len(value) == count, f"{path} has an inconsistent sample count")
+        for row in value:
+            require(type(row) in (int, float, bool, str, list) or row is None,
+                    f"{path} contains an invalid sample")
+            if type(row) is list:
+                require(all(type(v) in (int, float) for v in row), f"{path} vectors must contain numbers")
+            elif type(row) is str:
+                require(path in TEXT_SERIES and len(row) <= 2000, f"{path} does not accept sample text")
+            elif type(row) is bool:
+                require(path in BOOLEAN_SERIES, f"{path} does not accept Booleans as numbers")
+            elif row is not None:
+                _number(row, path)
+
+
+def _numbers(samples, path, **limits):
+    for value in _column(samples, path):
+        _number(value, "samples."+path, **limits)
+
+
+def _vectors(samples, path, size=3, *, unit=False, maximum=1e100):
+    for row in _column(samples, path):
+        require(type(row) is list and len(row) == size, f"samples.{path} requires {size}-component vectors")
+        for value in row:
+            _number(value, "samples."+path, maximum=maximum, minimum=-maximum)
+        if unit:
+            require(abs(math.hypot(*row)-1) <= 1e-6, f"samples.{path} requires unit vectors/quaternions")
+
+
+def _booleans(samples, path):
+    require(all(type(v) is bool for v in _column(samples, path)), f"samples.{path} requires Booleans")
+
+
+def _choice(samples, path, choices):
+    require(all(type(v) is str and v in choices for v in _column(samples, path)), f"samples.{path} has an unsupported value")
+
+
+def _validate_samples(samples, model, summary):
+    require(type(samples) is dict, "result.samples must be an object")
+    times = _column(samples, "time_s")
+    require(1 <= len(times) <= MAX_SAMPLES, "Archive supports 1..20001 samples")
+    _all_series(samples, len(times))
+    time_tolerance = max(1e-12, 32*math.ulp(model.duration_s))
+    for time in times:
+        _number(time, "sample time", minimum=0, maximum=model.duration_s+time_tolerance)
+    require(times[0] == 0, "Mission samples must begin at zero")
+    require(all(a < b for a, b in zip(times, times[1:])), "Mission sample times must increase strictly")
+    dt, output = model.clocks.dynamics_step_s, model.clocks.output_step_s
+    require(all(on_grid(t, step_at(model, t)) for t in times), "Samples must lie on recorded dynamics ticks")
+    require(all(abs(t-i*output) <= 1e-7 for i, t in enumerate(times[:-1])), "Intermediate samples must follow the output clock")
+    if len(times) > 1:
+        require(times[-1]-times[-2] <= output+1e-7, "Final sample skips an output interval")
+    require(abs(times[-1]-summary["computed_duration_s"]) <= 1e-7, "Final sample differs from computed duration")
+    require(summary["sample_count"] == len(times), "Summary sample count disagrees with arrays")
+    elapsed = _column(samples, "elapsed_ns")
+    require(all(type(v) is str and v == str(round(t*1e9)) for t, v in zip(times, elapsed)),
+            "Elapsed nanosecond strings disagree with sample times")
+    for name in ("satellite_position_m", "station_position_m", "satellite_position_ecef_m", "station_position_ecef_m"):
+        _vectors(samples, name, maximum=1e12)
+        require(all(math.hypot(*row) > 1 for row in _column(samples, name)), "Position vectors cannot be zero")
+    _vectors(samples, "satellite_velocity_m_s", maximum=1e9)
+    _vectors(samples, "q_body_from_inertial_wxyz", size=4, unit=True, maximum=1.000001)
+    if model.pointing_target_diagnostics is None:
+        require("pointing_target_ecef_m" not in samples, "Target diagnostics require explicit scenario opt-in")
+    else:
+        from .geometry.frames import geodetic_ecef
+
+        _choice(samples, "mode", {"sun_pointing", "ground_tracking", "imaging", "detumble"})
+        for stage in _column(samples, "stage_id"):
+            _text(stage, "stage_id", 256)
+        targets = {window.window_id: window for window in model.conops.windows}
+        targets.update({"command_" + c.command_id: c for c in model.pointing_commands or ()})
+        for index, value in enumerate(_column(samples, "pointing_target_ecef_m")):
+            expected = None
+            mode = samples["mode"][index]
+            if mode == "ground_tracking":
+                expected = samples["station_position_ecef_m"][index]
+            elif mode == "imaging":
+                target = targets.get(samples["stage_id"][index])
+                if target is not None and target.target_latitude_deg is not None:
+                    expected = geodetic_ecef(target.target_latitude_deg, target.target_longitude_deg, 0)
+            if expected is None:
+                require(value is None, "Sun/detumble/unspecified imaging cannot invent a finite ground target")
+            else:
+                require(type(value) is list and len(value) == 3, "Ground target requires three ECEF metres")
+                require(all(type(v) in (int, float) and math.isfinite(v) for v in value), "Target ECEF must be finite")
+                require(all(abs(a-b) <= 1e-6 for a,b in zip(value, expected)), "Target ECEF disagrees with accepted operation")
+    for name in ("sun_direction_inertial", "sun_direction_ecef"):
+        _vectors(samples, name, unit=True, maximum=1.000001)
+    for name in ("range_m",):
+        _numbers(samples, name, minimum=1e-9, maximum=2e12)
+    for name in ("range_rate_m_s", "ecef_from_inertial_angle_rad", "attitude_angle_deg", "elevation_deg", "azimuth_deg"):
+        _numbers(samples, name)
+    for name in ("visible", "radio_active"):
+        _booleans(samples, name)
+    _choice(samples, "active_direction", {"uplink", "downlink"})
+    _choice(samples, "mode", {"sun_pointing", "ground_tracking", "imaging", "detumble"})
+    for value in _column(samples, "stage_id"):
+        _text(value, "stage_id", 256)
+    for direction in ("uplink", "downlink"):
+        for name in ("received_power_dbw", "cn0_dbhz", "esn0_db", "margin_db", "polarization_coupling",
+                     "polarization_loss_db", "tx_gain_dbi", "rx_gain_dbi", "ideal_rate_bps", "cumulative_ideal_bits"):
+            _numbers(samples, direction+"."+name, nullable=True)
+        for name in ("fspl_db", "noise_density_dbw_hz", "doppler_hz"):
+            _numbers(samples, direction+"."+name)
+        _booleans(samples, direction+".valid")
+        _numbers(samples, direction+".polarization_coupling", minimum=0, maximum=1, nullable=True)
+        _numbers(samples, direction+".ideal_rate_bps", minimum=0, nullable=True)
+        for value in _column(samples, direction+".reason"):
+            _text(value, "link reason", 256)
+        cumulative = _column(samples, direction+".cumulative_ideal_bits")
+        require(all(v is None for v in cumulative) or
+                (all(type(v) in (int, float) and v >= 0 for v in cumulative)
+                 and all(a <= b for a, b in zip(cumulative, cumulative[1:]))),
+                "Cumulative capacity must be nondecreasing or wholly unresolved")
+        require(cumulative[-1] == summary["ideal_capacity_bits"][direction], "Summary capacity disagrees with final sample")
+    for name in ("omega_body_rad_s", "requested_torque_body_nm", "actual_torque_body_nm",
+                 "residual_torque_body_nm", "magnetic_field_body_t", "magnetic_dipole_body_am2"):
+        _vectors(samples, "gnc."+name)
+    wheel_count = sum(w.enabled for w in model.spacecraft.wheels)
+    for name in ("wheel_relative_speed_rad_s", "wheel_absolute_axial_momentum_nms", "wheel_speed_utilization"):
+        _vectors(samples, "gnc."+name, size=wheel_count)
+    for name in ("wheel_saturated", "magnetic_saturated"):
+        _booleans(samples, "gnc."+name)
+    for value in _column(samples, "gnc.controller_status"):
+        _text(value, "controller status", 256)
+    present = UNLOADING_FIELDS & samples["gnc"].keys()
+    require(not present or present == UNLOADING_FIELDS, "Unloading telemetry is incomplete")
+    if present:
+        for name in ("wheel_momentum_body_nms", "unloading_requested_torque_body_nm",
+                     "unloading_allocated_torque_body_nm", "unloading_achieved_torque_body_nm"):
+            _vectors(samples, "gnc."+name)
+        _numbers(samples, "gnc.wheel_momentum_norm_nms", minimum=0)
+        _numbers(samples, "gnc.unloading_command_time_s", minimum=0, maximum=times[-1], nullable=True)
+        require(all(v is None or v <= t+1e-7 for t, v in zip(times, samples["gnc"]["unloading_command_time_s"])), "Unloading command time exceeds sample time")
+        _choice(samples, "gnc.unloading_status", {"disabled", "controller_inactive", "hardware_unavailable", "field_unavailable", "active"})
+    for name in ("pv_available_mpp_w", "pv_terminal_w", "generated_bus_w", "potential_bus_w",
+                 "requested_load_w", "served_load_w", "unserved_load_w", "curtailed_bus_w",
+                 "charge_bus_w", "discharge_bus_w", "storage_loss_w", "regulator_heat_w",
+                 "escaped_rf_w", "net_bus_w", "stored_energy_j", "stored_energy_wh",
+                 "energy_fraction", "actuator_bus_w", "actuator_heat_w", "sun_visibility"):
+        _numbers(samples, "power."+name)
+    for name in ("energy_fraction", "sun_visibility"):
+        _numbers(samples, "power."+name, minimum=0, maximum=1+1e-9)
+    for name in ("battery_voltage_v", "battery_current_a"):
+        _numbers(samples, "power."+name, nullable=True)
+    if model.power.battery.electrical is not None:
+        _numbers(samples, "power.battery_voltage_v", minimum=1e-12)
+        _numbers(samples, "power.battery_current_a")
+        _numbers(samples, "power.battery_soc", minimum=0, maximum=1)
+        for name in ("battery_remaining_charge_ah", "battery_resistance_ohm",
+                     "battery_mean_resistance_ohm", "battery_ohmic_heat_w"):
+            _numbers(samples, "power."+name, minimum=0)
+        _numbers(samples, "power.battery_open_circuit_voltage_v", minimum=1e-12)
+        _numbers(samples, "power.battery_terminal_power_w")
+        _booleans(samples, "power.battery_temperature_outside_reference")
+    for value in _column(samples, "power.battery_electrical_reason"):
+        _text(value, "battery electrical-model status", 256)
+    require(type(samples["power"].get("component_electrical_w")) is dict, "Component power series are required")
+    for column in samples["power"]["component_electrical_w"].values():
+        for value in column:
+            _number(value, "component electrical power")
+    nodes = {n.node_id for n in model.power.thermal.nodes}
+    for name in ("node_temperature_k", "node_internal_heat_w", "node_net_heat_w",
+                 "node_absorbed_environment_w", "node_emitted_ir_w"):
+        columns = samples.get("thermal", {}).get(name)
+        require(type(columns) is dict and set(columns) == nodes, "Thermal node series disagree with scenario")
+        for node in nodes:
+            # Node IDs are keys, not paths to resolve or code to execute.
+            for value in columns[node]:
+                _number(value, "thermal node sample", minimum=1e-9 if name == "node_temperature_k" else -1e100)
+    return len(times)
+
+
+
+def _validate_reporting(report, model, summary):
+    require(type(report) is dict and report.get("schema_version") == "1.0", "Unsupported mission report")
+    epoch = datetime.fromisoformat(model.epoch_utc.replace("Z", "+00:00"))
+    def stamp(seconds):
+        return (epoch + timedelta(seconds=seconds)).isoformat().replace("+00:00", "Z")
+    completed = summary["computed_duration_s"]
+    require(report.get("epoch_utc") == stamp(0) and report.get("computed_start_utc") == stamp(0)
+            and report.get("computed_end_utc") == stamp(completed), "Report UTC bounds conflict with run")
+    require(report.get("capacity_kind") == "ideal_threshold_capacity_not_packet_delivery", "Unsupported report capacity semantics")
+    require(report.get("delivery_kind") == ("explicit_receiver_frame_model" if model.radio_delivery else "not_modeled"), "Report delivery semantics conflict with scenario")
+    days, passes = report.get("days"), report.get("passes")
+    require(type(days) is list and len(days) <= 32, "Invalid daily report array")
+    require(type(passes) is list and len(passes) <= 10000, "Invalid pass report array")
+    def interval(row, *, endpoint=False):
+        require(type(row) is dict, "Report interval must be an object")
+        for name in ("start_s", "end_s"):
+            _number(row.get(name), "report."+name, minimum=0, maximum=completed)
+        start, end = row["start_s"], row["end_s"]
+        require(end > start or endpoint and end == start == completed, "Report intervals must have positive duration or a final midnight event")
+        length = end - start
+        require(row.get("start_utc") == stamp(start) and row.get("end_utc") == stamp(end), "Report timestamp conflicts with interval")
+        _number(row.get("computed_duration_s"), "report duration", minimum=0)
+        require(math.isclose(row["computed_duration_s"], length, abs_tol=1e-7), "Report duration conflicts with interval")
+        for name in ("geometric_visible_s", "scheduled_contact_s"):
+            _number(row.get(name), name, minimum=0, maximum=length+1e-7)
+        require(row["scheduled_contact_s"] <= row["geometric_visible_s"]+1e-7, "Scheduled contact exceeds geometric visibility")
+        scheduled = 0
+        for direction in ("uplink", "downlink"):
+            values = row.get(direction)
+            require(type(values) is dict, "Report direction is required")
+            for name in ("scheduled_s", "ideal_contact_s"):
+                _number(values.get(name), "report."+name, minimum=0, maximum=length+1e-7)
+            require(values["ideal_contact_s"] <= values["scheduled_s"]+1e-7, "Ideal contact exceeds scheduled direction")
+            scheduled += values["scheduled_s"]
+            _number(values.get("ideal_capacity_bits"), "reported capacity", minimum=0, nullable=True)
+            payload = values.get("delivered_useful_bits")
+            available = values.get("delivery_available")
+            if model.radio_delivery is None:
+                require(payload is None and available is None,
+                        "Unmodeled delivery and availability must remain unknown")
+            else:
+                require(type(available) is bool, "Reported delivery availability must be Boolean")
+                require(available == (payload is not None),
+                        "Reported delivery availability conflicts with unknown payload")
+                if available:
+                    _integer(payload, "reported frame payload", 0, 9007199254740991)
+            for name in ("receiver_locked_s", "receiver_ready_s"):
+                if model.radio_delivery is None:
+                    require(values.get(name) is None, "Unmodeled receiver time must remain unknown")
+                else:
+                    _number(values.get(name), "report."+name, minimum=0, maximum=length+1e-7)
+        require(math.isclose(scheduled, row["scheduled_contact_s"], abs_tol=1e-7), "Direction contact totals disagree")
+        return start, end
+    previous = 0.0
+    for index, day in enumerate(days):
+        endpoint = day.get("endpoint_only", False)
+        require(type(endpoint) is bool, "Report endpoint flag must be Boolean")
+        if endpoint:
+            require(index == len(days)-1 and model.radio_delivery is not None, "Endpoint-only day must finish a receiver run")
+            _integer(day.get("endpoint_frame_count"), "midnight endpoint frames", 1)
+        start, end = interval(day, endpoint=endpoint)
+        require(abs(start-previous) <= 1e-7, "Daily reports must cover a contiguous computed prefix")
+        date = (epoch + timedelta(seconds=start)).date().isoformat()
+        require(day.get("date_utc") == date, "Daily report has the wrong UTC date")
+        midnight = (epoch + timedelta(seconds=start)).replace(hour=0, minute=0, second=0, microsecond=0)
+        next_midnight = (midnight + timedelta(days=1)-epoch).total_seconds()
+        if endpoint:
+            require(start == end == (midnight-epoch).total_seconds(), "Endpoint-only report must be at UTC midnight")
+        require(end <= next_midnight, "Daily report crosses a UTC midnight")
+        partial = start != (midnight-epoch).total_seconds() or end != next_midnight
+        require(type(day.get("partial_day")) is bool and day["partial_day"] == partial, "Daily partial flag conflicts with UTC bounds")
+        for name in ("geometric_pass_count", "geometric_pass_entries"):
+            _integer(day.get(name), name, 0, 10000)
+        previous = end
+    require(abs(previous-completed) <= 1e-7, "Daily report does not cover the computed run")
+    previous = -1.0
+    for index, row in enumerate(passes):
+        start, end = interval(row)
+        require(start >= previous and row.get("pass_index") == index+1, "Passes must be ordered and non-overlapping")
+        require(type(row.get("start_clipped")) is bool and type(row.get("end_clipped")) is bool, "Pass clipping flags must be Boolean")
+        require(row["start_clipped"] == (start == 0), "Pass start clipping conflicts with run")
+        require(not row["end_clipped"] or end == completed, "Clipped pass must end at the computed boundary")
+        _number(row.get("max_elevation_deg"), "pass peak elevation", minimum=-90, maximum=90)
+        require(math.isclose(row.get("duration_s", -1), end-start, abs_tol=1e-7), "Pass duration conflicts with bounds")
+        previous = end
+    for day in days:
+        intersecting = [p for p in passes if p["start_s"] < day["end_s"] and p["end_s"] > day["start_s"]]
+        require(day["geometric_pass_count"] == len(intersecting), "Daily pass count disagrees with pass list")
+        entries = sum(not p["start_clipped"] and day["start_s"] <= p["start_s"] < day["end_s"] for p in intersecting)
+        require(day["geometric_pass_entries"] == entries, "Daily pass entries disagree with pass list")
+    for direction in ("uplink", "downlink"):
+        values = [day[direction]["ideal_capacity_bits"] for day in days]
+        total = summary["ideal_capacity_bits"][direction]
+        if total is not None:
+            require(all(value is not None for value in values), "Known capacity has unknown daily totals")
+            require(math.isclose(math.fsum(values), total, rel_tol=1e-9, abs_tol=0.01), "Daily capacity differs from run total")
+        if model.radio_delivery is not None:
+            receivers = summary.get("radio_delivery")
+            require(type(receivers) is dict and type(receivers.get(direction)) is dict,
+                    "Frame reports require a receiver summary")
+            receiver = receivers[direction]
+            require(type(receiver.get("delivery_available")) is bool,
+                    "Receiver summary availability must be Boolean")
+            _integer(receiver.get("delivered_useful_bits"), "receiver summary payload", 0, 9007199254740991)
+            for name, periods in (("Daily", days), ("Pass", passes)):
+                known = all(period[direction]["delivery_available"] for period in periods)
+                known_payload = sum(period[direction]["delivered_useful_bits"] for period in periods
+                                    if period[direction]["delivery_available"])
+                require(known_payload <= receiver["delivered_useful_bits"],
+                        name + " known frame payload exceeds the receiver's known delivered count")
+                if receiver["delivery_available"] and known:
+                    require(known_payload == receiver["delivered_useful_bits"],
+                            name + " frame payload differs from receiver total")
+
+def _validate_delivery(samples, summary, model):
+    columns, totals = samples.get("radio_delivery"), summary.get("radio_delivery")
+    if model.radio_delivery is None:
+        require(columns is None and totals is None, "Receiver results require an explicit model")
+        return
+    require(type(columns) is dict and type(totals) is dict, "Receiver histories and totals are required")
+    counters = ("frames_started", "delivered_frames", "lost_frames", "aborted_frames", "unresolved_frames",
+                "offered_useful_bits", "delivered_useful_bits", "lost_useful_bits", "unresolved_useful_bits",
+                "offered_data_field_bits", "delivered_data_field_bits", "acquisition_count", "lock_loss_count",
+                "lock_reset_count", "mode_change_count")
+    for direction in ("uplink", "downlink"):
+        values, total = columns.get(direction), totals.get(direction)
+        require(type(values) is dict and type(total) is dict, "Receiver direction is required")
+        modes = getattr(model.radio_delivery, direction).modes
+        ids = [mode.mode_id for mode in modes]
+        count = len(samples["time_s"])
+        for key in (*counters, "pending_frames", "pending_useful_bits", "mode_index"):
+            series = _column(samples, "radio_delivery."+direction+"."+key)
+            for value in series:
+                _integer(value, "receiver counter", 0, 9007199254740991)
+            if key in counters:
+                require(all(a <= b for a, b in zip(series, series[1:])), "Receiver cumulative counter decreases")
+        for key in ("locked", "delivery_available"):
+            _booleans(samples, "radio_delivery."+direction+"."+key)
+        _choice(samples, "radio_delivery."+direction+".receiver_state", {"idle", "acquiring", "locked", "reconfiguring", "unresolved"})
+        _choice(samples, "radio_delivery."+direction+".mode_id", set(ids))
+        for key, series in values.items():
+            require(key in total and series[-1] == total[key], "Receiver totals disagree with final sample")
+        for index in range(count):
+            require(values["mode_index"][index] < len(ids) and ids[values["mode_index"][index]] == values["mode_id"][index], "Receiver mode identity disagrees")
+            require(values["locked"][index] == (values["receiver_state"][index] == "locked"), "Receiver lock flag disagrees")
+            frames = sum(values[key][index] for key in ("delivered_frames", "lost_frames", "unresolved_frames", "pending_frames"))
+            bits = sum(values[key][index] for key in ("delivered_useful_bits", "lost_useful_bits", "unresolved_useful_bits", "pending_useful_bits"))
+            require(frames == values["frames_started"][index] and bits == values["offered_useful_bits"][index], "Receiver frame ledger does not close")
+            require(values["pending_frames"][index] <= 1, "Receiver has more than one pending frame")
+            require(values["aborted_frames"][index] <= values["lost_frames"][index], "Aborted frames exceed all lost frames")
+        for key in ("locked_time_s", "ready_time_s", "active_time_s", "reconfiguration_time_s", "partial_frame_elapsed_s"):
+            series = _column(samples, "radio_delivery."+direction+"."+key)
+            for time, value in zip(samples["time_s"], series):
+                _number(value, "receiver elapsed time", minimum=0, maximum=time+1e-7)
+        adaptive_fields = {"ready_payload_rate_bps", "selected_margin_db"}
+        adaptive = getattr(model.radio_delivery, direction).policy == "adaptive"
+        if not adaptive:
+            require(not (adaptive_fields & (values.keys() | total.keys())),
+                    "Adaptive receiver telemetry requires adaptive policy")
+        else:
+            from .operations.radio_delivery import frame_layout
+
+            profile = getattr(model.radio_delivery, direction)
+            mode_by_id = {mode.mode_id: mode for mode in modes}
+            useful_rates = {}
+            for mode in modes:
+                layout = frame_layout(mode)
+                useful_rates[mode.mode_id] = float(
+                    (layout.data_field_bits - profile.application_overhead_bits_per_frame)
+                    / layout.duration_s
+                )
+            require(adaptive_fields <= values.keys() and adaptive_fields <= total.keys(),
+                    "Adaptive receiver rate and margin histories are required")
+            _numbers(samples, "radio_delivery."+direction+".ready_payload_rate_bps",
+                     minimum=0, maximum=3e8, nullable=True)
+            _numbers(samples, "radio_delivery."+direction+".selected_margin_db", nullable=True)
+            for index in range(count):
+                rate = values["ready_payload_rate_bps"][index]
+                margin = values["selected_margin_db"][index]
+                active = (samples["visible"][index]
+                          and samples.get("radio_active", samples["visible"])[index]
+                          and samples["active_direction"][index] == direction)
+                mode = mode_by_id[values["mode_id"][index]]
+                cn0 = samples[direction]["cn0_dbhz"][index]
+                outage = samples[direction]["reason"][index] == "field_or_polarization_null"
+                if not active or outage:
+                    require(rate == 0 and margin is None,
+                            "Inactive or zero-signal receiver cannot report ready data or selected margin")
+                elif mode.decode_threshold_esn0_db is None or cn0 is None:
+                    require(rate is None and margin is None,
+                            "Unresolved channel or threshold requires unavailable adaptive telemetry")
+                else:
+                    expected_margin = cn0 - 10 * math.log10(mode.symbol_rate_sps) - mode.decode_threshold_esn0_db
+                    require(margin is not None and math.isclose(margin, expected_margin, rel_tol=1e-12, abs_tol=1e-9),
+                            "Selected margin disagrees with the recorded channel and selected mode")
+                    expected_rate = (useful_rates[mode.mode_id]
+                                     if values["locked"][index] and expected_margin >= 0 else 0.0)
+                    require(rate is not None and (rate == 0 if expected_rate == 0 else
+                            math.isclose(rate, expected_rate, rel_tol=1e-12, abs_tol=1e-8)),
+                            "Ready rate disagrees with the selected complete-frame useful rate and receiver state")
+
+
+def _validate_uhf(samples, summary, model):
+    if model.uhf_beacon is None:
+        require("uhf_beacon" not in samples and "uhf_beacon" not in summary,
+                "UHF telemetry requires explicit UHF configuration")
+        return
+    required = {"transmitting", "visible", "received_power_dbm", "available_received_power_dbm",
+                "cn0_db_hz", "margin_db", "reason", "tx_airtime_s", "output_interval_tx_fraction",
+                "cumulative_tx_airtime_s", "scheduled_beacons_started", "scheduled_beacons_completed",
+                "contact_tx_airtime_s", "electrical_w", "heat_w", "escaped_rf_w",
+                "output_interval_electrical_w", "output_interval_heat_w", "output_interval_escaped_rf_w"}
+    _keys(samples.get("uhf_beacon"), required, path="UHF telemetry")
+    _booleans(samples, "uhf_beacon.transmitting")
+    _booleans(samples, "uhf_beacon.visible")
+    for name in ("received_power_dbm", "available_received_power_dbm", "cn0_db_hz", "margin_db"):
+        _numbers(samples, "uhf_beacon." + name, nullable=True)
+    for name in ("tx_airtime_s", "cumulative_tx_airtime_s", "contact_tx_airtime_s", "electrical_w", "heat_w", "escaped_rf_w",
+                 "output_interval_electrical_w", "output_interval_heat_w", "output_interval_escaped_rf_w"):
+        _numbers(samples, "uhf_beacon." + name, minimum=0)
+    _numbers(samples, "uhf_beacon.output_interval_tx_fraction", minimum=0, maximum=1)
+    for name in ("scheduled_beacons_started", "scheduled_beacons_completed"):
+        for value in _column(samples, "uhf_beacon." + name):
+            _integer(value, "UHF count", 0, 3_000_001)
+    for name in ("cumulative_tx_airtime_s", "contact_tx_airtime_s", "scheduled_beacons_started", "scheduled_beacons_completed"):
+        values = _column(samples, "uhf_beacon." + name)
+        require(all(a <= b for a, b in zip(values, values[1:])), "UHF cumulative values must not decrease")
+    _numbers(samples, "power.dissipated_power_w", minimum=0)
+    totals = summary.get("uhf_beacon")
+    require(type(totals) is dict, "UHF summary is required")
+    for name in ("tx_airtime_s", "contact_tx_airtime_s", "electrical_j", "heat_j", "escaped_rf_j"):
+        _number(totals.get(name), "UHF summary." + name, minimum=0)
+    require(abs(totals["tx_airtime_s"] - samples["uhf_beacon"]["cumulative_tx_airtime_s"][-1]) <= 1e-7,
+            "UHF airtime summary disagrees with final sample")
+    require(abs(totals["contact_tx_airtime_s"] - samples["uhf_beacon"]["contact_tx_airtime_s"][-1]) <= 1e-7,
+            "UHF contact airtime summary disagrees with final sample")
+    require(abs(totals["electrical_j"] - totals["heat_j"] - totals["escaped_rf_j"]) <= 1e-6 + 1e-10 * totals["electrical_j"],
+            "UHF nominal electrical/heat/RF ledger does not close")
+    require("decoded_beacons" in totals and "delivered_bits" in totals
+            and totals["decoded_beacons"] is None and totals["delivered_bits"] is None,
+            "UHF decoded delivery requires an implemented receiver model")
+    config = model.uhf_beacon
+    duration = lora_airtime(config.modulation)["packet_airtime_s"]
+    rf = 10**((config.tx_power_dbm - 30 - config.tx_feed_loss_db) / 10) * config.radiation_efficiency
+    previous = 0.0
+    for index, time_s in enumerate(samples["time_s"]):
+        timing = beacon_timing(config, time_s)
+        for name in ("transmitting", "scheduled_beacons_started", "scheduled_beacons_completed"):
+            require(samples["uhf_beacon"][name][index] == timing[name], "UHF schedule differs from recorded parameters")
+        require(samples["uhf_beacon"]["visible"][index] == samples["visible"][index], "UHF geometric visibility disagrees")
+        require(abs(samples["uhf_beacon"]["tx_airtime_s"][index] - duration) <= 1e-12, "UHF waveform airtime disagrees")
+        span = time_s - previous
+        duty = max(0.0, min(1.0, beacon_tx_airtime(config, previous, time_s) / span)) if span > 0 else 0.0
+        dc = config.idle_electrical_w * (1-duty) + config.tx_electrical_w * duty if span > 0 else 0.0
+        expected = dict(output_interval_tx_fraction=duty, output_interval_electrical_w=dc,
+                        output_interval_escaped_rf_w=rf*duty, output_interval_heat_w=dc-rf*duty)
+        for name, value in expected.items():
+            require(abs(samples["uhf_beacon"][name][index] - value) <= 1e-8, "UHF interval accounting differs from recorded parameters")
+        require(samples["uhf_beacon"]["contact_tx_airtime_s"][index] <= samples["uhf_beacon"]["cumulative_tx_airtime_s"][index] + 1e-7,
+                "UHF contact airtime exceeds transmitted airtime")
+        if not timing["transmitting"] or not samples["visible"][index]:
+            require(all(samples["uhf_beacon"][name][index] is None for name in ("received_power_dbm", "cn0_db_hz", "margin_db")),
+                    "Inactive UHF cannot have an actual received beacon level")
+        previous = time_s
+    for name in ("scheduled_beacons_started", "scheduled_beacons_completed"):
+        require(totals.get(name) == samples["uhf_beacon"][name][-1], "UHF count summary disagrees")
+
+
+def validate_snapshot(snapshot):
+    _bounded_tree(snapshot)
+    _keys(snapshot, {"scenario", "run"}, path="snapshot")
+    model, projected = _scenario(snapshot["scenario"])
+    run = snapshot["run"]
+    _keys(run, {"run_id", "status", "scenario_id", "scenario_hash", "result", "error"}, {"progress"}, "run")
+    _text(run["run_id"], "run_id", 160)
+    require(run["status"] == "complete" and run["error"] is None, "Only finished complete run records can be archived")
+    digest = run["scenario_hash"]
+    require(type(digest) is str and HASH.fullmatch(digest), "Invalid scenario hash")
+    require(digest in (content_digest(snapshot["scenario"]), content_digest(projected)), "Scenario identity does not match archived inputs")
+    require(run["scenario_id"] == "mission-"+digest[:16], "Scenario ID disagrees with its hash")
+    result = run["result"]
+    _keys(result, {"manifest", "summary", "samples", "events"}, path="result")
+    manifest, summary = result["manifest"], result["summary"]
+    require(type(manifest) is dict and type(summary) is dict, "Manifest and summary must be objects")
+    require(manifest.get("schema_version") == "0.1.0", "Unsupported mission result schema version")
+    _text(manifest.get("model_version"), "model version", 160)
+    require(manifest.get("scenario_id") == run["scenario_id"] and manifest.get("scenario_hash") == digest,
+            "Run and manifest scenario identities disagree")
+    archived_scenario = manifest.get("scenario")
+    _scenario(archived_scenario)
+    require(archived_scenario == snapshot["scenario"], "Manifest scenario conflicts with snapshot inputs")
+    if model.power.analytical_efficiency_semantics is not None:
+        from .rf.mission_efficiency import mission_downlink_efficiency
+        require(manifest.get("downlink_efficiency") == mission_downlink_efficiency(model).record(),
+                "Archived downlink efficiency conflicts with the explicit antenna inputs")
+    require("partial" not in manifest or manifest["partial"] is False,
+            "A partial result cannot be imported as complete")
+    hashes = manifest.get("source_code_hashes")
+    require(type(hashes) is dict and 1 <= len(hashes) <= 2048, "Recorded source hashes are required")
+    require(all(type(key) is str and type(value) is str and HASH.fullmatch(value) for key, value in hashes.items()),
+            "Recorded source hashes must contain SHA-256 digests")
+    time_tolerance = max(1e-12, 32*math.ulp(model.duration_s))
+    for key in ("requested_duration_s", "computed_duration_s"):
+        _number(summary.get(key), key, minimum=0, maximum=model.duration_s+time_tolerance)
+    require(summary["requested_duration_s"] == model.duration_s, "Requested duration conflicts with scenario")
+    reason = summary.get("end_reason")
+    require(type(reason) is str and reason in STOP_REASONS | {"requested_duration"}, "Unsupported completed-run end reason")
+    completed = summary["computed_duration_s"]
+    if reason == "user_stop":
+        require(model.stop_time_s is not None, "User stop requires its recorded numerical boundary")
+    if model.stop_time_s is not None:
+        stop_step = step_at(model, model.stop_time_s)
+        stop_boundary = round(model.stop_time_s / stop_step) * stop_step
+        require(completed <= stop_boundary + time_tolerance, "Completed prefix exceeds its recorded stop boundary")
+        if reason == "user_stop":
+            require(abs(completed - stop_boundary) <= time_tolerance, "User stop disagrees with its recorded boundary")
+    require((reason == "requested_duration") == (abs(completed-model.duration_s) <= time_tolerance), "Complete/stopped-prefix duration semantics disagree")
+    _integer(summary.get("sample_count"), "sample_count", 1, MAX_SAMPLES)
+    _keys(summary.get("ideal_capacity_bits"), {"uplink", "downlink"}, path="capacity summary")
+    for value in summary["ideal_capacity_bits"].values():
+        _number(value, "capacity", minimum=0, nullable=True)
+    _keys(summary.get("capacity_available"), {"uplink", "downlink"}, path="capacity availability")
+    for direction, available in summary["capacity_available"].items():
+        require(type(available) is bool and available == (summary["ideal_capacity_bits"][direction] is not None),
+                "Capacity availability conflicts with summary")
+    require(summary.get("capacity_kind") == "ideal_threshold_capacity_not_packet_delivery", "Unsupported capacity semantics")
+    for name in ("max_elevation_deg", "max_pointing_error_deg", "max_angular_rate_rad_s", "maximum_quaternion_projection_error"):
+        _number(summary.get(name), "summary."+name)
+    energy = summary.get("energy_j")
+    require(type(energy) is dict and ENERGY_FIELDS <= energy.keys(), "Complete energy ledger is required")
+    for value in energy.values():
+        _number(value, "summary energy")
+    stages = summary.get("stage_energy")
+    require(type(stages) is list and len(stages) <= 100000, "Stage energy records are required")
+    for stage in stages:
+        require(type(stage) is dict and {
+            "stage_id", "mode", "duration_s", "generated_bus_j", "requested_load_j",
+            "escaped_rf_j", "actuator_bus_j",
+        } <= stage.keys(), "Complete stage energy record is required")
+        _text(stage.get("stage_id"), "stage ID", 256)
+        require(stage.get("mode") in ("sun_pointing", "ground_tracking", "imaging", "detumble"), "Invalid stage mode")
+        for key, value in stage.items():
+            if key not in ("stage_id", "mode"):
+                _number(value, "stage energy/elapsed time")
+    settings = manifest.get("numerical_settings")
+    require(type(settings) is dict, "Numerical settings are required")
+    for key, value in model.clocks.model_dump(mode="json").items():
+        require(settings.get(key) == value and type(settings.get(key)) is not bool, "Numerical clock settings conflict with scenario")
+    for key in ("orbit_step_s", "earth_environment_hold_s"):
+        _number(settings.get(key), "numerical setting "+key, minimum=1e-12)
+    require(settings["orbit_step_s"] == model.clocks.dynamics_step_s/model.clocks.orbit_substeps,
+            "Orbit step conflicts with scenario")
+    ticks = settings.get("completed_dynamics_ticks")
+    _integer(ticks, "completed dynamics ticks", 0, 3_000_000 if model.duration_s > 604800 else 1_000_000)
+    require(ticks == planned_dynamics_ticks(model, completed), "Completed dynamics ticks disagree with recorded steps")
+    if model.numerical_step_commands is None:
+        require("dynamics_step_segments" not in settings and "step_policy" not in settings,
+                "Recorded numerical settings require a command timeline")
+    else:
+        require(settings.get("dynamics_step_segments") == step_segments(model, completed)
+                and settings.get("step_policy") == "recorded_piecewise_fixed_steps_v1",
+                "Numerical step segment history disagrees with the scenario")
+    if "reporting" in summary:
+        _validate_reporting(summary["reporting"], model, summary)
+    count = _validate_samples(result["samples"], model, summary)
+    _validate_delivery(result["samples"], summary, model)
+    _validate_uhf(result["samples"], summary, model)
+    events = result["events"]
+    require(type(events) is list and len(events) <= 100000, "Invalid event array")
+    previous = -1.0
+    terminated = []
+    for event in events:
+        require(type(event) is dict, "Events must be objects")
+        _number(event.get("time_s"), "event time", minimum=0, maximum=completed)
+        require(event["time_s"] >= previous, "Event times must be nondecreasing")
+        previous = event["time_s"]
+        require(event.get("type") in ("state", "terminated", "radio_delivery", "pointing_command", "numerical_step"), "Unsupported mission event type")
+        if event["type"] == "numerical_step":
+            try:
+                command = NumericalStepCommand.model_validate(event.get("command"))
+            except (ValueError, TypeError) as error:
+                raise ArchiveError("Invalid numerical step event") from error
+            require(command in (model.numerical_step_commands or ()), "Numerical event is absent from recorded timeline")
+            require(command.effective_time_s == event["time_s"], "Numerical event time differs from accepted boundary")
+        if event["type"] == "pointing_command":
+            try:
+                command = PointingCommand.model_validate(event.get("command"))
+            except (ValueError, TypeError) as error:
+                raise ArchiveError("Invalid pointing command event") from error
+            require(command in (model.pointing_commands or ()), "Pointing event is absent from the recorded command timeline")
+            command_tick = round(command.effective_time_s / model.clocks.dynamics_step_s)
+            require(abs(command_tick * model.clocks.dynamics_step_s - event["time_s"]) <= 1e-7,
+                    "Pointing command event time disagrees with its accepted boundary")
+        if event["type"] == "radio_delivery":
+            require(model.radio_delivery is not None, "Receiver events require an explicit model")
+            direction = event.get("direction")
+            require(direction in ("uplink", "downlink"), "Receiver event direction is invalid")
+            require(event.get("state") in ("idle", "acquiring", "locked", "reconfiguring", "unresolved"), "Receiver event state is invalid")
+            require(event.get("mode_id") in {m.mode_id for m in getattr(model.radio_delivery, direction).modes}, "Receiver event mode is invalid")
+            _text(event.get("cause"), "receiver event cause", 256)
+        if "visible" in event:
+            require(type(event["visible"]) is bool, "Event visibility must be Boolean")
+        for key in ("sun_visibility", "attempted_interval_s", "unserved_load_w", "projection_error"):
+            if key in event:
+                _number(event[key], "event."+key, minimum=0)
+        if event["type"] == "terminated":
+            terminated.append(event)
+    numerical_events = [event["command"] for event in events if event["type"] == "numerical_step"]
+    expected_numerical = [command.model_dump(mode="json") for command in model.numerical_step_commands or ()
+                          if command.effective_time_s < completed
+                          or (command.effective_time_s == completed and reason != "user_stop")]
+    require(numerical_events == expected_numerical, "Numerical command events disagree with the applied timeline")
+    if reason == "requested_duration":
+        require(not terminated, "Full-duration result contains a termination event")
+    else:
+        require(len(terminated) == 1 and terminated[0].get("reason") == reason
+                and terminated[0]["time_s"] == completed, "Stopped prefix needs its matching termination event")
+    progress = run.get("progress")
+    if progress is not None:
+        _validate_progress(progress, model, summary, count)
+    return snapshot
+
+
+def _validate_progress(progress, model, summary, count):
+    _keys(progress, {"state"}, {
+        "completed_time_s", "requested_duration_s", "fraction", "output_samples", "end_reason",
+        "reporting", "worker_elapsed_s", "execution_limits",
+    }, "progress")
+    require(progress["state"] == "finished", "A complete archive cannot contain running/partial progress")
+    completed = summary["computed_duration_s"]
+    for key, expected in (("completed_time_s", completed), ("requested_duration_s", model.duration_s),
+                          ("fraction", completed/model.duration_s), ("output_samples", count)):
+        if key in progress:
+            _number(progress[key], "progress."+key)
+            require(abs(progress[key]-expected) <= 1e-8, "Progress conflicts with complete result")
+    require("end_reason" not in progress or progress["end_reason"] == summary["end_reason"],
+            "Progress end reason conflicts with summary")
+    if "worker_elapsed_s" in progress:
+        _number(progress["worker_elapsed_s"], "worker elapsed seconds", minimum=0, maximum=86400)
+    if "reporting" in progress:
+        report = summary.get("reporting")
+        require(type(report) is dict, "Finished progress report requires the completed report")
+        expected = {key: value for key, value in report.items() if key != "passes"}
+        require(progress["reporting"] == expected, "Finished progress report differs from completed daily totals")
+    if "execution_limits" in progress:
+        limits = progress["execution_limits"]
+        _keys(limits, {
+            "policy", "estimated_work_units", "maximum_work_units", "worker_wall_limit_s",
+            "maximum_dynamics_ticks", "maximum_orbit_substeps", "maximum_output_intervals", "live_output",
+        }, path="execution limits")
+        require(limits["policy"] == "bounded_long_mission_v1", "Unsupported archived execution-limit policy")
+        _integer(limits["maximum_work_units"], "maximum work units", 1, 300_000_000)
+        _number(limits["estimated_work_units"], "estimated work units", minimum=0,
+                maximum=limits["maximum_work_units"])
+        _integer(limits["worker_wall_limit_s"], "worker wall limit seconds", 1, 3600)
+        _integer(limits["maximum_dynamics_ticks"], "maximum dynamics ticks", 1, 3_000_000)
+        _integer(limits["maximum_orbit_substeps"], "maximum orbit substeps", 1, 6_000_000)
+        _integer(limits["maximum_output_intervals"], "maximum output intervals", 1, 20000)
+        _text(limits["live_output"], "recorded live-output policy", 256)
+        ticks = round(model.duration_s/model.clocks.dynamics_step_s)
+        require(ticks <= limits["maximum_dynamics_ticks"]
+                and ticks*model.clocks.orbit_substeps <= limits["maximum_orbit_substeps"]
+                and model.duration_s/model.clocks.output_step_s <= limits["maximum_output_intervals"],
+                "Recorded execution limits cannot accommodate the scenario clocks")
+
+
+def export_archive(snapshot):
+    validate_snapshot(snapshot)
+    envelope = dict(format=FORMAT, version=VERSION, snapshot=snapshot,
+                    integrity=dict(algorithm="sha256", canonicalization=CANONICALIZATION,
+                                   sha256=content_digest(snapshot)))
+    _bounded_tree(envelope)
+    data = canonical_json(envelope).encode("utf-8")
+    require(len(data) <= MAX_ARCHIVE_BYTES, "Archive exceeds the 64 MiB byte limit")
+    return data
+
+
+def import_archive(data: bytes):
+    envelope = parse_json(data)
+    _keys(envelope, {"format", "version", "snapshot", "integrity"}, path="archive")
+    require(envelope["format"] == FORMAT and type(envelope["version"]) is int and envelope["version"] == VERSION,
+            "Unsupported mission archive format/version")
+    integrity = envelope["integrity"]
+    _keys(integrity, {"algorithm", "canonicalization", "sha256"}, path="integrity")
+    require(integrity["algorithm"] == "sha256" and integrity["canonicalization"] == CANONICALIZATION,
+            "Unsupported archive integrity convention")
+    require(type(integrity["sha256"]) is str and HASH.fullmatch(integrity["sha256"]), "Invalid archive checksum")
+    require(content_digest(envelope["snapshot"]) == integrity["sha256"], "Archive integrity checksum mismatch")
+    snapshot = validate_snapshot(envelope["snapshot"])
+    return dict(snapshot=snapshot, import_metadata=dict(
+        format=FORMAT, version=VERSION, sha256=integrity["sha256"],
+        validation="structural_and_integrity_only", source_identity="retained_not_recomputed",
+    ))
+
+
+def export_request(data: bytes):
+    """Accept an exact raw completed worker response or an explicit snapshot.
+
+    Retaining the original response text avoids JavaScript dropping negative
+    zero and integer/float lexical distinctions used by the original identity.
+    Neither form depends on the worker manager retaining the job.
+    """
+    value = parse_json(data)
+    if type(value) is dict and "run_id" in value:
+        result = value.get("result")
+        require(type(result) is dict and type(result.get("manifest")) is dict,
+                "A completed raw run record with a manifest is required")
+        value = dict(scenario=result["manifest"].get("scenario"), run=value)
+    return export_archive(value)

@@ -1,9 +1,32 @@
+# Local mission material, planning and agent instructions
+/private/
+/AGENTS.md
+/CLAUDE.md
+
+# Operating-system files
 .DS_Store
+
+# Python environments and caches
 .venv/
+venv/
 __pycache__/
+*.egg-info/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Browser dependencies and generated output
 node_modules/
 dist/
+build/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# Local configuration
 .env
 .env.*
 !.env.example
-# Large generated results and imagery will receive explicit storage rules when implemented.

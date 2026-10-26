@@ -1,0 +1,30 @@
+{
+  "name": "cubesat-link-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@fontsource/ibm-plex-sans": "^5.2.8",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "three": "^0.183.0",
+    "uplot": "^1.6.32"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/three": "^0.183.0",
+    "@vitejs/plugin-react": "^5.1.1",
+    "prettier": "3.6.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0"
+  }
+}

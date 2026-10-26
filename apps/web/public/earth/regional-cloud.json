@@ -1,0 +1,53 @@
+{
+  "revision": "nasa-blue-marble-cloud-2001-stanford-v1",
+  "url": "/earth/earth-clouds-stanford-1km.png",
+  "source_url": "https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud.W.2001210.21600x21600.png",
+  "publisher_page": "https://science.nasa.gov/earth/earth-observatory/the-blue-marble-true-color-global-imagery-at-1km-resolution/",
+  "source_dimensions": [
+    21600,
+    21600
+  ],
+  "source_sha256": "d7a6b03bb54b8ba56f72af6d1d49f191a25c12e911c43739c900e893d10eb814",
+  "source_bytes": 210808929,
+  "runtime_dimensions": [
+    2048,
+    2048
+  ],
+  "runtime_bytes": 1479479,
+  "runtime_sha256": "1685487264c211cabf7a08f6fad7cdc4bbf3e1eec87412247213941f0bd724a9",
+  "crop_pixel_box": [
+    5920,
+    5260,
+    7968,
+    7308
+  ],
+  "source_tile_bounds_deg": {
+    "west": -180,
+    "east": 0,
+    "north": 90,
+    "south": -90
+  },
+  "bounds_deg": {
+    "west": -130.66666666666666,
+    "east": -113.6,
+    "north": 46.166666666666664,
+    "south": 29.1
+  },
+  "angular_pixel_spacing_deg": 0.008333333333333333,
+  "published_nominal_resolution_m": 1000,
+  "retrieved_utc": "2026-10-25T12:35:17.946446+00:00",
+  "credit": "NASA Goddard Space Flight Center / Reto Stockli; MODIS Blue Marble cloud composite",
+  "license_url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+  "acquisition_epoch": "2001 multiday composite, released2002; not simulated epoch or live weather",
+  "transform": "Exact native pixel crop converted to grayscale PNG; no resize or synthetic detail. Original complete source hash retained.",
+  "limits": [
+    "Visual cloud coverage artwork, not liquid-water density or RF attenuation.",
+    "Native1km product class is not an instantaneous weather observation.",
+    "Global8Kmap retained elsewhere; edge and camera blending joins composites with possibly different coverage.",
+    "One2048squareRGBAtexture+mips adds at most22369620bytes(21.34MiB). Independent verified load/failure/cancellation;15s inactive release and immediate view disposal."
+  ],
+  "schema_version": "1.0",
+  "file": "earth-clouds-stanford-1km.png",
+  "extra_gpu_memory_upper_bound_bytes": 22369620,
+  "license": "NASA imagery-use guidelines;generally not subject toUScopyright;educational/informational use with acknowledgment,no endorsement."
+}
