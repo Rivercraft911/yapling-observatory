@@ -1,0 +1,3 @@
+# These files retain the exact upstream bytes checked by their recorded hashes.
+services/simulator/src/cubesat_sim/geomagnetism/igrf14coeffs.txt -text
+apps/web/public/licenses/*.txt -text
