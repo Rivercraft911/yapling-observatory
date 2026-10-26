@@ -28,7 +28,7 @@ NASA Goddard Space Flight Center / Reto Stöckli (clouds); Robert Simmon (compos
 https://science.nasa.gov/earth/earth-observatory/the-blue-marble-true-color-global-imagery-at-1km-resolution/
 https://www.nasa.gov/nasa-brand-center/images-and-media/
 
-The 2048 × 2048 grayscale PNG is a native crop of NASA's original 21600 × 21600 western-half cloud image, with no resizing or synthetic detail. It has the same bounds as the regional daytime patch:29.1–46.166666667 degrees N,130.666666667–113.6 degrees W. The published product class is 1 km;angular grid spacing is 1/120 degree. The 2002 NASA description identifies a cloud composite using two days of visible imagery and a third day of thermal-IR imagery over the poles. This retained 2001 composite is not the simulated epoch or live weather, cloud water content, RF loss or thermal-environment truth. No city-light imagery is used.
+The 2048 × 2048 grayscale PNG is a native crop of NASA's original 21600 × 21600 western-half cloud image, with no resizing or synthetic detail. It has the same bounds as the regional daytime patch:29.1–46.166666667 degrees N,130.666666667–113.6 degrees W. The published product class is 1 km;angular grid spacing is 1/120 degree. The 2002 NASA description identifies a cloud composite using two days of visible imagery and a third day of thermal-IR imagery over the poles. This retained 2001 composite is not the simulated epoch or live weather, cloud water content, RF loss or thermal-environment truth. That cloud derivative does not include city lights.
 
 The earlier Stanford-only mask is retained with /earth/regional-cloud.json for provenance and reproducibility. It is superseded at runtime by the native tile layer below. No NASA endorsement is implied.
 
@@ -44,3 +44,11 @@ The original western and eastern 21600 × 21600 grayscale PNGs form a 43200 × 2
 The curated tile set totals86,643,482bytes. The renderer selects up to nine local tiles from the actual close-camera position, with at most two loads in progress and per-tile size/SHA/dimension checks. Single-channel R8 textures limit cloud tile GPU storage to48MiB including mipmaps, plus at most36MiB retained CPU mask data. Two temporary bitmap/canvas decodes add transient memory. Tiles are released on eviction, after15s outside the needed view, and immediately on view disposal. The global8K map remains outside loaded coverage, near some horizon/polar edges, on failure and in far views. Adjacent tiles use native gutters; exposed coverage edges and camera distance feather to global artwork. Visible cloud opacity and approximate surface shadows share the same sampler, coordinates and tile weights. No runtime external requests occur.
 
 See /earth/cloud-tiles.json for every tile identity, native pixel bounds, complete source hashes, acquisition limits, measured compression errors and licensing. This display-only layer is independent of numerical weather, RF, power and thermal models. No NASA endorsement is implied.
+
+Night lights
+
+Solar System Scope / INOVE
+https://www.solarsystemscope.com/textures/
+https://creativecommons.org/licenses/by/4.0/
+
+The night-light maps are the unmodified 8192x4096 and 2048x1024 publisher JPEGs, distributed under CC BY 4.0. The 2K original is used when the GPU does not support the 8K texture. Runtime appearance uses a restrained emissive gain and a smooth daylight fade; cloud opacity can obscure the lights. The publisher supplies adjusted composite imagery without a single observation epoch. These maps are not current city activity, simulated-date observations, calibrated light radiance, weather or spacecraft thermal inputs. No buildings, city geometry or procedural light locations are generated. Source URLs, sizes and SHA-256 identities are recorded in asset-provenance.json.

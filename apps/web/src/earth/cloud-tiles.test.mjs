@@ -85,7 +85,7 @@ if (typeof ASSET_DIR === 'undefined') {
   const capabilities = { maxTextureSize: 8192, maxTextures: 16, getMaxAnisotropy: () => 16 };
   assert.equal(cloudTileBudget(capabilities), 9);
   assert.equal(cloudTileBudget({ ...capabilities, maxTextureSize: 1024 }), 0);
-  assert.equal(cloudTileBudget({ ...capabilities, maxTextures: 8 }), 4);
+  assert.equal(cloudTileBudget({ ...capabilities, maxTextures: 8 }), 3);
   const position = (latitude, longitude) => ({
     x: Math.cos((latitude * Math.PI) / 180) * Math.cos((longitude * Math.PI) / 180),
     y: Math.sin((latitude * Math.PI) / 180) * 0.99330562,
@@ -154,21 +154,32 @@ if (typeof ASSET_DIR === 'undefined') {
   assert.ok(shown.some((tile) => tile.featherEdges.every((edge) => edge === 0)));
   assert.ok(peak <= 2);
   assert.equal(Number(diagnostics.cloudTileResident), 9);
-  // A completely different camera region evicts old masks before retaining new ones.
+  // A new neighborhood fades out resident masks before bounded-cache eviction.
   failId = selectCloudTiles(elsewhere)[0].id;
+  const oldTiles = shown.map((tile) => tile.texture);
   layer.update(elsewhere, 1, 2000);
+  assert.deepEqual(
+    shown.map((tile) => tile.texture),
+    oldTiles,
+  );
+  assert.ok(shown.every((tile) => tile.opacity === 1));
   layer.update(elsewhere, 1, 2251);
+  assert.ok(shown.every((tile) => Math.abs(tile.opacity - 0.3725) < 1e-12));
+  assert.equal(disposed, 0);
+  assert.equal(active, 0);
+  layer.update(elsewhere, 1, 2400);
+  assert.equal(active, 2);
   await drain();
-  layer.update(elsewhere, 1, 2651);
+  layer.update(elsewhere, 1, 2800);
   assert.equal(shown.length, 8);
   assert.equal(diagnostics.cloudTileState, 'partial');
   assert.match(diagnostics.cloudTileError, /independent failure/);
   assert.ok(Number(diagnostics.cloudTileResident) <= 9);
   assert.ok(disposed >= 8);
   failId = null;
-  layer.update(elsewhere, 1, 32252);
+  layer.update(elsewhere, 1, 32401);
   await drain();
-  layer.update(elsewhere, 1, 32652);
+  layer.update(elsewhere, 1, 32801);
   assert.equal(shown.length, 9);
   layer.update(elsewhere, 0, 33000);
   assert.equal(shown.length, 0);
@@ -203,6 +214,43 @@ if (typeof ASSET_DIR === 'undefined') {
   releaseLate(lateTexture);
   await new Promise((resolve) => setImmediate(resolve));
   assert.ok(lateDisposed);
+  // A zero-opacity neighbor cannot remove a visible tile's fallback feather.
+  const edgeRequests = [];
+  let edgeTiles = [];
+  const edgeLayer = new CloudTileLayer(
+    2,
+    (tiles) => (edgeTiles = tiles),
+    {},
+    (asset) => new Promise((resolve) => edgeRequests.push({ asset, resolve })),
+  );
+  edgeLayer.update(stanford, 1, 1000);
+  edgeLayer.update(stanford, 1, 1300);
+  edgeRequests[0].resolve(new Texture());
+  await new Promise((resolve) => setImmediate(resolve));
+  edgeLayer.update(stanford, 1, 1400);
+  const first = edgeTiles.find((tile) => tile.opacity === 0.25);
+  assert.ok(first);
+  assert.deepEqual(first.featherEdges, [1, 1, 1, 1]);
+  edgeRequests[1].resolve(new Texture());
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(
+    edgeTiles.find((tile) => tile.texture === first.texture).featherEdges,
+    [1, 1, 1, 1],
+  );
+  edgeLayer.update(stanford, 1, 1500);
+  assert.ok(edgeTiles.find((tile) => tile.texture === first.texture).featherEdges.includes(0.75));
+  // Changing direction halfway through a fade keeps the current opacity, then reverses smoothly.
+  edgeLayer.update(elsewhere, 1, 1600);
+  edgeLayer.update(elsewhere, 1, 1700);
+  const beforeReturn = edgeTiles.find((tile) => tile.texture === first.texture).opacity;
+  edgeLayer.update(stanford, 1, 1700);
+  assert.equal(edgeTiles.find((tile) => tile.texture === first.texture).opacity, beforeReturn);
+  edgeLayer.update(stanford, 1, 1800);
+  assert.equal(
+    edgeTiles.find((tile) => tile.texture === first.texture).opacity,
+    beforeReturn + 0.25,
+  );
+  edgeLayer.dispose();
   // Validated bytes decode to a single-channel mask with the same orientation contract.
   const source = new Uint8Array([1, 2, 3]);
   const fixture = {
@@ -263,6 +311,6 @@ if (typeof ASSET_DIR === 'undefined') {
   );
   assert.equal(closed, 2);
   console.log(
-    `Native cloud checks passed: ${manifest.tile_count} byte identities, native grid/gutters, date/provenance, longitude wrap/poles, bounded nine-tile cache/two loads, eviction/cancellation/retry/disposal, validated R8 decode and mip/filter orientation.`,
+    `Native cloud checks passed: ${manifest.tile_count} byte identities, native grid/gutters, date/provenance, longitude wrap/poles, bounded nine-tile cache/two loads, continuous neighborhood/neighbor fades, bounded eviction/cancellation/retry/disposal, validated R8 decode and mip/filter orientation.`,
   );
 }

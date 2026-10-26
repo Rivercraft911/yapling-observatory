@@ -28,7 +28,7 @@ export interface CloudTileView {
 interface ResidentTile {
   asset: CloudTileAsset;
   texture: Texture;
-  readyAt: number;
+  opacity: number;
   lastUsed: number;
 }
 interface CloudCapabilities {
@@ -41,9 +41,9 @@ const byId = new Map(assets.map((asset) => [asset.id, asset]));
 const { width, height, interior_pixels: interior, columns, rows } = cloudImagery.grid;
 export const CLOUD_TILE_LIMIT = 9;
 export function cloudTileBudget(capabilities: CloudCapabilities) {
-  // Surface day/ocean/global-cloud/regional-day samplers also remain active.
+  // Surface day/ocean/global-cloud/regional-day/night samplers remain active.
   return capabilities.maxTextureSize >= 2048
-    ? Math.max(0, Math.min(CLOUD_TILE_LIMIT, capabilities.maxTextures - 4))
+    ? Math.max(0, Math.min(CLOUD_TILE_LIMIT, capabilities.maxTextures - 5))
     : 0;
 }
 export function selectCloudTiles(position: { x: number; y: number; z: number }) {
@@ -134,6 +134,12 @@ export class CloudTileLayer {
   ) {}
   update(position: { x: number; y: number; z: number }, weight: number, now: number) {
     if (this.disposed) return;
+    const fadeStep = Math.max(0, now - this.now) / 400;
+    for (const item of this.resident.values()) {
+      const wanted = this.desired.some((asset) => asset.id === item.asset.id);
+      const opacity = Math.max(0, Math.min(1, item.opacity + (wanted ? fadeStep : -fadeStep)));
+      item.opacity = opacity < 1e-12 ? 0 : opacity > 1 - 1e-12 ? 1 : opacity;
+    }
     this.now = now;
     this.weight = weight;
     const desired =
@@ -148,7 +154,7 @@ export class CloudTileLayer {
     }
     for (const item of this.resident.values()) {
       if (desired.some((asset) => asset.id === item.asset.id)) item.lastUsed = now;
-      else if (now - item.lastUsed > 15000) this.release(item.asset.id);
+      else if (item.opacity === 0 && now - item.lastUsed > 15000) this.release(item.asset.id);
     }
     this.publish();
     this.pump();
@@ -162,7 +168,10 @@ export class CloudTileLayer {
       if (failedAt !== undefined && this.now - failedAt < 30000) continue;
       if (this.resident.size + this.pending.size >= this.budget) {
         const stale = [...this.resident.values()]
-          .filter((item) => !this.desired.some((wanted) => wanted.id === item.asset.id))
+          .filter(
+            (item) =>
+              item.opacity === 0 && !this.desired.some((wanted) => wanted.id === item.asset.id),
+          )
           .sort((a, b) => a.lastUsed - b.lastUsed)[0];
         if (!stale) break;
         this.release(stale.asset.id);
@@ -174,7 +183,7 @@ export class CloudTileLayer {
           if (this.disposed || controller.signal.aborted) texture.dispose();
           else {
             this.failed.delete(asset.id);
-            this.resident.set(asset.id, { asset, texture, readyAt: this.now, lastUsed: this.now });
+            this.resident.set(asset.id, { asset, texture, opacity: 0, lastUsed: this.now });
           }
         })
         .catch((error: unknown) => {
@@ -199,29 +208,35 @@ export class CloudTileLayer {
     this.resident.delete(id);
   }
   private publish() {
-    const tiles = [...this.resident.values()].filter((item) =>
-      this.desired.some((asset) => asset.id === item.asset.id),
-    );
+    const tiles = [...this.resident.values()]
+      .filter(
+        (item) =>
+          (item.opacity > 0 && this.weight > 0) ||
+          this.desired.some((asset) => asset.id === item.asset.id),
+      )
+      .sort((a, b) => (a.asset.id < b.asset.id ? -1 : a.asset.id > b.asset.id ? 1 : 0));
+    const loaded = this.desired.filter((asset) => this.resident.has(asset.id)).length;
     this.onChange(
       tiles.map((item) => ({
         texture: item.texture,
         bounds: item.asset.bounds_uv,
         featherEdges: (() => {
           const [x, y] = item.asset.id.split('-').map(Number);
-          const has = (column: number, row: number) =>
-            tiles.some((other) => other.asset.id === `${(column + columns) % columns}-${row}`);
-          return [has(x - 1, y), has(x, y + 1), has(x + 1, y), has(x, y - 1)].map((present) =>
-            present ? 0 : 1,
+          const opacity = (column: number, row: number) =>
+            tiles.find((other) => other.asset.id === `${(column + columns) % columns}-${row}`)
+              ?.opacity ?? 0;
+          return [opacity(x - 1, y), opacity(x, y + 1), opacity(x + 1, y), opacity(x, y - 1)].map(
+            (value) => 1 - value,
           );
         })(),
-        opacity: this.weight * Math.min(1, Math.max(0, (this.now - item.readyAt) / 400)),
+        opacity: this.weight * item.opacity,
       })),
     );
     this.diagnostics.cloudTileState = !this.desired.length
       ? 'global-only'
-      : tiles.length === this.desired.length
+      : loaded === this.desired.length
         ? 'ready'
-        : tiles.length
+        : loaded
           ? 'partial'
           : this.desired.every((asset) => this.failed.has(asset.id))
             ? 'unavailable'

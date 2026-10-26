@@ -4,11 +4,11 @@
   "publisher_page": "https://www.solarsystemscope.com/textures/",
   "license": "CC BY 4.0",
   "license_url": "https://creativecommons.org/licenses/by/4.0/",
-  "credit": "Earth imagery: Solar System Scope / INOVE, based on NASA Blue Marble and other geodata. CC BY 4.0. Runtime derivatives prepared for Stanford SSI Link Workspace.",
+  "credit": "Earth imagery: Solar System Scope / INOVE, based on NASA Blue Marble and other geodata. CC BY 4.0. Runtime derivatives prepared for Yapling Observatory.",
   "limits": [
     "Static artistic composite, not live weather. Publisher does not provide a single observation epoch.",
     "Publisher describes adjusted/saturated colors and merged geodata. Runtime shader further adjusts saturation, illumination and ocean response.",
-    "No city-light texture or terrain geometry is used. Ocean mask is a visual material mask, not a measured bidirectional reflectance function.",
+    "Static night-light imagery is an appearance layer; no terrain or city geometry is used. Ocean mask is a visual material mask, not a measured bidirectional reflectance function.",
     "Cloud-mask density, height, shadow and atmospheric scattering are visual approximations and never enter RF or numerical results.",
     "Primary NASA regional daytime and native cloud tiles have separate NASA terms and explicit acquisition/composite epochs. Solar System Scope assets retain CC BY4.0 terms."
   ],
@@ -113,7 +113,7 @@
       "file": "earth-day-stanford-500m.jpg",
       "url": "/earth/earth-day-stanford-500m.jpg",
       "publisher": "NASA Earth Observatory",
-      "credit": "NASA Earth Observatory / Reto Stöckli and Robert Simmon",
+      "credit": "NASA Earth Observatory / Reto St\u00f6ckli and Robert Simmon",
       "publisher_page": "https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/base-map/",
       "source_url": "https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-base/august/world.200408.3x21600x21600.A1.jpg",
       "license": "NASA imagery use guidelines; generally not subject to US copyright. Educational/informational use with acknowledgment; no endorsement.",
@@ -224,7 +224,7 @@
       "publisher_page": "https://science.nasa.gov/earth/earth-observatory/the-blue-marble-true-color-global-imagery-at-1km-resolution/",
       "license": "NASA imagery-use guidelines; educational/informational use with source acknowledgment; no endorsement.",
       "license_url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
-      "credit": "NASA Goddard Space Flight Center / Reto Stöckli; compositing enhancements by Robert Simmon.",
+      "credit": "NASA Goddard Space Flight Center / Reto St\u00f6ckli; compositing enhancements by Robert Simmon.",
       "acquisition_epoch": "2001 multiday composite, released 2002; not simulated epoch or live weather",
       "source_grid": [
         43200,
@@ -274,6 +274,46 @@
         "Nine tile resident limit, two concurrent loads, single-channel R8 textures; GPU mips at most48MiB and retained CPU mask data at most36MiB.",
         "Only camera-neighborhood coverage is resident; global artwork remains beyond loaded tiles and near some horizon/polar edges."
       ]
+    },
+    {
+      "file": "earth-night-2k.jpg",
+      "publisher": "Solar System Scope / INOVE",
+      "source_url": "https://www.solarsystemscope.com/textures/download/2k_earth_nightmap.jpg",
+      "source_dimensions": [
+        2048,
+        1024
+      ],
+      "runtime_dimensions": [
+        2048,
+        1024
+      ],
+      "source_sha256": "c16fd1bc096ab91a5c5265c6ff9847c43f489f2e2ee790ccdbcbd03251cf3a5a",
+      "runtime_sha256": "c16fd1bc096ab91a5c5265c6ff9847c43f489f2e2ee790ccdbcbd03251cf3a5a",
+      "runtime_bytes": 255287,
+      "transform": "Unmodified publisher JPEG; shader provides a restrained display-only night emission and daylight fade.",
+      "acquisition_epoch": null,
+      "retrieved_utc": "2026-10-26T03:41:33.580066+00:00",
+      "role": "Global city-light appearance; 2K original is the fallback below 8192px GPU support. Not simulated-date observations or calibrated radiance."
+    },
+    {
+      "file": "earth-night-8k.jpg",
+      "publisher": "Solar System Scope / INOVE",
+      "source_url": "https://www.solarsystemscope.com/textures/download/8k_earth_nightmap.jpg",
+      "source_dimensions": [
+        8192,
+        4096
+      ],
+      "runtime_dimensions": [
+        8192,
+        4096
+      ],
+      "source_sha256": "9894e83a585a22c1c425e7ca4f987a9ba625bf08ecee45d3c9dcacae3c2ad5f7",
+      "runtime_sha256": "9894e83a585a22c1c425e7ca4f987a9ba625bf08ecee45d3c9dcacae3c2ad5f7",
+      "runtime_bytes": 3144468,
+      "transform": "Unmodified publisher JPEG; shader provides a restrained display-only night emission and daylight fade.",
+      "acquisition_epoch": null,
+      "retrieved_utc": "2026-10-26T03:41:33.582308+00:00",
+      "role": "Global city-light appearance; 2K original is the fallback below 8192px GPU support. Not simulated-date observations or calibrated radiance."
     }
   ],
   "updated_utc": "2026-10-25T22:16:12.839945+00:00",

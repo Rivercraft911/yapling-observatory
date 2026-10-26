@@ -29,10 +29,12 @@ function cloudSampling(tileCount: number) {
   float edge=min(min(localUv.x,localUv.y),min(1.-localUv.x,1.-localUv.y));
   if(edge>=0.){
    vec4 distance=vec4(localUv,1.-localUv);
-   vec4 feather=mix(vec4(1.),smoothstep(vec4(0.),vec4(.07),distance),nativeCloudFeather[${index}]);
+   vec2 gutter=vec2(16.)/vec2(textureSize(nativeCloudMaps[${index}],0));
+   vec4 width=mix(vec4(gutter,gutter),vec4(.07),nativeCloudFeather[${index}]);
+   vec4 feather=smoothstep(vec4(0.),width,distance);
    float blend=nativeCloudOpacity[${index}]*feather.x*feather.y*feather.z*feather.w;
    float tile=texture2DGradEXT(nativeCloudMaps[${index}],localUv,dx/(bounds.zw-bounds.xy),dy/(bounds.zw-bounds.xy)).r;
-   base=mix(base,tile,blend);
+   nativeCoverage+=tile*blend;nativeWeight+=blend;
   }
  }`,
   ).join('');
@@ -45,12 +47,17 @@ uniform vec4 nativeCloudBounds[${tileCount}];uniform vec4 nativeCloudFeather[${t
 uniform float nativeCloudOpacity[${tileCount}];`
     : ''
 }
+float combineCloudCoverage(float base,float nativeCoverage,float nativeWeight){
+ return base*(1.-min(nativeWeight,1.))+nativeCoverage/max(nativeWeight,1.);
+}
 float cloudCoverage(vec2 uv){
  // Explicit derivatives remain valid across geographic branches and longitude wrap.
  vec2 dx=dFdx(uv),dy=dFdy(uv);dx.x-=floor(dx.x+.5);dy.x-=floor(dy.x+.5);
  float base=texture2DGradEXT(cloudMap,uv,dx,dy).r;
+ float nativeCoverage=0.;float nativeWeight=0.;
 ${samples}
- return base;
+ // Normalize overlapping gutters so async tile order cannot change coverage.
+ return combineCloudCoverage(base,nativeCoverage,nativeWeight);
 }
 `;
 }
@@ -59,6 +66,7 @@ export function createEarthAppearance(
   cloud: Texture,
   ocean: Texture,
   cloudTileCount = 0,
+  night: Texture | null = null,
 ): EarthAppearance {
   const sun = { value: new Vector3(1, 0, 0) };
   const cloudUniforms = {
@@ -77,6 +85,8 @@ export function createEarthAppearance(
     ...cloudUniforms,
     dayMap: { value: day },
     oceanMap: { value: ocean },
+    nightMap: { value: night || day },
+    nightIntensity: { value: night ? 0.35 : 0 },
     regionalDayMap: { value: day },
     regionalBounds: { value: new Vector4(0, 0, 1, 1) },
     regionalOpacity: { value: 0 },
@@ -86,6 +96,9 @@ export function createEarthAppearance(
     vertexShader: vertex,
     fragmentShader: `
 uniform sampler2D dayMap;uniform sampler2D oceanMap;uniform vec3 sun;
+uniform sampler2D nightMap;uniform float nightIntensity;
+float nightLightFade(float muSun){return 1.-smoothstep(-.14,.02,muSun);}
+
 ${cloudSampling(cloudTileCount)}
 uniform sampler2D regionalDayMap;uniform vec4 regionalBounds;uniform float regionalOpacity;
 varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
@@ -106,10 +119,11 @@ void main(){
  vec2 shadowUv=directionUv(vPosition+sun*(.00125/max(ndl,.16)));
  float shadow=cloudCoverage(shadowUv)*.26;
  vec3 color=albedo*(.003+direct*1.65*(1.-shadow));
- vec3 halfVector=normalize(sun+view);float specular=pow(max(dot(n,halfVector),0.),100.)*water*smoothstep(0.,.15,ndl);
+ vec3 halfSum=sun+view;vec3 halfVector=halfSum/max(length(halfSum),1e-6);float specular=pow(max(dot(n,halfVector),0.),100.)*water*smoothstep(0.,.15,ndl);
  float fresnel=.025+.975*pow(1.-max(dot(n,view),0.),5.);
  color+=vec3(1.,.91,.77)*specular*fresnel*1.8;
  float grazing=pow(1.-max(dot(n,view),0.),3.);color+=vec3(.015,.045,.085)*grazing*smoothstep(-.15,.35,ndl);
+ color+=texture2D(nightMap,vUv).rgb*nightIntensity*nightLightFade(ndl);
  gl_FragColor=vec4(color,1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
@@ -124,8 +138,19 @@ void main(){
     fragmentShader: `
 ${cloudSampling(cloudTileCount)}
 uniform vec3 sun;varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
-void main(){float density=cloudCoverage(vUv);float opacity=density*.94;float ndl=dot(normalize(vNormal),sun);float light=smoothstep(-.035,.08,ndl)*pow(max(ndl,0.),.52);
-vec3 color=vec3(.99,.99,1.)*(.008+light*1.4);gl_FragColor=vec4(color,opacity);
+// Display-only diffuse shell: the elevated cloud horizon lies below the surface horizon.
+float cloudSunlight(float muSun,float radius){
+ float horizonMu=-sqrt(max(0.,1.-1./(radius*radius)));
+ float solarHalfAngle=.00465;
+ float visibility=smoothstep(horizonMu-solarHalfAngle,horizonMu+solarHalfAngle,muSun);
+ float wrapped=clamp((muSun-horizonMu+solarHalfAngle)/(1.-horizonMu+solarHalfAngle),0.,1.);
+ return visibility*pow(wrapped,.52);
+}
+void main(){
+ float density=cloudCoverage(vUv);float opacity=density*.94;
+ vec3 axes=vec3(1.,.9966471893,1.);vec3 p=vPosition/axes;
+ float light=cloudSunlight(dot(normalize(p),normalize(sun/axes)),length(p));
+ vec3 color=vec3(.99,.99,1.)*(.008+light*1.4);gl_FragColor=vec4(color,opacity);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
 }`,

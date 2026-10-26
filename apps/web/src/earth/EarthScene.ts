@@ -24,6 +24,8 @@ import {
   RepeatWrapping,
   ClampToEdgeWrapping,
   Vector3,
+  Vector2,
+  Raycaster,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { AssetInfo, RunSnapshot, Variant } from '../types';
@@ -73,6 +75,41 @@ export class EarthScene {
   private readonly followLink: FollowLink;
   private readonly followEarthCamera = new PerspectiveCamera(34, 1, 0.0001, 40);
   private cameraMode: EarthCameraMode = 'earth';
+  private groundTargetPicker: ((positionEcefM: number[]) => void) | null = null;
+  private pickStart: [number, number] | null = null;
+  private pickDown = (event: PointerEvent) => {
+    if (this.groundTargetPicker && this.cameraMode === 'earth' && event.button === 0)
+      this.pickStart = [event.clientX, event.clientY];
+  };
+  private pickUp = (event: PointerEvent) => {
+    const start = this.pickStart;
+    this.pickStart = null;
+    if (
+      !start ||
+      !this.groundTargetPicker ||
+      this.cameraMode !== 'earth' ||
+      Math.hypot(event.clientX - start[0], event.clientY - start[1]) > 5 ||
+      !this.earthMeshes[0]
+    )
+      return;
+    const bounds = this.renderer.domElement.getBoundingClientRect();
+    const ray = new Raycaster();
+    ray.setFromCamera(
+      new Vector2(
+        (2 * (event.clientX - bounds.left)) / bounds.width - 1,
+        1 - (2 * (event.clientY - bounds.top)) / bounds.height,
+      ),
+      this.camera,
+    );
+    const point = ray.intersectObject(this.earthMeshes[0], false)[0]?.point;
+    if (point)
+      this.groundTargetPicker([point.x * WGS84_A_M, -point.z * WGS84_A_M, point.y * WGS84_A_M]);
+  };
+  setGroundTargetPicker(callback: ((positionEcefM: number[]) => void) | null) {
+    this.groundTargetPicker = callback;
+    this.controls.enabled = this.cameraMode === 'earth' && !callback;
+    this.renderer.domElement.style.cursor = callback ? 'crosshair' : '';
+  }
   private thermalView = false;
   setThermalView(enabled: boolean) {
     this.thermalView = enabled;
@@ -184,6 +221,8 @@ export class EarthScene {
       this.losDashedMaterial.dashSize * WGS84_A_M,
       this.losDashedMaterial.gapSize * WGS84_A_M,
     );
+    canvas.addEventListener('pointerdown', this.pickDown);
+    canvas.addEventListener('pointerup', this.pickUp);
     canvas.dataset.cameraMode = 'earth';
     canvas.dataset.regionalImageryState = 'global-only';
     canvas.dataset.regionalImageryRevision = regionalImagery.revision;
@@ -220,19 +259,20 @@ export class EarthScene {
       highResolution ? '/earth/earth-day-8k.jpg' : '/earth/earth-day-4k.jpg',
       highResolution ? '/earth/earth-clouds-8k.jpg' : '/earth/earth-clouds-4k.png',
       '/earth/earth-ocean-2k.png',
+      highResolution ? '/earth/earth-night-8k.jpg' : '/earth/earth-night-2k.jpg',
     ];
     const results = await Promise.allSettled(urls.map((url) => loader.loadAsync(url)));
     const textures = results.flatMap((result) =>
       result.status === 'fulfilled' ? [result.value] : [],
     );
-    if (this.disposed || results.some((result) => result.status === 'rejected')) {
+    if (this.disposed || results.slice(0, 3).some((result) => result.status === 'rejected')) {
       textures.forEach((texture) => texture.dispose());
       if (!this.disposed) this.onLoad('Earth imagery unavailable');
       return;
     }
     this.textures = textures;
     textures.forEach((texture, i) => {
-      texture.colorSpace = i === 0 ? SRGBColorSpace : NoColorSpace;
+      texture.colorSpace = i === 0 || i === 3 ? SRGBColorSpace : NoColorSpace;
       texture.flipY = true;
       texture.wrapS = RepeatWrapping;
       texture.wrapT = ClampToEdgeWrapping;
@@ -242,8 +282,19 @@ export class EarthScene {
       texture.anisotropy = Math.min(this.renderer.capabilities.getMaxAnisotropy(), 16);
       texture.needsUpdate = true;
     });
+    this.renderer.domElement.dataset.nightLights = textures[3]
+      ? highResolution
+        ? '8192x4096'
+        : '2048x1024'
+      : 'unavailable';
     const tileBudget = cloudTileBudget(this.renderer.capabilities);
-    this.appearance = createEarthAppearance(textures[0], textures[1], textures[2], tileBudget);
+    this.appearance = createEarthAppearance(
+      textures[0],
+      textures[1],
+      textures[2],
+      tileBudget,
+      textures[3] || null,
+    );
     this.cloudTiles = new CloudTileLayer(
       tileBudget,
       (tiles) => this.appearance?.setCloudTiles(tiles),
@@ -482,7 +533,7 @@ export class EarthScene {
   }
   setCameraMode(mode: EarthCameraMode) {
     this.cameraMode = mode;
-    this.controls.enabled = mode === 'earth';
+    this.controls.enabled = mode === 'earth' && !this.groundTargetPicker;
     this.follow.setEnabled(mode === 'spacecraft');
     this.renderer.domElement.dataset.cameraMode = mode;
     this.renderer.domElement.setAttribute(
@@ -852,6 +903,8 @@ export class EarthScene {
     this.disposed = true;
     cancelAnimationFrame(this.frame);
     this.observer.disconnect();
+    this.renderer.domElement.removeEventListener('pointerdown', this.pickDown);
+    this.renderer.domElement.removeEventListener('pointerup', this.pickUp);
     this.controls.dispose();
     this.follow.dispose();
     this.followLink.dispose();

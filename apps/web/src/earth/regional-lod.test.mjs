@@ -194,6 +194,7 @@ if (typeof ASSET_DIR === 'undefined') {
   v.appearance.dispose = () => {};
   v.renderer.dispose = () => {};
   v.renderer.domElement.remove = () => {};
+  v.renderer.domElement.removeEventListener = () => {};
   v.dispose();
   assert.equal(closed.day, previous.day + 1);
   assert.equal(v.regionalTexture, null);

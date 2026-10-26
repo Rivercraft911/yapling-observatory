@@ -13,8 +13,16 @@ export interface EarthViewProps {
   displayTime?: DisplayTimeSource;
   asset?: AssetInfo;
   variant?: Variant;
+  onGroundTarget?: (positionEcefM: number[]) => void;
 }
-export function EarthView({ snapshot, sampleIndex, displayTime, asset, variant }: EarthViewProps) {
+export function EarthView({
+  snapshot,
+  sampleIndex,
+  displayTime,
+  asset,
+  variant,
+  onGroundTarget,
+}: EarthViewProps) {
   const host = useRef<HTMLDivElement>(null),
     station = useRef<HTMLDivElement>(null),
     satellite = useRef<HTMLDivElement>(null);
@@ -31,6 +39,9 @@ export function EarthView({ snapshot, sampleIndex, displayTime, asset, variant }
   const currentVariant = useRef(selectedVariant);
   currentVariant.current = selectedVariant;
   const [cameraMode, setCameraMode] = useState<EarthCameraMode>('earth');
+  const [pickingTarget, setPickingTarget] = useState(false);
+  const targetCallback = useRef(onGroundTarget);
+  targetCallback.current = onGroundTarget;
   const [thermalView, setThermalView] = useState(false);
   const mode = useRef(cameraMode);
   mode.current = cameraMode;
@@ -88,6 +99,16 @@ export function EarthView({ snapshot, sampleIndex, displayTime, asset, variant }
   useEffect(() => {
     scene.current?.setThermalView(thermalView);
   }, [thermalView, retry]);
+  useEffect(() => {
+    scene.current?.setGroundTargetPicker(
+      pickingTarget && onGroundTarget && cameraMode === 'earth'
+        ? (position) => {
+            setPickingTarget(false);
+            targetCallback.current?.(position);
+          }
+        : null,
+    );
+  }, [pickingTarget, !!onGroundTarget, cameraMode, retry]);
   const samples = snapshot?.run.result?.samples;
   const state = linkDisplayState(samples, sampleIndex);
   const time = samples?.time_s[sampleIndex] ?? 0;
@@ -191,6 +212,15 @@ export function EarthView({ snapshot, sampleIndex, displayTime, asset, variant }
                 Station
               </button>
               <button onClick={() => scene.current?.globe()}>Globe</button>
+              {onGroundTarget && (
+                <button
+                  aria-pressed={pickingTarget}
+                  title="Select an approximate surface location. This commands the pointing target; the radio ground station stays unchanged."
+                  onClick={() => setPickingTarget(!pickingTarget)}
+                >
+                  {pickingTarget ? 'Cancel target pick' : 'Pick target'}
+                </button>
+              )}
             </>
           )}
         </div>
