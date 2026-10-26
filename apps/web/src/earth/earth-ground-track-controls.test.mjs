@@ -53,6 +53,9 @@ class Scene {
   setCameraMode(value) {
     calls.push(['camera', value]);
   }
+  setFollowEarthLock(value) {
+    calls.push(['earth-lock', value]);
+  }
   setThermalView() {}
   setGroundTargetPicker() {}
   setRenderingVisible(value) {
@@ -153,6 +156,24 @@ tree = render();
 assert.deepEqual(lastRendering(), ['rendering', true]);
 assert.equal(map(tree), undefined);
 assert.equal(button(tree, 'Follow spacecraft').props['aria-pressed'], true);
+assert.equal(button(tree, 'Earth lock').props['aria-pressed'], false);
+const beforeLock = calls.filter(([kind]) =>
+  ['history', 'sample', 'camera', 'construct'].includes(kind),
+);
+button(tree, 'Earth lock').props.onClick();
+tree = render();
+assert.equal(button(tree, 'Earth lock').props['aria-pressed'], true);
+assert.deepEqual(calls.filter(([kind]) => kind === 'earth-lock').at(-1), ['earth-lock', true]);
+assert.deepEqual(
+  calls.filter(([kind]) => ['history', 'sample', 'camera', 'construct'].includes(kind)),
+  beforeLock,
+  'The lock changes only follow-camera view state',
+);
+assert.equal(JSON.stringify(snapshot), before);
+button(tree, 'Earth lock').props.onClick();
+tree = render();
+assert.equal(button(tree, 'Earth lock').props['aria-pressed'], false);
+assert.deepEqual(calls.filter(([kind]) => kind === 'earth-lock').at(-1), ['earth-lock', false]);
 button(tree, 'Ground track').props.onClick();
 tree = render();
 assert.equal(map(tree).props.windowSeconds, Infinity);

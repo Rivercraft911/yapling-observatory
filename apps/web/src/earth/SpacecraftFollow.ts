@@ -99,6 +99,17 @@ export function spacecraftEarthQuaternion(
 export class SpacecraftFollow {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(34, 1, 0.00005, 100);
+  // Controls keep a fixed up basis; the public camera publishes the transported view.
+  private readonly navigationCamera = new PerspectiveCamera(34, 1, 0.00005, 100);
+  private earthLocked = false;
+  private readonly earthCameraFrame = new Quaternion();
+  private readonly publishedCameraFrame = new Quaternion();
+  private readonly cameraFrameRotation = new Quaternion();
+  private readonly navigationFromDisplay = new Quaternion();
+  private readonly previousNavigationUp = new Vector3();
+  private readonly publishedCameraPosition = new Vector3();
+  private readonly publishedCameraQuaternion = new Quaternion();
+  private readonly publishedCameraUp = new Vector3();
   controls: OrbitControls;
   private readonly canvas: HTMLCanvasElement;
   private readonly poseRoot = new Group();
@@ -159,6 +170,7 @@ export class SpacecraftFollow {
   ) {
     this.canvas = canvas;
     this.camera.up.copy(this.radial);
+    this.navigationCamera.up.copy(this.radial);
     this.controls = this.makeControls(false);
     this.scene.add(this.poseRoot, this.marker, this.sun, this.sun.target);
     this.sun.castShadow = true;
@@ -204,7 +216,7 @@ export class SpacecraftFollow {
   }
 
   private makeControls(enabled: boolean) {
-    const controls = new OrbitControls(this.camera, this.canvas);
+    const controls = new OrbitControls(this.navigationCamera, this.canvas);
     controls.enableDamping = true;
     controls.dampingFactor = 0.09;
     controls.enablePan = false;
@@ -219,12 +231,64 @@ export class SpacecraftFollow {
     this.controls.enabled = enabled;
   }
 
+  setEarthLock(enabled: boolean) {
+    if (this.disposed || this.earthLocked === enabled) return;
+    this.earthLocked = enabled;
+    this.earthCameraFrame.identity();
+    this.syncNavigationCamera(this.earthCameraFrame, true);
+    this.publishCamera();
+    this.captureCamera();
+    this.canvas.dataset.earthLock = String(enabled);
+  }
+
+  private syncNavigationCamera(frame: Quaternion, resetControls = false) {
+    this.previousNavigationUp.copy(this.navigationCamera.up);
+    this.navigationFromDisplay.copy(frame).invert();
+    this.navigationCamera.copy(this.camera, false);
+    this.navigationCamera.position.applyQuaternion(this.navigationFromDisplay);
+    this.navigationCamera.quaternion.premultiply(this.navigationFromDisplay);
+    this.navigationCamera.up.applyQuaternion(this.navigationFromDisplay);
+    if (
+      resetControls ||
+      this.previousNavigationUp.distanceToSquared(this.navigationCamera.up) > 1e-16
+    ) {
+      const enabled = this.controls.enabled;
+      this.controls.dispose();
+      this.controls = this.makeControls(enabled);
+    }
+    this.controls.target.copy(ORIGIN);
+    this.controls.update();
+  }
+
+  private publishCamera() {
+    this.camera.position
+      .copy(this.navigationCamera.position)
+      .applyQuaternion(this.earthCameraFrame);
+    this.camera.quaternion.copy(this.earthCameraFrame).multiply(this.navigationCamera.quaternion);
+    this.camera.up.copy(this.navigationCamera.up).applyQuaternion(this.earthCameraFrame);
+    this.publishedCameraFrame.copy(this.earthCameraFrame);
+    this.camera.updateMatrixWorld();
+  }
+
+  private captureCamera() {
+    this.publishedCameraPosition.copy(this.camera.position);
+    this.publishedCameraQuaternion.copy(this.camera.quaternion);
+    this.publishedCameraUp.copy(this.camera.up);
+  }
+
   setPosition(positionEcefM: readonly number[]) {
     if (positionEcefM.length !== 3 || !positionEcefM.every(Number.isFinite)) return;
     const radial = new Vector3(positionEcefM[0], positionEcefM[2], -positionEcefM[1]);
     if (radial.lengthSq() < 1) return;
     this.orbitalRadiusM = radial.length();
-    this.radial.copy(radial).normalize();
+    radial.normalize();
+    if (this.earthLocked && this.seededPosition) {
+      // Transport the view with Earth's direction, independently of body attitude.
+      this.earthCameraFrame
+        .premultiply(this.cameraFrameRotation.setFromUnitVectors(this.radial, radial))
+        .normalize();
+    }
+    this.radial.copy(radial);
     this.updateEarthFill();
     if (!this.seededPosition) {
       this.seededPosition = true;
@@ -314,6 +378,8 @@ export class SpacecraftFollow {
   setSize(width: number, height: number) {
     this.height = Math.max(1, height);
     this.camera.aspect = Math.max(1, width) / this.height;
+    this.navigationCamera.aspect = this.camera.aspect;
+    this.navigationCamera.updateProjectionMatrix();
     this.camera.updateProjectionMatrix();
   }
 
@@ -329,16 +395,11 @@ export class SpacecraftFollow {
       .multiplyScalar(0.5)
       .addScaledVector(tangent, Math.sqrt(0.75))
       .multiplyScalar(distance);
-    // OrbitControls caches its up-axis basis at construction. Recreate it only
-    // when an explicit reset adopts a different local radial up direction.
-    if (!this.camera.up.equals(this.radial)) {
-      const enabled = this.controls.enabled;
-      this.controls.dispose();
-      this.camera.up.copy(this.radial);
-      this.controls = this.makeControls(enabled);
-    }
-    this.controls.target.copy(ORIGIN);
-    this.controls.update();
+    this.camera.up.copy(this.radial);
+    this.earthCameraFrame.identity();
+    this.syncNavigationCamera(this.earthCameraFrame, true);
+    this.publishCamera();
+    this.captureCamera();
   }
 
   async setAsset(variant: Variant, asset?: AssetInfo) {
@@ -423,8 +484,17 @@ export class SpacecraftFollow {
       )
     )
       this.resetView();
+    // The Earth collision gate can adjust the public camera after this update.
+    // Import that adjustment in the last published frame before transporting it.
+    if (
+      !this.camera.position.equals(this.publishedCameraPosition) ||
+      !this.camera.quaternion.equals(this.publishedCameraQuaternion) ||
+      !this.camera.up.equals(this.publishedCameraUp)
+    )
+      this.syncNavigationCamera(this.publishedCameraFrame);
     this.controls.target.copy(ORIGIN);
     this.controls.update(Math.max(0, Math.min(0.1, Number.isFinite(dt) ? dt : 0)));
+    this.publishCamera();
     this.poseRoot.updateMatrixWorld(true);
     let distance = Math.max(0.001, this.camera.position.length());
     if (this.root && distance < this.radius * 1.5) {
@@ -439,6 +509,7 @@ export class SpacecraftFollow {
         distance = last.distance + 0.003;
         this.camera.position.copy(this.viewport).multiplyScalar(distance);
         this.camera.lookAt(ORIGIN);
+        this.syncNavigationCamera(this.earthCameraFrame);
       }
     }
     const diameterPixels =
@@ -457,6 +528,7 @@ export class SpacecraftFollow {
       this.camera.updateProjectionMatrix();
     }
     this.camera.updateMatrixWorld();
+    this.captureCamera();
   }
 
   render() {

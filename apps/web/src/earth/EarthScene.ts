@@ -624,6 +624,9 @@ export class EarthScene {
         : 'Follow spacecraft. Drag to orbit the spacecraft; scroll to dolly. The spacecraft stays centered.',
     );
   }
+  setFollowEarthLock(enabled: boolean) {
+    this.follow.setEarthLock(enabled);
+  }
   resetFollow = () => {
     this.follow.resetView();
   };
