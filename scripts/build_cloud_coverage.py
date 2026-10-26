@@ -102,12 +102,14 @@ def main():
         filter_order_checks=checks,
         filter_order_check_rounding="Pillow BOX integer source footprint; horizontal round-half-up then vertical round-half-up",
         peak_native_decode="One native L source and one remapped L hemisphere at a time, about890MiB before decoder/encoder overhead; never both native hemispheres")
-    manifest["limits"].append(
+    transfer_limit = (
         "The display-only soft toe attenuates genuine faint clouds as well as low-gray mosaic plateaus. "
         "Codes64..255 remain unchanged; R8 quantization and lossy native-tile compression remain. "
         "This is not calibrated cloud fraction, optical depth, gamma correction or weather; bright "
         "source discontinuities and the longitude0 seam are not repaired."
     )
+    if transfer_limit not in manifest["limits"]:
+        manifest["limits"].append(transfer_limit)
     global8.close()
     global4.close()
     text = json.dumps(manifest,indent=2,ensure_ascii=False) + "\n"
