@@ -16,7 +16,7 @@ MAX_JOURNAL_BYTES = 64 * 1024 * 1024
 
 def atomic_json(path, value):
     temporary = path.with_suffix('.partial')
-    temporary.write_text(json.dumps(value, allow_nan=False, separators=(',', ':')))
+    temporary.write_text(json.dumps(value, allow_nan=False, separators=(',', ':')), encoding='utf-8')
     os.replace(temporary, path)
 
 
@@ -57,7 +57,7 @@ class FileRuntime:
         if force or now - self.last_read >= 0.03:
             stamp = self.control_path.stat().st_mtime_ns
             if force or stamp != self.last_control_stamp:
-                control = json.loads(self.control_path.read_text())
+                control = json.loads(self.control_path.read_text(encoding="utf-8"))
                 self.last_control_stamp = stamp
                 if control['speed'] != self.speed or control['paused'] != self.paused:
                     self.budget_s = self.computed_time_s
@@ -165,7 +165,7 @@ class FileRuntime:
 
 def main():
     source, destination, progress_path, control_path, journal_path = map(Path, sys.argv[1:6])
-    config = MissionScenario.model_validate_json(source.read_text())
+    config = MissionScenario.model_validate_json(source.read_text(encoding="utf-8"))
     limits = mission_execution_limits(config)
     runtime = FileRuntime(control_path, progress_path, journal_path, limits['worker_wall_limit_s'],
                           config.clocks.dynamics_step_s)

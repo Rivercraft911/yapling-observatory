@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 import json
 import os
 from pathlib import Path
-import signal
 import sys
 import tempfile
 import time
@@ -13,6 +12,7 @@ import uuid
 
 from .mission_archive import export_archive
 from .worker_sources import frozen_worker_options
+from .worker_process import create_owned_process, terminate_owned
 from .mission_models import MissionScenario, PointingIntent, mission_execution_limits
 from .mission.numerics import NumericalStepIntent, NumericalStepCommand, numerical_step_options, step_at
 
@@ -68,7 +68,7 @@ class LiveMissionJobManager:
                      numerical_steps=[intent.model_dump(mode='json') for intent in job.numerical_intents.values()])
         path = job.base / 'control.json'
         temporary = path.with_suffix('.partial')
-        temporary.write_text(json.dumps(value, allow_nan=False, separators=(',', ':')))
+        temporary.write_text(json.dumps(value, allow_nan=False, separators=(',', ':')), encoding='utf-8')
         os.replace(temporary, path)
 
     def create(self, scenario, speed=1):
@@ -88,7 +88,7 @@ class LiveMissionJobManager:
         job = LiveSession(scenario, speed)
         job.directory = tempfile.TemporaryDirectory(prefix='ssi-live-')
         job.base = Path(job.directory.name)
-        (job.base / 'scenario.json').write_text(scenario.model_dump_json())
+        (job.base / 'scenario.json').write_text(scenario.model_dump_json(), encoding='utf-8')
         job.lease_until = time.monotonic() + self.lease_s
         self._write_control(job)
         self.sessions[job.live_id] = job
@@ -245,33 +245,12 @@ class LiveMissionJobManager:
         if stat.st_size > 1024 * 1024:
             raise ValueError('LIVE latest telemetry exceeds 1 MiB')
         if stat.st_mtime_ns != job.latest_telemetry_stamp:
-            job.latest_telemetry = json.loads(path.read_text())
+            job.latest_telemetry = json.loads(path.read_text(encoding='utf-8'))
             job.latest_telemetry_stamp = stat.st_mtime_ns
 
     async def _stop_process(self, job):
-        if job.process and job.process.returncode is None:
-            try:
-                os.killpg(job.process.pid, signal.SIGTERM)
-            except PermissionError:
-                try:
-                    job.process.terminate()
-                except ProcessLookupError:
-                    pass
-            except ProcessLookupError:
-                pass
-            try:
-                await asyncio.wait_for(job.process.wait(), 2)
-            except TimeoutError:
-                try:
-                    os.killpg(job.process.pid, signal.SIGKILL)
-                except PermissionError:
-                    try:
-                        job.process.kill()
-                    except ProcessLookupError:
-                        pass
-                except ProcessLookupError:
-                    pass
-                await job.process.wait()
+        if job.process is not None:
+            await terminate_owned(job.process)
 
     async def cancel(self, live_id):
         job = self.get(live_id)
@@ -312,19 +291,13 @@ class LiveMissionJobManager:
         try:
             base = job.base
             worker_options = frozen_worker_options(base)
-            spawning = asyncio.create_task(asyncio.create_subprocess_exec(
+            job.process = await create_owned_process(
                 sys.executable, '-m', 'cubesat_sim.live_mission_worker',
                 str(base / 'scenario.json'), str(base / 'result.json'),
                 str(base / 'progress.json'), str(base / 'control.json'), str(base / 'telemetry.jsonl'),
                 stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
-                start_new_session=True,
                 **worker_options,
-            ))
-            try:
-                job.process = await asyncio.shield(spawning)
-            except asyncio.CancelledError:
-                job.process = await spawning
-                raise
+            )
             communication = asyncio.create_task(job.process.communicate())
             last_heartbeat = time.monotonic()
             last_stamp = None
@@ -335,7 +308,7 @@ class LiveMissionJobManager:
                 if path.exists():
                     stamp = path.stat().st_mtime_ns
                     if stamp != last_stamp:
-                        job.progress = json.loads(path.read_text())
+                        job.progress = json.loads(path.read_text(encoding='utf-8'))
                         last_stamp = stamp
                         last_heartbeat = time.monotonic()
                         if not job.stop:
@@ -358,10 +331,10 @@ class LiveMissionJobManager:
             if destination.stat().st_size > MAX_BYTES:
                 raise ValueError('LIVE result exceeds 64 MiB')
             self._read_latest(job)
-            result = await asyncio.to_thread(lambda: json.loads(destination.read_text()))
+            result = await asyncio.to_thread(lambda: json.loads(destination.read_text(encoding='utf-8')))
             job.final_snapshot, job.archive = await asyncio.to_thread(self._finalize, job, result)
             if (base / 'progress.json').exists():
-                job.progress = json.loads((base / 'progress.json').read_text())
+                job.progress = json.loads((base / 'progress.json').read_text(encoding='utf-8'))
             job.status = 'complete'
         except asyncio.CancelledError:
             job.status = 'cancelled'

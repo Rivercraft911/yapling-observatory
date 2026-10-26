@@ -3,15 +3,14 @@
 import asyncio
 from dataclasses import dataclass, field
 import json
-import os
 from pathlib import Path
-import signal
 import sys
 import tempfile
 import time
 import uuid
 from .mission_models import MissionScenario, mission_execution_limits
 from .worker_sources import frozen_worker_options
+from .worker_process import create_owned_process, terminate_owned
 
 MAX_RESULT_BYTES = 64 * 1024 * 1024
 
@@ -78,19 +77,8 @@ class MissionJobManager:
         return self.jobs.get(run_id)
 
     async def _stop_process(self, job):
-        if job.process and job.process.returncode is None:
-            try:
-                os.killpg(job.process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            try:
-                await asyncio.wait_for(job.process.wait(), 2.0)
-            except TimeoutError:
-                try:
-                    os.killpg(job.process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                await job.process.wait()
+        if job.process is not None:
+            await terminate_owned(job.process)
 
     async def cancel(self, run_id):
         job = self.get(run_id)
@@ -117,9 +105,9 @@ class MissionJobManager:
                     source = base / "scenario.json"
                     destination = base / "result.json"
                     progress_path = base / "progress.json"
-                    source.write_text(job.scenario.model_dump_json())
+                    source.write_text(job.scenario.model_dump_json(), encoding="utf-8")
                     worker_options = frozen_worker_options(base)
-                    job.process = await asyncio.create_subprocess_exec(
+                    job.process = await create_owned_process(
                         sys.executable,
                         "-m",
                         "cubesat_sim.mission_worker",
@@ -128,7 +116,6 @@ class MissionJobManager:
                         str(progress_path),
                         stdout=asyncio.subprocess.DEVNULL,
                         stderr=asyncio.subprocess.PIPE,
-                        start_new_session=True,
                         **worker_options,
                     )
                     communicate = asyncio.create_task(job.process.communicate())
@@ -144,7 +131,7 @@ class MissionJobManager:
                                 )
                             if progress_path.exists():
                                 try:
-                                    job.progress = json.loads(progress_path.read_text()) | dict(execution_limits=limits)
+                                    job.progress = json.loads(progress_path.read_text(encoding="utf-8")) | dict(execution_limits=limits)
                                 except (OSError, json.JSONDecodeError):
                                     pass
                             await asyncio.wait({communicate}, timeout=0.15)
@@ -161,7 +148,7 @@ class MissionJobManager:
                         raise ValueError(
                             "Mission result exceeds 64 MiB; choose an explicitly coarser output clock or a narrower telemetry configuration"
                         )
-                    result = json.loads(destination.read_text())
+                    result = json.loads(destination.read_text(encoding="utf-8"))
                     if (
                         result["manifest"]["scenario_hash"]
                         != job.scenario.identity()[1]
@@ -169,7 +156,7 @@ class MissionJobManager:
                         raise ValueError("Worker input identity mismatch")
                     job.result = result
                     if progress_path.exists():
-                        job.progress = json.loads(progress_path.read_text()) | dict(execution_limits=limits)
+                        job.progress = json.loads(progress_path.read_text(encoding="utf-8")) | dict(execution_limits=limits)
                     job.status = "complete"
         except asyncio.CancelledError:
             await self._stop_process(job)

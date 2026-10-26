@@ -4,18 +4,28 @@ Python owns the orbit, attitude, RF, power and thermal models. The browser rende
 
 ## Run locally
 
-Use Python 3.11 or newer and Node.js 22 or newer. From the repository root:
+[Download the ZIP](https://github.com/Rivercraft911/yapling-observatory/archive/refs/heads/main.zip) and extract it, or clone the repository. Install [Python 3.11+](https://www.python.org/downloads/) and [Node.js 22.12+](https://nodejs.org/en/download) once. From the project folder:
+
+```sh
+python3 start.py
+```
+
+Local startup is verified on macOS and Linux. Windows is not supported yet. The first launch needs internet to install project dependencies and build the interface. Later launches reuse the setup and rebuild when its inputs change. The app opens in your browser at a free localhost port. Keep the terminal open; Ctrl-C stops the server.
+
+`--check` checks prerequisites and setup status. `--no-browser` prints the address without opening it. `--port 8765` selects a fixed port. Server logs are in `.yapling/`.
+
+The bundled spacecraft models work without private files. `CUBESAT_MODEL_MANIFEST` replaces the bundled selection when explicitly set. Relative paths resolve inside that manifest's directory; absolute paths support local overrides.
+
+## Development
+
+For source editing with browser hot reload and the test dependencies:
 
 ```sh
 python3 scripts/setup.py
 python3 scripts/dev.py
 ```
 
-Open the printed localhost address. Ctrl-C stops both processes. Use `--api-port` and `--web-port` to change ports. The default API reference is at `http://127.0.0.1:8765/docs`.
-
-The bundled spacecraft models work without private files. `CUBESAT_MODEL_MANIFEST` replaces the bundled selection when explicitly set. Relative paths resolve inside that manifest's directory. Absolute paths are available for local operator overrides.
-
-Full simulation requires the Python service. GitHub Pages alone cannot run it.
+Use `--api-port` and `--web-port` with `dev.py` to select ports. The default API reference is at `http://127.0.0.1:8765/docs`.
 
 ## Headless use
 
