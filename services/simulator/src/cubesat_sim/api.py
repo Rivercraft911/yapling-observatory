@@ -21,6 +21,8 @@ from .power_lab import router as power_lab_router
 from .dynamics_lab import router as dynamics_lab_router
 from .mission_lab import router as mission_router
 from .mission_jobs import MissionJobManager
+from .live_mission_jobs import LiveMissionJobManager
+from .live_mission_lab import router as live_mission_router
 from .mission_archive import ARCHIVE_PATHS, MAX_ARCHIVE_BYTES
 from .core import MODEL_VERSION
 from .jobs import JobManager
@@ -151,9 +153,11 @@ def create_app():
     async def lifespan(app):
         app.state.jobs = JobManager()
         app.state.mission_jobs = MissionJobManager()
+        app.state.live_jobs = LiveMissionJobManager()
         yield
         await app.state.jobs.close()
         await app.state.mission_jobs.close()
+        await app.state.live_jobs.close()
 
     app = FastAPI(title="CubeSat analytical link study", version=__version__, lifespan=lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
@@ -165,6 +169,7 @@ def create_app():
     app.include_router(power_lab_router)
     app.include_router(dynamics_lab_router)
     app.include_router(mission_router)
+    app.include_router(live_mission_router)
 
     @app.get("/api/health")
     def health():
