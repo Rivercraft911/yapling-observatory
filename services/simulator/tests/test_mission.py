@@ -28,6 +28,7 @@ from cubesat_sim.geometry.vectors import norm
 def config(duration=120):
     value = default_mission_scenario().model_dump(mode="json")
     value["duration_s"] = duration
+    value["power"]["battery"].pop("electrical", None)
     return value
 
 
@@ -47,6 +48,8 @@ def test_one_day_default_geometry_reference_and_json_identity():
     )
     assert validate(json.loads(c.model_dump_json())).identity() == c.identity()
     assert c.power.battery.cells.cell_model == "NCR18650GA"
+    assert c.power.battery.electrical is not None
+    assert c.power.battery.electrical.initial_soc == 0.5
 
 
 def test_epoch_frame_roundtrip_and_mean_solar_node():
@@ -282,3 +285,16 @@ def test_source_revision_change_cannot_publish_a_mixed_run(monkeypatch):
     monkeypatch.setattr(driver, "_source_hashes", identity)
     with pytest.raises(RuntimeError, match="changed during mission"):
         driver.run_mission(validate(config(30)))
+
+
+def test_new_mission_default_returns_battery_soc_current_voltage_and_heat():
+    data = default_mission_scenario().model_dump(mode="json")
+    data["duration_s"] = 60
+    result = run_mission(validate(data))
+    power = result["samples"]["power"]
+    assert result["summary"]["computed_duration_s"] == 60
+    assert power["battery_soc"][0] == 0.5
+    for key in ("battery_soc", "battery_voltage_v", "battery_current_a", "battery_ohmic_heat_w"):
+        assert all(v is not None and math.isfinite(v) for v in power[key])
+    assert power["battery_soc"] != power["energy_fraction"]
+    assert abs(result["summary"]["energy_j"]["closure_residual_j"]) < 1e-6

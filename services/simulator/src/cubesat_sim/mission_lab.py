@@ -184,3 +184,9 @@ def radio_power(request: RadioPowerRequest):
 def battery_electrical_default():
     from .power.battery_electrical import electrical_defaults, electrical_model_metadata
     return dict(electrical=electrical_defaults(), metadata=electrical_model_metadata())
+
+
+@router.get("/wheel-reference")
+def wheel_reference_example():
+    from .attitude.wheel_profiles import wheel_example_metadata, wheel_profiles
+    return dict(example=wheel_example_metadata(), references=wheel_profiles())

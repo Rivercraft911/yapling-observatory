@@ -59,6 +59,7 @@ def test_exact_complete_roundtrip_and_cache_independent_raw_record_export(snapsh
 def test_stopped_valid_prefix_including_one_initial_sample(fraction, zero):
     data = default_mission_scenario().model_dump(mode="json")
     data["duration_s"] = 60
+    data["power"]["battery"].pop("electrical", None)
     data["power"]["battery"]["initial_energy_fraction"] = fraction
     for panel in data["power"]["panels"]:
         panel["enabled"] = False

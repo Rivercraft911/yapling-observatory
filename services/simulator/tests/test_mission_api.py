@@ -48,7 +48,8 @@ def test_mission_worker_returns_identified_common_history():
         assert samples['time_s'] == [0,30,60]
         assert samples['uplink']['cumulative_ideal_bits'][0] == 0
         assert len(samples['thermal']['node_temperature_k']['bus']) == len(samples['time_s'])
-        assert all(value is None for value in samples['power']['battery_voltage_v'])
+        assert all(value is not None and math.isfinite(value) for value in samples['power']['battery_voltage_v'])
+        assert samples['power']['battery_soc'][0] == 0.5
         assert result['summary']['end_reason'] == 'requested_duration'
 
 
@@ -64,3 +65,18 @@ def test_queued_mission_can_be_cancelled_and_apps_keep_separate_histories():
         client.delete('/api/mission/runs/'+first['run_id'])
     with TestClient(create_app()) as other:
         assert other.get('/api/mission/runs/'+first['run_id']).status_code == 404
+
+
+def test_wheel_reference_default_has_traceable_mechanics_and_explicit_budget():
+    with TestClient(create_app()) as client:
+        config = client.get('/api/mission/default').json()['scenario']
+        evidence = client.get('/api/mission/wheel-reference').json()['example']
+        assert evidence['status'] == 'editable_preliminary_planning_example'
+        assert len(config['spacecraft']['wheels']) == evidence['powered_axis_count'] == 3
+        for wheel in config['spacecraft']['wheels']:
+            for key, value in evidence['model_parameters'].items():
+                assert wheel['spec'][key] == value
+            assert wheel['spec']['idle_power_w'] == .4
+            assert wheel['spec']['max_bus_power_w'] == .5
+        assert evidence['sources'][0]['url'].startswith('https://www.astrofein.com/')
+        assert evidence['assumptions']

@@ -30,6 +30,11 @@ export function MissionHardware({
   const [presets, setPresets] = useState<
     Record<string, Pick<MissionConfig['spacecraft'], 'wheels' | 'magnetorquer'>>
   >({});
+  const [wheelEvidence, setWheelEvidence] = useState<{
+    sources: { title: string; url: string }[];
+    assumptions: string[];
+    limits: string[];
+  } | null>(null);
   const wheelExample = presets.wheels_and_magnetic?.wheels.map((wheel) => wheel.spec) || [];
   useEffect(() => {
     const abort = new AbortController();
@@ -38,6 +43,11 @@ export function MissionHardware({
       { signal: abort.signal },
     )
       .then(setPresets)
+      .catch(() => {});
+    api<{ example: NonNullable<typeof wheelEvidence> }>('/api/mission/wheel-reference', {
+      signal: abort.signal,
+    })
+      .then((data) => setWheelEvidence(data.example))
       .catch(() => {});
     return () => abort.abort();
   }, []);
@@ -318,6 +328,23 @@ export function MissionHardware({
       {craft.wheels.length > 0 && (
         <details className="mission-details">
           <summary>Wheels</summary>
+          <div className="mission-presets">
+            <button
+              disabled={!wheelExample.length}
+              title="Install three RW1 Type A mechanical references with an assumed torque envelope and power budget. Resets their initial speed to zero."
+              onClick={() =>
+                edit((draft) => {
+                  draft.spacecraft.wheels = wheelExample.map((spec) => ({
+                    enabled: true,
+                    initial_speed_rpm: 0,
+                    spec: cloneScenario(spec),
+                  }));
+                })
+              }
+            >
+              RW1 reference
+            </button>
+          </div>
           {craft.wheels.map((wheel, index) => (
             <fieldset key={index}>
               <legend>W{index + 1}</legend>
@@ -357,6 +384,10 @@ export function MissionHardware({
                 onChange={(v) =>
                   edit((d) => {
                     d.spacecraft.wheels[index].spec.max_speed_rpm = v;
+                    d.spacecraft.wheels[index].spec.constant_torque_until_rpm = Math.min(
+                      d.spacecraft.wheels[index].spec.constant_torque_until_rpm,
+                      Math.max(0, v - 1),
+                    );
                   })
                 }
               />
@@ -373,9 +404,109 @@ export function MissionHardware({
                   })
                 }
               />
+              <Field
+                label="P floor"
+                unit="W"
+                value={wheel.spec.idle_power_w}
+                min={0}
+                max={100}
+                step={0.01}
+                onChange={(value) =>
+                  edit((draft) => {
+                    const spec = draft.spacecraft.wheels[index].spec;
+                    spec.idle_power_w = value;
+                    if (spec.max_bus_power_w !== null && spec.max_bus_power_w < value)
+                      spec.max_bus_power_w = value;
+                  })
+                }
+              />
+              <label className="spacecraft-follow">
+                <input
+                  type="checkbox"
+                  checked={wheel.spec.max_bus_power_w !== null}
+                  onChange={(event) =>
+                    edit((draft) => {
+                      const spec = draft.spacecraft.wheels[index].spec;
+                      spec.max_bus_power_w = event.target.checked
+                        ? Math.max(spec.idle_power_w, 0.5)
+                        : null;
+                    })
+                  }
+                />{' '}
+                Power limit
+              </label>
+              {wheel.spec.max_bus_power_w !== null && (
+                <Field
+                  label="P max"
+                  unit="W"
+                  value={wheel.spec.max_bus_power_w}
+                  min={wheel.spec.idle_power_w}
+                  max={100}
+                  step={0.01}
+                  onChange={(value) =>
+                    edit((draft) => {
+                      draft.spacecraft.wheels[index].spec.max_bus_power_w = value;
+                    })
+                  }
+                />
+              )}
+              <details className="mission-details">
+                <summary>Drive assumptions</summary>
+                {(
+                  [
+                    [
+                      'constant_torque_until_rpm',
+                      'Torque knee',
+                      'rpm',
+                      0,
+                      Math.max(0, wheel.spec.max_speed_rpm - 1),
+                      100,
+                    ],
+                    ['motor_torque_constant_nm_a', 'Kt', 'N·m/A', 1e-9, 10, 0.001],
+                    ['winding_resistance_ohm', 'R', 'Ω', 0, 10000, 0.1],
+                    ['non_ohmic_drive_efficiency', 'η drive', '', 0.001, 1, 0.01],
+                    ['viscous_friction_nm_s', 'b', 'N·m·s', 0, 1, 1e-8],
+                    ['regenerative_efficiency', 'η regen', '', 0, 1, 0.01],
+                  ] as const
+                ).map(([key, label, unit, min, max, step]) => (
+                  <Field
+                    key={key}
+                    label={label}
+                    unit={unit}
+                    value={wheel.spec[key]}
+                    min={min}
+                    max={max}
+                    step={step}
+                    onChange={(value) =>
+                      edit((draft) => {
+                        draft.spacecraft.wheels[index].spec[key] = value;
+                      })
+                    }
+                  />
+                ))}
+              </details>
             </fieldset>
           ))}
-          <small>Editable illustrative wheel model.</small>
+          <small>Editable power allowance and torque curve.</small>
+          {wheelEvidence && (
+            <details className="mission-details">
+              <summary>Reference & assumptions</summary>
+              <div className="profile-evidence">
+                RW1 reference button: published rotor, assumed drive. Edits create a custom
+                configuration.
+              </div>
+              {wheelEvidence.sources.map((source) => (
+                <a key={source.url} href={source.url} target="_blank" rel="noreferrer">
+                  {source.title} ↗
+                </a>
+              ))}
+              <ul>
+                {[...wheelEvidence.assumptions, ...wheelEvidence.limits].map((text) => (
+                  <li key={text}>{text}</li>
+                ))}
+              </ul>
+            </details>
+          )}
         </details>
       )}
     </>
