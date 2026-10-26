@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
-import { Texture } from 'three';
+import { DataTexture, RedFormat, Texture } from 'three';
 
 const source = await readFile(new URL('./atmosphereAdapter.ts', import.meta.url), 'utf8');
 const compiled = ts
@@ -44,6 +44,17 @@ assert.equal(appearance.surface.uniforms.nightMap.value, night);
 assert.equal(appearance.surface.uniforms.nightIntensity.value, 0.35);
 assert.equal(fallback.surface.uniforms.nightIntensity.value, 0);
 assert.equal(fallback.surface.uniforms.nightMap.value, day);
+assert.equal(appearance.surface.uniforms.nightGrayscale.value, false);
+const grayscale = new DataTexture(new Uint8Array([128]), 1, 1, RedFormat);
+const detailed = createEarthAppearance(day, cloud, ocean, 0, grayscale);
+assert.equal(detailed.surface.uniforms.nightGrayscale.value, true);
+const decodeNight = scalarShader(detailed.surface.fragmentShader, 'nightDisplayToLinear');
+assert.equal(decodeNight(0), 0);
+assert.equal(decodeNight(1), 1);
+assert.ok(Math.abs(decodeNight(0.5) - 0.21404114048223255) < 1e-12);
+assert.ok(Math.abs(decodeNight(0.04045 - 1e-8) - decodeNight(0.04045 + 1e-8)) < 1e-8);
+detailed.dispose();
+grayscale.dispose();
 assert.equal(fallback.clouds.fragmentShader.includes('nativeCloudMaps'), false);
 for (const name of ['cloudMap', 'nativeCloudMaps', 'nativeCloudOpacity', 'nativeCloudFeather']) {
   assert.equal(appearance.surface.uniforms[name], appearance.clouds.uniforms[name]);
