@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "revision": "nasa-blue-marble-cloud-2001-native-tiles-v2",
+  "revision": "nasa-blue-marble-cloud-2001-native-tiles-v3",
   "publisher_page": "https://science.nasa.gov/earth/earth-observatory/the-blue-marble-true-color-global-imagery-at-1km-resolution/",
   "license_url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
   "license": "NASA imagery-use guidelines; educational/informational use with source acknowledgment; no endorsement.",
@@ -39,7 +39,7 @@
       "source_sha256": "11eb1aaf8e6056b9aebc0de4894dc5ad8a21cbe8738c6ddc92e88701eb7e1b99"
     }
   ],
-  "transform": "Native-pixel crops; eight real neighboring-pixel gutters on all edges, longitude wraps and latitude clamps. Grayscale WebP quality90/method4, no resize, sharpening, inpainting or procedural detail. Pillow 11.2.1.",
+  "transform": "Native-pixel crops; eight real neighboring-pixel gutters on all edges, longitude wraps and latitude clamps. Grayscale WebP quality90/method4, no resize, sharpening, inpainting or procedural detail. Pillow 11.2.1. Runtime applies the documented pointwise soft-toe display transfer to decoded native mask values before mip generation; original encoded tile bytes remain unchanged.",
   "compression_validation": {
     "mean_absolute_channel_error": 0.8062966794008031,
     "maximum_absolute_channel_error": 21,
@@ -53,7 +53,8 @@
     "Source composite artifacts, including the western-US mosaic wedge and the fixed longitude 0 degree west/east join over the Southern Ocean, are preserved.",
     "Native nominal1km is coarser than the500m regional land imagery.",
     "Nine tile resident limit, two concurrent loads, single-channel R8 textures; GPU mips at most48MiB and retained CPU mask data at most36MiB.",
-    "Only camera-neighborhood coverage is resident; matched area-reduced NASA global coverage remains beyond loaded tiles and near some horizon/polar edges."
+    "Only camera-neighborhood coverage is resident; matched area-reduced NASA global coverage remains beyond loaded tiles and near some horizon/polar edges.",
+    "Display-only soft toe reduces source low-gray mosaic plateaus and genuine faint clouds; it does not repair bright mosaic boundaries or the longitude0 source seam. R8 quantization is explicit in display_transfer."
   ],
   "tiles": [
     {
@@ -5381,5 +5382,13 @@
       ]
     }
   ],
-  "global_fallback_manifest": "/earth/cloud-global.json"
+  "global_fallback_manifest": "/earth/cloud-global.json",
+  "display_transfer": {
+    "revision": "cloud-mask-soft-toe-v1",
+    "purpose": "Display-only low-code suppression of visible NASA composite swath plateaus; not a calibrated cloud fraction, optical depth or gamma correction.",
+    "toe_code": 64,
+    "formula": "For source code c in[0,255], t=min(1,c/64); output=floor(c*t*t*(3-2*t)+0.5). Codes64..255 are unchanged.",
+    "quantization": "8-bit R8/gray coverage, round-half-up in both Python and JavaScript. Codes0..9 map to0; genuine faint cloud signal is reduced along with source artifacts.",
+    "filter_order": "Apply to native source/decoded tile texels before area reduction or GPU mip generation. Never apply the nonlinear toe to an already filtered coverage sample."
+  }
 }

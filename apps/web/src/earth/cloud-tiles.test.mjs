@@ -11,7 +11,9 @@ if (typeof ASSET_DIR === 'undefined') {
     const output = join(scratch, 'check.mjs');
     await build({
       entryPoints: [fileURLToPath(import.meta.url)],
-      define: { ASSET_DIR: JSON.stringify(resolve(here, '../../public/earth')) },
+      define: {
+        ASSET_DIR: JSON.stringify(resolve(here, '../../public/earth')),
+      },
       bundle: true,
       platform: 'node',
       format: 'esm',
@@ -26,9 +28,8 @@ if (typeof ASSET_DIR === 'undefined') {
   const assert = (await import('node:assert/strict')).default;
   const { readFile } = await import('node:fs/promises');
   const { createHash } = await import('node:crypto');
-  const { CloudTileLayer, cloudTileBudget, selectCloudTiles, readCloudTile } = await import(
-    './CloudTiles.ts'
-  );
+  const { CloudTileLayer, cloudTileBudget, selectCloudTiles, readCloudTile, cloudCoverageByte } =
+    await import('./CloudTiles.ts');
   const {
     Texture,
     RedFormat,
@@ -51,6 +52,37 @@ if (typeof ASSET_DIR === 'undefined') {
   // Changing detail must not switch to a different cloud composite, especially at the poles.
   assert.deepEqual(globalCloud.sources, manifest.sources);
   assert.equal(globalCloud.acquisition_epoch, manifest.acquisition_epoch);
+  assert.deepEqual(globalCloud.display_transfer, manifest.display_transfer);
+  assert.equal(manifest.display_transfer.toe_code, 64);
+  const coverageCodes = Array.from({ length: 256 }, (_, code) => cloudCoverageByte(code));
+  assert.equal(
+    createHash('sha256').update(new Uint8Array(coverageCodes)).digest('hex'),
+    globalCloud.processing.coverage_lut_sha256,
+  );
+  for (let code = 0; code < 256; code++) {
+    assert.ok(coverageCodes[code] >= 0 && coverageCodes[code] <= code);
+    if (code) assert.ok(coverageCodes[code] >= coverageCodes[code - 1]);
+    if (code >= 64) assert.equal(coverageCodes[code], code, 'Bright cloud codes stay unchanged');
+  }
+  assert.deepEqual([7, 15, 16, 32, 48, 64].map(cloudCoverageByte), [0, 2, 3, 16, 41, 64]);
+  // Remapping a sparse bright footprint before filtering preserves its mean contribution.
+  const sparse = [255, ...Array(15).fill(0)];
+  const beforeFilter =
+    sparse.reduce((sum, code) => sum + cloudCoverageByte(code), 0) / sparse.length;
+  assert.equal(beforeFilter, 255 / 16);
+  assert.ok(
+    beforeFilter > 5 * cloudCoverageByte(255 / 16),
+    'A post-filter toe would erase the sparse wisp',
+  );
+  // Independent source-footprint records made by the reproducible global builder use the same LUT.
+  for (const check of globalCloud.processing.filter_order_checks) {
+    const rows = check.source_code_rows.map((row) =>
+      Math.floor(row.reduce((sum, code) => sum + cloudCoverageByte(code), 0) / row.length + 0.5),
+    );
+    const average = rows.reduce((sum, value) => sum + value, 0) / rows.length;
+    assert.equal(Math.floor(average + 0.5), check.transformed_box_mean);
+    assert.equal(check.observed_reduced_code, check.transformed_box_mean);
+  }
   for (const [level, dimensions] of [
     ['8k', [8192, 4096]],
     ['4k', [4096, 2048]],
@@ -102,7 +134,11 @@ if (typeof ASSET_DIR === 'undefined') {
   }
   assert.equal(total, manifest.runtime_total_bytes);
   assert.ok(total < 100_000_000);
-  const capabilities = { maxTextureSize: 8192, maxTextures: 16, getMaxAnisotropy: () => 16 };
+  const capabilities = {
+    maxTextureSize: 8192,
+    maxTextures: 16,
+    getMaxAnisotropy: () => 16,
+  };
   assert.equal(cloudTileBudget(capabilities), 9);
   assert.equal(cloudTileBudget({ ...capabilities, maxTextureSize: 1024 }), 0);
   assert.equal(cloudTileBudget({ ...capabilities, maxTextures: 8 }), 3);
@@ -299,7 +335,7 @@ if (typeof ASSET_DIR === 'undefined') {
         getImageData() {
           return {
             data: new Uint8ClampedArray([
-              0, 0, 0, 255, 64, 64, 64, 255, 128, 128, 128, 255, 255, 255, 255, 255,
+              7, 7, 7, 255, 16, 16, 16, 255, 64, 64, 64, 255, 255, 255, 255, 255,
             ]),
           };
         },
@@ -309,7 +345,7 @@ if (typeof ASSET_DIR === 'undefined') {
   const texture = await readCloudTile(fixture, new AbortController().signal, 32);
   assert.equal(decodeOptions.imageOrientation, 'flipY');
   assert.equal(decodeOptions.colorSpaceConversion, 'none');
-  assert.deepEqual([...texture.image.data], [0, 64, 128, 255]);
+  assert.deepEqual([...texture.image.data], [0, 3, 64, 255]);
   assert.equal(texture.format, RedFormat);
   assert.equal(texture.type, UnsignedByteType);
   assert.equal(texture.colorSpace, NoColorSpace);
