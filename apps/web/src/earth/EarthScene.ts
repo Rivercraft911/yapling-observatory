@@ -36,6 +36,7 @@ import { SpacecraftFollow } from './SpacecraftFollow';
 import { FollowLink } from './FollowLink';
 import { SunDisplay } from './SunDisplay';
 import { TargetDisplay, activeTargetAtSample } from './TargetDisplay';
+import { GroundTrackLayer } from './GroundTrackLayer';
 import regionalImagery from './regional-lod.json';
 import cloudImagery from './cloud-tiles.json';
 import { CloudTileLayer, cloudTileBudget, readCloudTile } from './CloudTiles';
@@ -78,6 +79,8 @@ export class EarthScene {
   private readonly followLink: FollowLink;
   private readonly sunDisplay: SunDisplay;
   private readonly targetDisplay = new TargetDisplay(this.renderer);
+  private readonly groundTrack = new GroundTrackLayer(this.renderer.getPixelRatio());
+  private groundTrackEnabled = false;
   private readonly followEarthCamera = new PerspectiveCamera(34, 1, 0.0001, 40);
   private cameraMode: EarthCameraMode = 'earth';
   private groundTargetPicker: ((positionEcefM: number[]) => void) | null = null;
@@ -246,6 +249,7 @@ export class EarthScene {
       this.losSolid,
       this.losDashed,
       this.targetDisplay.group,
+      this.groundTrack.group,
     );
     this.history.visible = false;
     this.satellite.visible = false;
@@ -335,6 +339,11 @@ export class EarthScene {
     this.losSegment = [];
     this.sceneExtent = 1.02;
     const samples = snapshot?.run.result?.samples;
+    const stepS = snapshot?.scenario.step_s;
+    this.groundTrack.setSamples(
+      samples?.satellite_position_ecef_m.length ? samples : undefined,
+      stepS && Number.isFinite(stepS) && stepS > 0 ? 3 * stepS : Infinity,
+    );
     if (!snapshot || !samples?.satellite_position_ecef_m.length) {
       this.history.visible = false;
       this.station.visible = false;
@@ -398,7 +407,7 @@ export class EarthScene {
       );
       this.history.add(line);
     }
-    this.history.visible = true;
+    this.history.visible = !this.groundTrackEnabled;
     this.station.visible = true;
     this.renderer.domElement.dataset.runId = snapshot.run.run_id;
     if (!this.autoFramed) {
@@ -441,11 +450,13 @@ export class EarthScene {
       this.losSegment = [];
       this.labels.satellite.hidden = true;
       this.labels.station.hidden = true;
+      this.groundTrack.group.visible = false;
       return;
     }
     this.satellite.position.fromArray(ecefToDisplay(p));
     this.satellite.visible = true;
     const visualTime = bracket?.time ?? samples.time_s[index];
+    this.groundTrack.updateSample(index, p, visualTime);
     const sunEcef = samples.sun_direction_ecef
       ? bracket
         ? interpolateVector3(
@@ -505,7 +516,7 @@ export class EarthScene {
       : samples.q_body_from_inertial_wxyz[index];
     if (pose) this.follow.setPose(pose, visualTime, snapshot.scenario.duration_s, angle);
     const direction = samples.active_direction[index];
-    const positive = linkDisplayState(samples, index) === 'IDEAL LINK';
+    const positive = linkDisplayState(samples, index) === 'RF OPPORTUNITY';
     const color = positive
       ? direction === 'uplink'
         ? '#ef6771'
@@ -555,10 +566,21 @@ export class EarthScene {
   setAsset(variant: Variant, asset?: AssetInfo) {
     void this.follow.setAsset(variant, asset);
   }
+  setGroundTrack(enabled: boolean, windowSeconds = 10800) {
+    const enabling = enabled && !this.groundTrackEnabled;
+    this.groundTrackEnabled = enabled;
+    if (enabling) this.setCameraMode('earth');
+    this.groundTrack.setEnabled(enabled && this.cameraMode === 'earth', windowSeconds);
+    this.history.visible = !enabled && this.history.children.length > 0;
+    this.renderer.domElement.dataset.groundTrack = String(enabled);
+    this.renderer.domElement.dataset.groundTrackWindowSeconds = String(windowSeconds);
+    this.updateSample(this.sampleIndex);
+  }
   setCameraMode(mode: EarthCameraMode) {
     this.cameraMode = mode;
     this.controls.enabled = mode === 'earth' && !this.groundTargetPicker;
     this.follow.setEnabled(mode === 'spacecraft');
+    this.groundTrack.setEnabled(this.groundTrackEnabled && mode === 'earth');
     this.renderer.domElement.dataset.cameraMode = mode;
     this.renderer.domElement.setAttribute(
       'aria-label',
@@ -669,7 +691,9 @@ export class EarthScene {
       this.satellite.visible =
         !!this.snapshot?.run.result?.samples.satellite_position_ecef_m[this.sampleIndex];
     }
-    this.history.visible = this.history.children.length > 0 && !closeFollow;
+    this.history.visible =
+      this.history.children.length > 0 && !closeFollow && !this.groundTrackEnabled;
+    this.groundTrack.updateCamera(activeCamera);
     this.fitDepthRange(activeCamera, !follow);
     if (follow) {
       // The local pass owns the LOS before the adaptive background near plane.
@@ -687,6 +711,14 @@ export class EarthScene {
     this.renderer.domElement.dataset.earthNear = activeCamera.near.toPrecision(6);
     this.renderer.domElement.dataset.earthFar = activeCamera.far.toPrecision(6);
     this.renderer.domElement.dataset.followHistoryVisible = String(this.history.visible);
+    if (this.groundTrackEnabled) {
+      const track = this.groundTrack.statistics;
+      this.renderer.domElement.dataset.groundTrackSamples = String(track.pointCount);
+      this.renderer.domElement.dataset.groundTrackMarkers = String(track.markerCount);
+      this.renderer.domElement.dataset.groundTrackOmittedMarkers = String(track.omittedMarkerCount);
+      this.renderer.domElement.dataset.groundTrackStartSeconds = String(track.windowStartS ?? '');
+      this.renderer.domElement.dataset.groundTrackEndSeconds = String(track.windowEndS ?? '');
+    }
     if (this.station.visible)
       this.placeLabel(this.labels.station, this.station.position, activeCamera);
     else this.labels.station.hidden = true;
@@ -956,6 +988,7 @@ export class EarthScene {
     this.followLink.dispose();
     this.sunDisplay.dispose();
     this.targetDisplay.dispose();
+    this.groundTrack.dispose();
     this.regionalAbort?.abort();
     this.releaseRegionalImagery();
     this.cloudTiles?.dispose();

@@ -5,6 +5,7 @@ import { plotDefinitions } from '../plots/registry.ts';
 const samples = {
   time_s: [0, 30, 60, 90, 120, 150, 180, 210],
   visible: [false, false, true, true, true, true, undefined, true],
+  elevation_deg: [-2, -1, 25, 30, 35, 40, 45, 50],
   radio_active: [false, true, true, true, true, false, true, true],
   active_direction: Array(8).fill('downlink'),
   uplink: { margin_db: [11, 8, 3, 2, 1, 5, 7, 4] },
@@ -19,12 +20,12 @@ assert.deepEqual(
   [
     'BELOW MASK',
     'BELOW MASK',
-    'IDEAL LINK',
+    'RF OPPORTUNITY',
     'BELOW THRESHOLD',
     'RF UNRESOLVED',
     'RADIO IDLE',
     'GEOMETRY UNAVAILABLE',
-    'IDEAL LINK',
+    'RF OPPORTUNITY',
   ],
 );
 const margin = plotDefinitions.find((definition) => definition.id === 'margin');
@@ -36,12 +37,27 @@ assert.deepEqual(
   ],
 );
 assert.equal(JSON.stringify(samples), before);
-assert.equal(linkDisplayState({ ...samples, radio_active: undefined }, 2), 'IDEAL LINK');
+assert.equal(linkDisplayState({ ...samples, radio_active: undefined }, 2), 'RADIO UNRESOLVED');
 assert.equal(linkDisplayState({ ...samples, visible: undefined }, 2), 'GEOMETRY UNAVAILABLE');
 assert.deepEqual(
   visibleLinkMargins({ ...samples, visible: undefined }, 'downlink'),
   Array(8).fill(null),
 );
+const adaptive = {
+  ...samples,
+  radio_delivery: { downlink: { selected_margin_db: [null, null, -1, 3, null, 8, 4, 0] } },
+};
+assert.equal(linkDisplayState(adaptive, 2), 'BELOW THRESHOLD');
+assert.equal(linkDisplayState(adaptive, 3), 'RF OPPORTUNITY');
+assert.equal(linkDisplayState(adaptive, 4), 'RF UNRESOLVED');
+assert.equal(linkDisplayState(adaptive, 7), 'RF OPPORTUNITY');
+assert.equal(
+  linkDisplayState({ ...samples, radio_delivery: { downlink: {} } }, 2),
+  'RF UNRESOLVED',
+);
+assert.equal(linkDisplayState({ ...samples, radio_delivery: {} }, 2), 'RF UNRESOLVED');
+assert.equal(linkDisplayState({ ...samples, elevation_deg: undefined }, 2), 'GEOMETRY UNAVAILABLE');
+assert.equal(JSON.stringify(samples), before);
 console.log(
-  'Link display passed: hidden positive margins are gaps, visible negative/zero margins remain, radio idle is not an active link, archives stay unchanged.',
+  'Link display passed: hidden positive margins are gaps, visible negative/zero margins remain, radio idle is not an active link, adaptive badges use the selected-mode margin, unknown states stay unresolved, archives stay unchanged.',
 );

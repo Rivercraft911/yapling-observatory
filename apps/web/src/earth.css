@@ -327,3 +327,66 @@
   color: #d8b77c;
   margin: 8px 0 0 9px;
 }
+
+.earth-title > .earth-utc-date {
+  margin: 0;
+  font: 9px var(--mono);
+  color: #aaa19a;
+}
+.earth-track-window {
+  width: auto;
+  min-width: 64px;
+  padding: 6px 8px;
+  border: 1px solid #514449;
+  border-radius: 2px;
+  background: #1d1b1de8;
+  color: #cec4bd;
+  font: 10px var(--mono);
+}
+.earth-track-window:focus-visible {
+  outline: 1px solid #ef6771;
+  outline-offset: 3px;
+}
+.earth-track-legend {
+  position: absolute;
+  top: 112px;
+  left: 25px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: calc(100% - 50px);
+  color: #bbb2ab;
+  font: 9px var(--mono);
+  text-shadow: 0 1px 3px #000;
+}
+.earth-track-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.earth-track-legend i {
+  width: 13px;
+  height: 1px;
+  background: #77716b;
+}
+.earth-track-legend .contact {
+  background: #e6e1d9;
+}
+.earth-track-legend .rf {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ef6771;
+}
+@media (max-width: 760px) {
+  .earth-track-legend {
+    left: 18px;
+    top: 108px;
+    gap: 9px;
+  }
+  .earth-track-window {
+    min-width: 54px;
+    padding: 5px;
+    font-size: 9px;
+  }
+}

@@ -1,4 +1,5 @@
 import type { Direction, Samples } from '../types';
+import { contactStateAtSample } from './contactState.ts';
 
 export function visibleLinkMargins(samples: Samples, direction: Direction) {
   return samples[direction].margin_db.map((value, index) =>
@@ -8,11 +9,22 @@ export function visibleLinkMargins(samples: Samples, direction: Direction) {
 
 export function linkDisplayState(samples: Samples | undefined, index: number) {
   if (!samples) return 'NO RUN';
-  if (samples.visible?.[index] === false) return 'BELOW MASK';
-  if (samples.visible?.[index] !== true) return 'GEOMETRY UNAVAILABLE';
-  if (samples.radio_active?.[index] === false) return 'RADIO IDLE';
-  const direction = samples.active_direction[index];
-  const margin = direction ? samples[direction]?.margin_db[index] : null;
-  if (margin == null) return 'RF UNRESOLVED';
-  return margin < 0 ? 'BELOW THRESHOLD' : 'IDEAL LINK';
+  const { state } = contactStateAtSample(samples, index);
+  switch (state) {
+    case 'uplink':
+    case 'downlink':
+      return 'RF OPPORTUNITY';
+    case 'below-mask':
+      return 'BELOW MASK';
+    case 'geometry-unavailable':
+      return 'GEOMETRY UNAVAILABLE';
+    case 'radio-idle':
+      return 'RADIO IDLE';
+    case 'radio-unknown':
+      return 'RADIO UNRESOLVED';
+    case 'below-threshold':
+      return 'BELOW THRESHOLD';
+    default:
+      return 'RF UNRESOLVED';
+  }
 }

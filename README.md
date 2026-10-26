@@ -2,6 +2,8 @@
 
 Run a CubeSat mission, inspect antenna lobes, and compare RF, pointing, power and temperatures on one timeline. Follow the spacecraft above Earth or work with its physical model. Resize the panes, choose the lower plots, and replay a computed run at 0.25× to 1000×. Click or drag a plot to scrub. Hover to inspect a sampled value while playback continues. Wheel over a plot to zoom at the pointer; Shift + wheel pans. The linked time window follows you between Earth and Results. Use Full to restore the whole run, or click a daily/pass row to frame that interval. Graphics interpolate between samples for smooth replay.
 
+Choose **Ground track** in Earth to lay the returned orbit on the surface. Use a three-hour, 24-hour or whole-run window. Warm-white segments show sampled above-mask geometry; cardinal dots show sampled RF opportunities. Triangles mark sampled acquisition/loss bounds, and rings mark closest approach or highest elevation. Only the nearest 64 pass markers are shown. Clipped history never creates an acquisition or loss event. Sparse samples can miss short receive windows or fades, and positive margin does not establish receiver lock or frame delivery. Live draws only received history. The overlay uses a radial WGS84 display projection and does not change the orbit or budget.
+
 Python owns the engineering calculations. The browser displays immutable results and handles cameras, geometry and controls. Equations have named homes such as [`rf/free_space.py`](services/simulator/src/cubesat_sim/rf/free_space.py), [`rf/link_budget.py`](services/simulator/src/cubesat_sim/rf/link_budget.py) and [`orbit/gravity.py`](services/simulator/src/cubesat_sim/orbit/gravity.py). See the [model map and numerical guide](services/simulator/README.md).
 
 ## Run locally
@@ -88,6 +90,9 @@ node apps/web/src/mission/mission-uhf-lifecycle.test.mjs
 node apps/web/src/mission/mission-gnc-controls.test.mjs
 node --experimental-strip-types apps/web/src/live/live-display-clock.test.mjs
 node apps/web/src/earth/earth-live-display.test.mjs
+node apps/web/src/earth/ground-track.test.mjs
+node apps/web/src/earth/ground-track-layer.test.mjs
+node apps/web/src/earth/earth-ground-track-controls.test.mjs
 node --experimental-strip-types apps/web/src/earth/geodesy.test.mjs
 node --experimental-strip-types apps/web/src/earth/follow-frames.test.mjs
 node apps/web/src/earth/regional-lod.test.mjs

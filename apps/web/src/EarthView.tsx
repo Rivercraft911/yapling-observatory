@@ -42,6 +42,8 @@ export function EarthView({
   currentVariant.current = selectedVariant;
   const [cameraMode, setCameraMode] = useState<EarthCameraMode>('earth');
   const [pickingTarget, setPickingTarget] = useState(false);
+  const [groundTrack, setGroundTrack] = useState(false);
+  const [trackWindow, setTrackWindow] = useState(10800);
   const targetCallback = useRef(onGroundTarget);
   targetCallback.current = onGroundTarget;
   const [thermalView, setThermalView] = useState(false);
@@ -108,6 +110,9 @@ export function EarthView({
     scene.current?.setThermalView(thermalView);
   }, [thermalView, retry]);
   useEffect(() => {
+    scene.current?.setGroundTrack(groundTrack && cameraMode === 'earth', trackWindow);
+  }, [groundTrack, cameraMode, trackWindow, retry]);
+  useEffect(() => {
     scene.current?.setGroundTargetPicker(
       pickingTarget && onGroundTarget && cameraMode === 'earth'
         ? (position) => {
@@ -123,7 +128,8 @@ export function EarthView({
   const date = snapshot
     ? new Date(new Date(snapshot.scenario.epoch_utc).getTime() + time * 1000)
     : null;
-  const utc = date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(11, 19) : '—';
+  const iso = date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
+  const utc = iso?.slice(11, 19) ?? '—';
   const follow = cameraMode === 'spacecraft';
   const followError =
     follow && followStatus.state === 'unavailable'
@@ -138,16 +144,23 @@ export function EarthView({
     <section className="earth-view" aria-label="Earth and pass view">
       <div className="earth-render-host" ref={host} />
       <div className="earth-title">
-        <span>{follow ? 'SPACECRAFT / EARTH' : 'EARTH / PASS ARC'}</span>
+        <span>
+          {follow
+            ? 'SPACECRAFT / EARTH'
+            : groundTrack
+              ? 'EARTH / GROUND TRACK'
+              : 'EARTH / PASS ARC'}
+        </span>
         <strong>
           {utc}
           <small>UTC</small>
         </strong>
+        {iso && <small className="earth-utc-date">{iso.slice(0, 10)}</small>}
         {follow && <small className="earth-follow-revision">{followStatus.revision}</small>}
       </div>
       <div
-        className={`earth-link-state ${state === 'IDEAL LINK' ? 'positive' : ''}`}
-        title="Uses the selected Run sample and ideal threshold model. Above-mask geometry and receiver margin are separate conditions."
+        className={`earth-link-state ${state === 'RF OPPORTUNITY' ? 'positive' : ''}`}
+        title="Uses returned geometry, radio activity and selected-mode margin. Runs without receiver histories use reference-profile margin. Receiver histories without selected-mode margins stay unresolved. RF opportunity does not establish receiver lock or delivered frames."
       >
         <i />
         {state}
@@ -212,21 +225,79 @@ export function EarthView({
           <small>gray = unmapped</small>
         </div>
       )}
+      {!follow && groundTrack && (
+        <div
+          className="earth-track-legend"
+          aria-label="Ground-track legend"
+          title="Up/down triangles mark sampled AOS/LOS bounds; rings mark sampled pass extrema. Clipped edges do not create AOS/LOS markers. Up to 64 markers nearest the shown time are displayed. These are pass locations, not coverage areas. RF samples require visible geometry, the active radio direction and nonnegative returned margin; receiver delivery is not implied. Missing selected-mode margins stay unresolved."
+        >
+          <span>
+            <i className="track" />
+            Track
+          </span>
+          <span>
+            <i className="contact" />
+            Above mask
+          </span>
+          <span>
+            <i className="rf" />
+            RF samples
+          </span>
+        </div>
+      )}
       <div className="earth-footer">
         <div className="earth-view-tools">
           <div className="earth-camera-modes" aria-label="Camera mode">
-            <button className={!follow ? 'active' : ''} onClick={() => setCameraMode('earth')}>
+            <button
+              className={!follow && !groundTrack ? 'active' : ''}
+              aria-pressed={!follow && !groundTrack}
+              onClick={() => {
+                setGroundTrack(false);
+                setCameraMode('earth');
+              }}
+            >
               Earth
             </button>
             <button
+              className={!follow && groundTrack ? 'active' : ''}
+              aria-pressed={!follow && groundTrack}
+              disabled={!samples}
+              title="Surface-projected Run samples with Durand visibility and sampled RF opportunities. Camera and display settings do not change the simulation."
+              onClick={() => {
+                setGroundTrack(true);
+                setCameraMode('earth');
+              }}
+            >
+              Ground track
+            </button>
+            <button
               className={follow ? 'active' : ''}
-              onClick={() => setCameraMode('spacecraft')}
+              aria-pressed={follow}
+              onClick={() => {
+                setGroundTrack(false);
+                setCameraMode('spacecraft');
+              }}
               disabled={!samples}
               title="Keep the real-size spacecraft centered while orbiting or zooming. Earth and spacecraft use the same Run sample."
             >
               Follow spacecraft
             </button>
           </div>
+          {!follow && groundTrack && (
+            <select
+              className="earth-track-window"
+              aria-label="Ground-track window"
+              title="Time span centered on the displayed time and limited to returned samples. Live has no predicted future track."
+              value={Number.isFinite(trackWindow) ? String(trackWindow) : 'all'}
+              onChange={(event) =>
+                setTrackWindow(event.target.value === 'all' ? Infinity : Number(event.target.value))
+              }
+            >
+              <option value="10800">3 h</option>
+              <option value="86400">24 h</option>
+              <option value="all">All</option>
+            </select>
+          )}
           {follow ? (
             <button onClick={() => scene.current?.resetFollow()} disabled={!samples}>
               Frame SC

@@ -23,8 +23,10 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
   }
 } else {
   const assert = (await import('node:assert/strict')).default;
-  const { BufferGeometry, Float32BufferAttribute, Group, Color, Vector3 } = await import('three');
+  const { BufferGeometry, Float32BufferAttribute, Group, Color, Vector3, PerspectiveCamera } =
+    await import('three');
   const { EarthScene } = await import('./EarthScene.ts');
+  const { GroundTrackLayer } = await import('./GroundTrackLayer.ts');
   const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-10);
   const snapshot = (end) => ({
     scenario: {
@@ -42,6 +44,8 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
           sun_direction_ecef: Array.from({ length: end + 1 }, () => [1, 0, 0]),
           q_body_from_inertial_wxyz: Array.from({ length: end + 1 }, () => [1, 0, 0, 0]),
           visible: [false, true, true],
+          elevation_deg: [0, 20, 30],
+          radio_active: [true, true, true],
           active_direction: ['uplink', 'uplink', 'downlink'],
           uplink: { margin_db: [10, 10, 10] },
           downlink: { margin_db: [10, 10, 10] },
@@ -59,10 +63,16 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
     station: { position: new Vector3() },
     stationPoint: new Vector3(),
     stationNormal: new Vector3(),
+    camera: new PerspectiveCamera(),
+    cameraMode: 'earth',
+    controls: { enabled: true },
     history: new Group(),
+    groundTrack: new GroundTrackLayer(),
+    groundTrackEnabled: false,
     autoFramed: true,
     follow: {
       setSun() {},
+      setEnabled() {},
       setPosition(position) {
         scene.displayedPosition = position;
       },
@@ -71,10 +81,11 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
         scene.poseTime = time;
       },
     },
-    sunDisplay: { setDirection() {} },
+    sunDisplay: { setDirection() {}, clear() {} },
     targetDisplay: { clear() {}, setTarget() {} },
-    labels: { target: {} },
+    labels: { target: {}, satellite: {}, station: {} },
     followLink: {
+      clear() {},
       setLink() {
         return { deltaDisplayM: [1, 0, 0] };
       },
@@ -87,7 +98,7 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
     ),
     losSolid: { position: new Vector3() },
     losDashed: { position: new Vector3(), computeLineDistances() {} },
-    renderer: { domElement: { dataset: {} } },
+    renderer: { domElement: { dataset: {}, setAttribute() {} } },
   });
   const first = snapshot(1);
   scene.setHistory(first);
@@ -116,9 +127,31 @@ if (typeof BUNDLED_LIVE_DISPLAY_TEST === 'undefined') {
   near(scene.displayedPosition[1], 2);
   near(scene.poseTime, 2);
   assert.equal(scene.renderer.domElement.dataset.sampleIndex, '2');
+  scene.camera.position.set(1.8, 2.1, 3.4);
+  const cameraBefore = scene.camera.toJSON();
+  const timeBefore = scene.renderer.domElement.dataset.displayTimeSeconds;
+  scene.setGroundTrack(true, Infinity);
+  assert.equal(scene.cameraMode, 'earth');
+  assert.equal(scene.history.visible, false);
+  assert.equal(scene.groundTrack.group.visible, true);
+  assert.equal(scene.groundTrack.statistics.pointCount, 3);
+  assert.equal(scene.renderer.domElement.dataset.displayTimeSeconds, timeBefore);
+  assert.deepEqual(scene.camera.toJSON(), cameraBefore);
+  scene.setHistory(snapshot(3));
+  assert.equal(scene.history.visible, false);
+  assert.deepEqual(scene.camera.toJSON(), cameraBefore, 'A receipt never reframes the camera');
+  scene.updateSample(50);
+  assert.equal(scene.groundTrack.group.visible, false);
+  scene.updateSample(2);
+  assert.equal(scene.groundTrack.group.visible, true);
+  scene.setGroundTrack(false);
+  assert.equal(scene.history.visible, true);
+  assert.equal(scene.groundTrack.group.visible, false);
+  assert.deepEqual(scene.camera.toJSON(), cameraBefore);
   scene.clearHistory();
+  scene.groundTrack.dispose();
   scene.losGeometry.dispose();
   console.log(
-    'Earth receipt presentation passed: actual setHistory/updateSample methods retain the buffered pose, discrete transitions use the displayed lower sample, repeated histories retain geometry and clock-free replay stays exact.',
+    'Earth receipt presentation passed: buffered pose, discrete lower-sample transitions, repeated-history reuse, exact replay, ground-track toggle/invalid recovery, altitude-path exclusivity and no camera/time changes on toggles or telemetry.',
   );
 }

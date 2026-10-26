@@ -182,6 +182,7 @@ if (typeof ASSET_DIR === 'undefined') {
     followLink: noop,
     sunDisplay: noop,
     targetDisplay: noop,
+    groundTrack: noop,
     targetFollowLink: noop,
     clearHistory() {},
     earthMeshes: [],
