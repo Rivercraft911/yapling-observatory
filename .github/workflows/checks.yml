@@ -53,6 +53,7 @@ jobs:
       - run: node apps/web/src/mission/mission-channel-lifecycle.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/gnc-plots.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/plot-preferences.test.mjs
+      - run: node --experimental-strip-types apps/web/src/plots/plot-selection-lifecycle.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/trace-formatting.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/time-window.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/trace-navigation.test.mjs

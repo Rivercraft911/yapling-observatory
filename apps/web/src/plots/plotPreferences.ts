@@ -5,6 +5,7 @@ export type PlotColumns = 'auto' | 1 | 2 | 3;
 export interface PlotPreferences {
   selection: PlotId[];
   columns: PlotColumns;
+  selectionPreset?: 'default' | 'link';
 }
 export const plotLayouts = {
   compact: {
@@ -21,21 +22,60 @@ export const plotLayouts = {
 
 type PreferenceStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
+export function defaultPlotSelection(layout: PlotLayout, adaptive: boolean): PlotId[] {
+  if (!adaptive) return [...plotLayouts[layout].defaults];
+  return layout === 'compact'
+    ? ['selected_margin', 'frame_rate', 'pointing']
+    : ['selected_margin', 'frame_rate', 'pointing', 'wheel_capacity', 'power', 'temperatures'];
+}
+
+export function linkPlotSelection(layout: PlotLayout, adaptive: boolean): PlotId[] {
+  if (layout === 'compact') return defaultPlotSelection(layout, adaptive);
+  return adaptive
+    ? ['selected_margin', 'frame_rate', 'payload', 'receiver_lock', 'margin', 'rate']
+    : ['margin', 'rate', 'payload', 'receiver_lock'];
+}
+
+export function effectivePlotSelection(
+  preferences: PlotPreferences,
+  layout: PlotLayout,
+  adaptive: boolean,
+): PlotId[] {
+  return preferences.selectionPreset === 'default'
+    ? defaultPlotSelection(layout, adaptive)
+    : preferences.selectionPreset === 'link'
+      ? linkPlotSelection(layout, adaptive)
+      : preferences.selection;
+}
+
 export function readPlotPreferences(
   layout: PlotLayout,
   available: readonly PlotId[],
   storage?: PreferenceStorage,
 ): PlotPreferences {
   const settings = plotLayouts[layout];
-  const fallback = { selection: [...settings.defaults], columns: 'auto' as const };
+  const fallback: PlotPreferences = {
+    selection: [...settings.defaults],
+    columns: 'auto',
+    selectionPreset: 'default',
+  };
   try {
     const saved: unknown = JSON.parse(storage?.getItem(settings.storageKey) || 'null');
     const record =
       saved && typeof saved === 'object' && !Array.isArray(saved)
-        ? (saved as { version?: unknown; selection?: unknown; columns?: unknown })
+        ? (saved as {
+            version?: unknown;
+            selection?: unknown;
+            columns?: unknown;
+            selectionPreset?: unknown;
+          })
         : null;
     const selection =
-      layout === 'compact' ? saved : record?.version === 1 ? record.selection : null;
+      layout === 'compact' && Array.isArray(saved)
+        ? saved
+        : record?.version === 1
+          ? record.selection
+          : null;
     if (
       !Array.isArray(selection) ||
       selection.length < 1 ||
@@ -49,7 +89,12 @@ export function readPlotPreferences(
       (record?.columns === 1 || record?.columns === 2 || record?.columns === 3)
         ? record.columns
         : 'auto';
-    return { selection: [...selection], columns };
+    const selectionPreset = record?.selectionPreset;
+    return {
+      selection: [...selection],
+      columns,
+      ...(selectionPreset === 'default' || selectionPreset === 'link' ? { selectionPreset } : {}),
+    };
   } catch {
     return fallback;
   }
@@ -63,7 +108,11 @@ export function writePlotPreferences(
   try {
     storage?.setItem(
       plotLayouts[layout].storageKey,
-      JSON.stringify(layout === 'compact' ? preferences.selection : { version: 1, ...preferences }),
+      JSON.stringify(
+        layout === 'compact' && !preferences.selectionPreset
+          ? preferences.selection
+          : { version: 1, ...preferences },
+      ),
     );
   } catch {}
 }

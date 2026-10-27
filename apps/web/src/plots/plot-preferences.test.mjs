@@ -5,6 +5,9 @@ import {
   readPlotPreferences,
   writePlotPreferences,
   togglePlotSelection,
+  effectivePlotSelection,
+  defaultPlotSelection,
+  linkPlotSelection,
 } from './plotPreferences.ts';
 
 const ids = plotDefinitions.map((definition) => definition.id);
@@ -25,6 +28,8 @@ assert.deepEqual(results.selection, [
   'temperatures',
 ]);
 assert.equal(results.columns, 'auto');
+assert.equal(earth.selectionPreset, 'default');
+assert.equal(results.selectionPreset, 'default');
 assert.equal(plotLayouts.compact.maximum, 6);
 assert.equal(plotLayouts.results.maximum, 12);
 assert(earth.selection.every((id) => ids.includes(id)));
@@ -80,6 +85,7 @@ for (const record of [
   assert.deepEqual(readPlotPreferences('results', ids, storage), {
     selection: plotLayouts.results.defaults,
     columns: 'auto',
+    selectionPreset: 'default',
   });
 }
 for (const columns of ['auto', 1, 2, 3]) {
@@ -109,6 +115,28 @@ assert.doesNotThrow(() => writePlotPreferences('results', results, unavailable))
 const independent = readPlotPreferences('results', ids);
 independent.selection.pop();
 assert.equal(readPlotPreferences('results', ids).selection.length, 6);
+
+for (const layout of ['compact', 'results']) {
+  const automatic = readPlotPreferences(layout, ids);
+  writePlotPreferences(layout, automatic, storage);
+  const restored = readPlotPreferences(layout, ids, storage);
+  assert.equal(restored.selectionPreset, 'default');
+  assert.deepEqual(
+    effectivePlotSelection(restored, layout, true),
+    defaultPlotSelection(layout, true),
+  );
+  assert.deepEqual(effectivePlotSelection(restored, layout, false), plotLayouts[layout].defaults);
+  for (const adaptive of [false, true]) {
+    const link = { ...restored, selectionPreset: 'link' };
+    writePlotPreferences(layout, link, storage);
+    assert.deepEqual(
+      effectivePlotSelection(readPlotPreferences(layout, ids, storage), layout, adaptive),
+      linkPlotSelection(layout, adaptive),
+    );
+  }
+  const custom = { selection: ['margin', 'rate'], columns: 'auto' };
+  assert.deepEqual(effectivePlotSelection(custom, layout, true), custom.selection);
+}
 console.log(
-  'Plot preferences passed: independent Earth/Results storage, legacy Earth arrays, six/three defaults, twelve/six limits, column choices, last-plot protection and malformed/unavailable storage.',
+  'Plot preferences passed: independent Earth/Results storage, explicit legacy choices, adaptive-aware preset intent, twelve/six limits, columns, last-plot protection and malformed/unavailable storage.',
 );
