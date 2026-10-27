@@ -7,6 +7,7 @@ import type { PlotId } from './registry';
 import { MissionReport } from '../mission/MissionReport';
 import { PowerStatus } from './PowerStatus';
 import { LinkStatus } from './LinkStatus';
+import { EventStrip } from './EventStrip';
 import { formatElapsedSeconds } from './traceFormatting';
 import {
   clampTimeRange,
@@ -22,6 +23,9 @@ import {
   readPlotPreferences,
   writePlotPreferences,
   togglePlotSelection,
+  defaultPlotSelection,
+  linkPlotSelection,
+  effectivePlotSelection,
   type PlotLayout,
   type PlotColumns,
 } from './plotPreferences';
@@ -38,7 +42,7 @@ const resultsPresets: { label: string; values: PlotId[] }[] = [
   { label: 'Overview', values: plotLayouts.results.defaults },
   {
     label: 'Link',
-    values: ['margin', 'frame_rate', 'selected_margin', 'payload', 'receiver_lock', 'rate'],
+    values: linkPlotSelection('results', false),
   },
   {
     label: 'GNC',
@@ -118,6 +122,7 @@ function PlotDockContent({
   onFocusRange,
 }: PlotDockProps) {
   const [reportOpen, setReportOpen] = useState(false);
+  const [eventsOpen, setEventsOpen] = useState(true);
   const [localTimeRange, setLocalTimeRange] = useState<TimeRange | null>(null);
   const activeTimeRange = timeRange === undefined ? localTimeRange : timeRange;
   const changeTimeRange = onTimeRangeChange ?? setLocalTimeRange;
@@ -136,20 +141,22 @@ function PlotDockContent({
       preferenceStorage(),
     ),
   );
-  const selection = preferences.selection;
   const maximum = plotLayouts[layout].maximum;
   const adaptive = !!(
     snapshot?.run.result?.samples.radio_delivery?.downlink.ready_payload_rate_bps ||
     snapshot?.run.result?.samples.radio_delivery?.uplink.ready_payload_rate_bps
   );
-  const presets =
-    layout === 'results'
-      ? resultsPresets
-      : compactPresets.map((preset) =>
-          adaptive && preset.label === 'Link'
-            ? { ...preset, values: ['selected_margin', 'frame_rate', 'pointing'] as PlotId[] }
-            : preset,
-        );
+  const selection = useMemo(
+    () => effectivePlotSelection(preferences, layout, adaptive),
+    [preferences, layout, adaptive],
+  );
+  const presets = (layout === 'results' ? resultsPresets : compactPresets).map((preset) =>
+    preset.label === 'Link'
+      ? { ...preset, values: linkPlotSelection(layout, adaptive) }
+      : preset.label === 'Overview'
+        ? { ...preset, values: defaultPlotSelection(layout, adaptive) }
+        : preset,
+  );
   const [choosing, setChoosing] = useState(false);
   const chooser = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -190,7 +197,8 @@ function PlotDockContent({
   const toggle = (id: PlotId) =>
     setPreferences((current) => ({
       ...current,
-      selection: togglePlotSelection(current.selection, id, layout),
+      selection: togglePlotSelection(effectivePlotSelection(current, layout, adaptive), id, layout),
+      selectionPreset: undefined,
     }));
   return (
     <section
@@ -220,7 +228,16 @@ function PlotDockContent({
             aria-pressed={!reportOpen && selection.join() === preset.values.join()}
             onClick={() => {
               setReportOpen(false);
-              setPreferences((current) => ({ ...current, selection: [...preset.values] }));
+              setPreferences((current) => ({
+                ...current,
+                selection: [...preset.values],
+                selectionPreset:
+                  preset.label === 'Overview'
+                    ? 'default'
+                    : preset.label === 'Link'
+                      ? 'link'
+                      : undefined,
+              }));
             }}
           >
             {preset.label}
@@ -320,6 +337,16 @@ function PlotDockContent({
               'receiver_lock',
             ].includes(id),
           ) && <LinkStatus snapshot={snapshot} cursorTime={cursorTime} />}
+          {snapshot?.run.result && timeDomain && (
+            <button
+              className="plot-event-toggle"
+              aria-pressed={eventsOpen}
+              title="Show recorded events and sampled transitions. Click a marker to focus all graphs."
+              onClick={() => setEventsOpen(!eventsOpen)}
+            >
+              Events
+            </button>
+          )}
           <button
             aria-label="Pan graphs earlier"
             title="Pan earlier (←)"
@@ -366,6 +393,18 @@ function PlotDockContent({
           >
             Full
           </button>
+          {eventsOpen && snapshot?.run.result && timeDomain && shownRange && (
+            <EventStrip
+              key={snapshot.run.run_id}
+              result={snapshot.run.result}
+              domain={timeDomain}
+              range={shownRange}
+              onFocus={(time, range) => {
+                changeTimeRange(fullRangeOrNull(range, timeDomain));
+                onScrub(time);
+              }}
+            />
+          )}
         </div>
       )}
       {reportOpen ? (

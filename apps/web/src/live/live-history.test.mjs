@@ -40,6 +40,7 @@ const first = history.snapshot(session());
 assert.deepEqual(first.run.result.samples.time_s, [0]);
 assert.equal(first.run.status, 'running');
 assert.equal(first.run.result.manifest.partial, true);
+assert.equal(first.run.result.manifest.history_gap, false);
 assert.equal(history.accept(session({ latest_telemetry: row(1), next_sequence: 1 })), true);
 assert.equal(history.accept(session({ latest_telemetry: row(1), next_sequence: 1 })), false);
 assert.deepEqual(history.snapshot(session()).run.result.samples.time_s, [0, 1]);
@@ -89,6 +90,7 @@ const gap = session({
 });
 history.accept(gap);
 assert.equal(history.gap, true);
+assert.equal(history.snapshot(gap).run.result.manifest.history_gap, true);
 assert.equal(history.sequence, 8);
 assert.throws(() => new LiveHistory().accept(session({ next_sequence: 2 })), /watermark skipped/);
 const ended = {
