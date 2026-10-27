@@ -360,9 +360,9 @@ export default function App() {
             gridTemplateRows:
               view === 'earth'
                 ? compact
-                  ? '420px 36px 360px 92px 32px'
-                  : `minmax(160px,${sceneFraction}fr) 7px 36px minmax(160px,${1 - sceneFraction}fr) 91px 27px`
-                : `${compact ? 'minmax(700px,auto)' : 'minmax(0,1fr)'} ${showTimeline ? '91px ' : ''}27px`,
+                  ? '420px 36px 360px minmax(92px,auto) 32px'
+                  : `minmax(160px,${sceneFraction}fr) 7px 36px minmax(160px,${1 - sceneFraction}fr) minmax(91px,auto) 27px`
+                : `${compact ? 'minmax(700px,auto)' : 'minmax(0,1fr)'} ${showTimeline ? 'minmax(91px,auto) ' : ''}27px`,
           }}
         >
           <div className="visual-stage">
@@ -641,6 +641,17 @@ export default function App() {
                       T+ <span ref={displayReadout}>{displayTime.current.toFixed(1)}</span>
                       <small>s</small>
                     </span>
+                    <div className="speed-presets" role="group" aria-label="Playback speed presets">
+                      {[1, 5, 20, 100, 1000].map((value) => (
+                        <button
+                          key={value}
+                          aria-pressed={rate === value}
+                          onClick={() => setRate(value)}
+                        >
+                          {value}×
+                        </button>
+                      ))}
+                    </div>
                     <label className="playback-speed">
                       <input
                         type="range"
