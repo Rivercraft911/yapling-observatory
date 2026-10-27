@@ -1,0 +1,114 @@
+.event-strip {
+  position: relative;
+  flex: 1 0 100%;
+  min-width: 0;
+  padding: 3px 0 1px;
+}
+.event-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  color: #8f8988;
+  font: 10px var(--mono);
+}
+.event-strip button {
+  font: 10px var(--mono);
+}
+.event-filters button {
+  padding: 1px 3px;
+  height: 20px;
+}
+.event-filters button[aria-pressed='true'] {
+  color: #f0ded8;
+  box-shadow: inset 0 -1px #c86772;
+}
+.event-count {
+  margin-left: auto;
+}
+.event-warning {
+  color: #d8b38a;
+}
+.event-track {
+  position: relative;
+  height: 26px;
+  margin-inline: 49px 15px;
+  background: linear-gradient(#383234, #383234) center / 100% 1px no-repeat;
+}
+.event-strip .event-marker {
+  position: absolute;
+  top: 1px;
+  transform: translateX(-50%);
+  font-variant-numeric: tabular-nums;
+  min-width: 24px;
+  padding-inline: 2px;
+}
+.event-strip .event-marker[data-category='radio'],
+.event-strip .event-marker[data-category='wheel'] {
+  color: #e1979d;
+}
+.event-strip .event-marker[aria-expanded='true'] {
+  background: #4e2f36;
+  color: #fff3ec;
+}
+.event-empty {
+  position: absolute;
+  top: 5px;
+  left: 0;
+  background: #191919;
+  padding-right: 8px;
+  color: #797475;
+}
+.event-picker {
+  position: absolute;
+  top: 100%;
+  z-index: 7;
+  width: 310px;
+  max-width: 100%;
+  border: 1px solid #514148;
+  background: #211e20;
+  box-shadow: 0 8px 22px #0006;
+}
+.event-picker-heading,
+.event-pages {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 8px;
+}
+.event-picker-list {
+  max-height: 190px;
+  overflow-y: auto;
+  scrollbar-color: #66545b #211e20;
+  scrollbar-width: thin;
+}
+.event-picker-list button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  height: auto;
+  min-height: 30px;
+  padding: 6px 9px;
+  text-align: left;
+}
+.event-picker-list small {
+  flex-shrink: 0;
+  font: 9px var(--mono);
+  color: #b3a6a6;
+}
+.plot-time-navigation .plot-event-toggle {
+  font-size: 10px;
+  margin-left: auto;
+}
+.plot-event-toggle[aria-pressed='true'] {
+  color: #f0ded8;
+  box-shadow: inset 0 -1px #c86772;
+}
+@media (max-width: 680px) {
+  .event-picker {
+    left: 0 !important;
+  }
+}

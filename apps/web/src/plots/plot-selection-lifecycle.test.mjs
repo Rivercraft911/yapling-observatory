@@ -39,6 +39,7 @@ function nodes(tree, predicate) {
 }
 function harness(layout, saved = new Map()) {
   const slots = [];
+  const scrubbed = [];
   let cursor = 0;
   let effects = [];
   const changed = (before, after) =>
@@ -94,6 +95,7 @@ function harness(layout, saved = new Map()) {
       if (name === '../mission/MissionReport') return { MissionReport: 'MissionReport' };
       if (name === './PowerStatus') return { PowerStatus: 'PowerStatus' };
       if (name === './LinkStatus') return { LinkStatus: 'LinkStatus' };
+      if (name === './EventStrip') return { EventStrip: 'EventStrip' };
       if (name === './traceFormatting') return { formatElapsedSeconds: String };
       if (name === '../mission/missionReporting') return { missionReport: () => null };
       if (name === './plots.css') return {};
@@ -102,6 +104,7 @@ function harness(layout, saved = new Map()) {
   });
   return {
     saved,
+    scrubbed,
     render(next) {
       cursor = 0;
       effects = [];
@@ -109,7 +112,9 @@ function harness(layout, saved = new Map()) {
         snapshot: next,
         baseline: null,
         cursorTime: 0,
-        onScrub() {},
+        onScrub(time) {
+          scrubbed.push(time);
+        },
         layout,
       });
       const tree = element.type(element.props);
@@ -192,4 +197,27 @@ assert.deepEqual(titles(harness('results', legacyResults).render(adaptive)), [
 ]);
 console.log(
   'Plot selection lifecycle passed: asynchronous adaptive defaults, history changes, presets, pre-run persistence, explicit legacy/custom choices and subsystem preservation.',
+);
+
+const eventDock = harness('compact');
+let eventTree = eventDock.render(snapshot(true));
+const eventStrip = nodes(eventTree, (node) => node.type === 'EventStrip')[0];
+assert(eventStrip, 'Computed histories show their event strip by default');
+eventStrip.props.onFocus(5, [2, 8]);
+assert.deepEqual(eventDock.scrubbed, [5]);
+eventTree = eventDock.render(snapshot(true));
+assert(
+  nodes(eventTree, (node) => node.type === 'TracePlot').every(
+    (node) => node.props.timeRange[0] === 2 && node.props.timeRange[1] === 8,
+  ),
+  'Event clicks focus every linked graph',
+);
+button(eventTree, 'Events').props.onClick();
+assert.equal(
+  nodes(eventDock.render(snapshot(true)), (node) => node.type === 'EventStrip').length,
+  0,
+);
+assert.deepEqual(eventDock.scrubbed, [5], 'Hiding events never moves playback');
+console.log(
+  'Event integration passed: shared graph focus, seek only on click and collapsible strip.',
 );

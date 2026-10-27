@@ -119,7 +119,12 @@ export class LiveHistory {
         scenario_hash: session.initial_scenario_hash,
         error: null,
         result: {
-          manifest: { partial: true, kind: 'live_telemetry_prefix', scenario: input },
+          manifest: {
+            partial: true,
+            kind: 'live_telemetry_prefix',
+            history_gap: this.gap,
+            scenario: input,
+          },
           summary: {
             ideal_capacity_bits: {
               uplink: samples.uplink?.cumulative_ideal_bits.at(-1) ?? null,

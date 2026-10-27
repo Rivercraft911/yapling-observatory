@@ -7,6 +7,7 @@ import type { PlotId } from './registry';
 import { MissionReport } from '../mission/MissionReport';
 import { PowerStatus } from './PowerStatus';
 import { LinkStatus } from './LinkStatus';
+import { EventStrip } from './EventStrip';
 import { formatElapsedSeconds } from './traceFormatting';
 import {
   clampTimeRange,
@@ -121,6 +122,7 @@ function PlotDockContent({
   onFocusRange,
 }: PlotDockProps) {
   const [reportOpen, setReportOpen] = useState(false);
+  const [eventsOpen, setEventsOpen] = useState(true);
   const [localTimeRange, setLocalTimeRange] = useState<TimeRange | null>(null);
   const activeTimeRange = timeRange === undefined ? localTimeRange : timeRange;
   const changeTimeRange = onTimeRangeChange ?? setLocalTimeRange;
@@ -335,6 +337,16 @@ function PlotDockContent({
               'receiver_lock',
             ].includes(id),
           ) && <LinkStatus snapshot={snapshot} cursorTime={cursorTime} />}
+          {snapshot?.run.result && timeDomain && (
+            <button
+              className="plot-event-toggle"
+              aria-pressed={eventsOpen}
+              title="Show recorded events and sampled transitions. Click a marker to focus all graphs."
+              onClick={() => setEventsOpen(!eventsOpen)}
+            >
+              Events
+            </button>
+          )}
           <button
             aria-label="Pan graphs earlier"
             title="Pan earlier (←)"
@@ -381,6 +393,18 @@ function PlotDockContent({
           >
             Full
           </button>
+          {eventsOpen && snapshot?.run.result && timeDomain && shownRange && (
+            <EventStrip
+              key={snapshot.run.run_id}
+              result={snapshot.run.result}
+              domain={timeDomain}
+              range={shownRange}
+              onFocus={(time, range) => {
+                changeTimeRange(fullRangeOrNull(range, timeDomain));
+                onScrub(time);
+              }}
+            />
+          )}
         </div>
       )}
       {reportOpen ? (

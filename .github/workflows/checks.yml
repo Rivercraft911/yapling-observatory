@@ -54,6 +54,9 @@ jobs:
       - run: node --experimental-strip-types apps/web/src/plots/gnc-plots.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/plot-preferences.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/plot-selection-lifecycle.test.mjs
+      - run: node --experimental-strip-types apps/web/src/plots/mission-events.test.mjs
+      - run: node --experimental-strip-types apps/web/src/plots/event-navigation.test.mjs
+      - run: node --experimental-strip-types apps/web/src/plots/event-strip.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/trace-formatting.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/time-window.test.mjs
       - run: node --experimental-strip-types apps/web/src/plots/trace-navigation.test.mjs
