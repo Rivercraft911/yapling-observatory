@@ -26,7 +26,7 @@ export function MissionDeliveryControls({
     };
   }, [linkKey, receiverKey]);
   const delivery = config.radio_delivery;
-  const enable = async (enabled: boolean, preset: 'current' | 'adaptive_psk' = 'current') => {
+  const enable = async (enabled: boolean, preset: 'current' | 'adaptive_psk' = 'adaptive_psk') => {
     const request = ++version.current;
     setError('');
     abort.current?.abort();
@@ -93,6 +93,15 @@ export function MissionDeliveryControls({
     (!delivery ||
       (delivery.uplink.hardware_profile === 'generic_dvb_s2_reference' &&
         delivery.downlink.hardware_profile === 'generic_dvb_s2_reference'));
+  const configuredModes = delivery ? [...delivery.uplink.modes, ...delivery.downlink.modes] : [];
+  const normalAwgn = configuredModes.every(
+    (mode) => mode.frame_size === 'normal' && mode.threshold_status === 'ideal_awgn',
+  );
+  const singleMode =
+    !!delivery &&
+    [delivery.uplink, delivery.downlink].some(
+      (profile) => profile.policy === 'adaptive' && profile.modes.length === 1,
+    );
   const setAdaptive = (enabled: boolean) => {
     if (!delivery) {
       if (enabled) void enable(true, 'adaptive_psk');
@@ -125,10 +134,17 @@ export function MissionDeliveryControls({
           onChange={(event) => setAdaptive(event.target.checked)}
         />
         Adaptive MODCOD
-        <span>
-          {pending ? 'Loading' : adaptive ? 'Enabled' : partlyAdaptive ? 'Mixed' : 'Disabled'}
+        <span title="Configured MODCODs per direction">
+          {pending
+            ? 'Loading'
+            : adaptive
+              ? `${delivery!.uplink.modes.length} UL / ${delivery!.downlink.modes.length} DL`
+              : partlyAdaptive
+                ? 'Mixed'
+                : 'Disabled'}
         </span>
       </label>
+      {singleMode && <small>Add more modes to allow switching in each direction.</small>}
       {error && <small role="alert">{error}</small>}
       <details className="mission-details">
         <summary>MODCOD settings</summary>
@@ -157,7 +173,9 @@ export function MissionDeliveryControls({
           <>
             <small>
               {delivery.downlink.policy === 'adaptive' || delivery.uplink.policy === 'adaptive'
-                ? 'Ideal channel adaptation · normal frames · AWGN reference'
+                ? normalAwgn
+                  ? 'Ideal channel adaptation · normal frames · AWGN reference'
+                  : 'Ideal channel adaptation · configured receiver'
                 : 'Assumed receiver · complete-frame payload'}
             </small>
             {(['uplink', 'downlink'] as const).map((direction) => {

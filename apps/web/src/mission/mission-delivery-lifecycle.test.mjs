@@ -256,3 +256,47 @@ assert.equal(alert(render()).props.children, 'uplink.preset: Extra inputs are no
 console.log(
   'Receiver preset incompatibility preserves inputs, reports a matching-service remedy and permits an unchanged retry without masking other validation errors.',
 );
+
+function inputs(element, result = []) {
+  if (!element || typeof element !== 'object') return result;
+  if (element.type === 'input' && element.props.type === 'checkbox') result.push(element);
+  const children = element.props?.children;
+  for (const child of Array.isArray(children) ? children.flat(Infinity) : [children])
+    inputs(child, result);
+  return result;
+}
+function words(element) {
+  if (element == null) return '';
+  if (typeof element !== 'object') return String(element);
+  return (Array.isArray(element) ? element : [element.props?.children]).map(words).join(' ');
+}
+config = {
+  ...config,
+  radio_delivery: {
+    schema_version: '0.1.0',
+    uplink: structuredClone(profile),
+    downlink: structuredClone(profile),
+  },
+};
+tree = render();
+assert.match(words(tree), /1 UL \/ 1 DL/);
+assert.match(words(tree), /Add more modes/);
+assert.match(words(tree), /configured receiver/);
+assert.doesNotMatch(words(tree), /normal frames · AWGN reference/);
+const modelToggle = inputs(tree)[1];
+modelToggle.props.onChange({ target: { checked: false } });
+assert.equal(config.radio_delivery, undefined);
+inputs(render())[1].props.onChange({ target: { checked: true } });
+const reload = requests.at(-1);
+assert.equal(JSON.parse(reload.options.body).preset, 'adaptive_psk');
+reload.resolve({
+  schema_version: '0.1.0',
+  uplink: structuredClone(profile),
+  downlink: structuredClone(profile),
+});
+await new Promise(setImmediate);
+assert.equal(config.radio_delivery.uplink.policy, 'adaptive');
+assert.equal(config.radio_delivery.downlink.policy, 'adaptive');
+console.log(
+  'Frame modeling re-enables adaptive selection; one-mode/custom receivers are labeled honestly.',
+);

@@ -416,12 +416,14 @@ export function RadioControls({
   catalog,
   onChange,
   antennaVariant = 'dipole',
+  fixedReference = false,
 }: {
   direction: Direction;
   link: Radio;
   catalog: RadioCatalog;
   onChange: (change: (draft: Radio) => void) => void;
   antennaVariant?: Variant;
+  fixedReference?: boolean;
 }) {
   const harmonic = link.spacecraft_antenna === 'spherical_harmonic';
   const preset = catalog.presets.find(
@@ -445,7 +447,7 @@ export function RadioControls({
         <span>{link.frequency_hz / 1e6} MHz</span>
       </legend>
       <Select
-        label="Profile"
+        label={fixedReference ? 'Fixed reference' : 'Profile'}
         value={preset?.id || 'current'}
         options={options}
         onChange={(id) => {
@@ -535,7 +537,15 @@ export function RadioControls({
         />
       )}
       <Field
-        label={link.profile.threshold_metric === 'cn0' ? 'C/N₀ threshold' : 'Es/N₀ threshold'}
+        label={
+          fixedReference
+            ? link.profile.threshold_metric === 'cn0'
+              ? 'Reference C/N₀'
+              : 'Reference Es/N₀'
+            : link.profile.threshold_metric === 'cn0'
+              ? 'C/N₀ threshold'
+              : 'Es/N₀ threshold'
+        }
         unit={link.profile.threshold_metric === 'cn0' ? 'dB Hz' : 'dB'}
         value={link.profile.threshold_db}
         min={-50}

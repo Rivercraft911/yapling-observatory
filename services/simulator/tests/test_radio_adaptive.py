@@ -8,7 +8,9 @@ import pytest
 
 from cubesat_sim import mission_archive as archive
 from cubesat_sim.mission.daytime_demo import daytime_overhead_demo
+from cubesat_sim.mission.defaults import default_mission_scenario
 from cubesat_sim.mission.driver import run_mission
+from cubesat_sim.mission.terminator_demo import terminator_pass_demo
 from cubesat_sim.mission_models import MissionScenario
 from cubesat_sim.models import default_scenario, canonical_json
 from cubesat_sim.operations.radio_delivery import RadioDeliveryAccumulator, frame_layout
@@ -49,6 +51,28 @@ def conserved(row):
         ('delivered_frames', 'lost_frames', 'unresolved_frames', 'pending_frames'))
     assert row['offered_useful_bits'] == sum(row[key] for key in
         ('delivered_useful_bits', 'lost_useful_bits', 'unresolved_useful_bits', 'pending_useful_bits'))
+
+
+@pytest.mark.parametrize('factory', [default_mission_scenario, daytime_overhead_demo,
+                                     terminator_pass_demo],
+                         ids=['default', 'daylight', 'terminator'])
+def test_mission_presets_default_to_all_adaptive_psk_modes_at_allocated_bandwidth(factory):
+    scenario = factory()
+    expected = {('QPSK', rate) for rate in
+                ('1/4', '1/3', '2/5', '1/2', '3/5', '2/3', '3/4', '4/5', '5/6', '8/9', '9/10')}
+    expected |= {('8PSK', rate) for rate in ('3/5', '2/3', '3/4', '5/6', '8/9', '9/10')}
+    for direction in ('uplink', 'downlink'):
+        link = getattr(scenario, direction)
+        receiver = getattr(scenario.radio_delivery, direction)
+        assert link.profile.channel_bandwidth_hz == 20e6
+        assert link.profile.rolloff == 0.35
+        expected_symbol_rate = 20e6 / (1 + link.profile.rolloff)
+        assert link.profile.symbol_rate_sps == pytest.approx(expected_symbol_rate)
+        assert receiver.policy == 'adaptive' and len(receiver.modes) == 17
+        assert {(mode.modulation, mode.code_rate) for mode in receiver.modes} == expected
+        assert all(mode.frame_size == 'normal' and mode.pilots for mode in receiver.modes)
+        assert all(mode.symbol_rate_sps == pytest.approx(expected_symbol_rate)
+                   for mode in receiver.modes)
 
 
 def test_all_17_legal_normal_modes_match_checked_etsi_table13_values():
