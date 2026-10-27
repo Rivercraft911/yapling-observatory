@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
-import { formatAxisValues, formatElapsedSeconds, formatValue } from './traceFormatting.ts';
+import {
+  formatAxisValues,
+  formatElapsedSeconds,
+  formatRateAxisValues,
+  formatRateValue,
+  formatValue,
+  selectRateUnit,
+} from './traceFormatting.ts';
 
 for (const value of [null, undefined, NaN, Infinity, -Infinity]) {
   assert.equal(formatValue(value), '—');
@@ -101,4 +108,35 @@ assert.equal(formatElapsedSeconds(NaN), '—');
 assert(component.includes('formatElapsedSeconds(times[index])'));
 console.log(
   'Elapsed time and explicit decimal formatting passed: day/month timestamps retain 0.1 s resolution and existing range rounding is preserved.',
+);
+
+const rates = Object.freeze([0, null, 26700, 0.5]);
+assert.deepEqual(selectRateUnit('kb/s', [rates]), { unit: 'Mb/s', divisor: 1000 });
+assert.equal(formatRateValue(rates[2] / 1000), '26.7');
+assert.deepEqual(selectRateUnit('kb/s', [rates, [2000000]]), {
+  unit: 'Gb/s',
+  divisor: 1000000,
+});
+assert.deepEqual(selectRateUnit('b/s', [[9600]]), { unit: 'kb/s', divisor: 1000 });
+assert.deepEqual(selectRateUnit('kb/s', [[0.25, null]]), { unit: 'b/s', divisor: 0.001 });
+assert.deepEqual(selectRateUnit('Mb/s', [[-2.5]]), { unit: 'Mb/s', divisor: 1 });
+for (const values of [[], [null, NaN, Infinity], [0, -0, null]])
+  assert.deepEqual(selectRateUnit('kb/s', [values]), { unit: 'kb/s', divisor: 1 });
+assert.equal(selectRateUnit('W', [rates]), null);
+assert.equal(formatRateValue(0), '0');
+assert.equal(formatRateValue(-0), '0');
+assert.equal(formatRateValue(null), '—');
+assert.equal(formatRateValue(NaN), '—');
+assert.equal(formatRateValue(0.0005), '0.0005');
+assert.equal(formatRateValue(0.000000125), '0.000000125');
+assert.equal(formatRateValue(-12.345), '-12.3');
+assert.deepEqual(formatRateAxisValues([0, 5, 10, 15]), ['0', '5', '10', '15']);
+assert.deepEqual(formatRateAxisValues([0.000101, 0.000102, 0.000103]), [
+  '0.000101',
+  '0.000102',
+  '0.000103',
+]);
+assert.deepEqual(rates, [0, null, 26700, 0.5]);
+console.log(
+  'Rate formatting passed: one decimal SI unit across current/comparison samples, stable empty/zero units, decimal rate labels, nulls and immutable input values.',
 );

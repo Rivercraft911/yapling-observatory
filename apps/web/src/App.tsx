@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { api } from './api';
 import type { Assets, RadioCatalog, Variant, RunSnapshot } from './types';
 import { PaneDivider } from './Resizer';
+import { MusicControl } from './audio/MusicControl';
 import { closestIndex, formatValue } from './plots/TracePlot';
 import { PlotDock } from './plots/PlotDock';
 import { clampTimeRange, sampleTimeDomain, type TimeRange } from './plots/timeWindow';
@@ -306,6 +307,7 @@ export default function App() {
           </span>
         </div>
         <div className="header-right">
+          <MusicControl />
           <span className="local-indicator" />
           LOCAL
           <span className="header-divider" />
@@ -358,9 +360,9 @@ export default function App() {
             gridTemplateRows:
               view === 'earth'
                 ? compact
-                  ? '420px 36px 360px 92px 32px'
-                  : `minmax(160px,${sceneFraction}fr) 7px 36px minmax(160px,${1 - sceneFraction}fr) 91px 27px`
-                : `${compact ? 'minmax(700px,auto)' : 'minmax(0,1fr)'} ${showTimeline ? '91px ' : ''}27px`,
+                  ? '420px 36px 360px minmax(92px,auto) 32px'
+                  : `minmax(160px,${sceneFraction}fr) 7px 36px minmax(160px,${1 - sceneFraction}fr) minmax(91px,auto) 27px`
+                : `${compact ? 'minmax(700px,auto)' : 'minmax(0,1fr)'} ${showTimeline ? 'minmax(91px,auto) ' : ''}27px`,
           }}
         >
           <div className="visual-stage">
@@ -639,6 +641,17 @@ export default function App() {
                       T+ <span ref={displayReadout}>{displayTime.current.toFixed(1)}</span>
                       <small>s</small>
                     </span>
+                    <div className="speed-presets" role="group" aria-label="Playback speed presets">
+                      {[1, 5, 20, 100, 1000].map((value) => (
+                        <button
+                          key={value}
+                          aria-pressed={rate === value}
+                          onClick={() => setRate(value)}
+                        >
+                          {value}×
+                        </button>
+                      ))}
+                    </div>
                     <label className="playback-speed">
                       <input
                         type="range"
@@ -832,13 +845,6 @@ export default function App() {
                 ) : spacecraftSection !== 'geometry' ? (
                   scenario ? (
                     <>
-                      <button
-                        className="text-button"
-                        title="These inputs are shared with Earth. Existing results keep their original configuration."
-                        onClick={() => setView('earth')}
-                      >
-                        Use on Earth ↗
-                      </button>
                       <label className="spacecraft-follow">
                         <input
                           type="checkbox"
@@ -899,30 +905,11 @@ export default function App() {
                           }
                         />
                         <button
-                          className={`primary ${busy ? 'cancel' : ''}`}
-                          disabled={
-                            submitting ||
-                            mission.orbitPending ||
-                            mission.importing ||
-                            mission.loading
-                          }
-                          onClick={
-                            busy
-                              ? () => void mission.cancel()
-                              : () => {
-                                  setView('earth');
-                                  startMission();
-                                }
-                          }
-                        >
-                          {busy ? 'Cancel run' : 'Run on Earth'} <span>{busy ? '■' : '↗'}</span>
-                        </button>
-                        <button
-                          className="text-button"
-                          disabled={!snapshot}
+                          className="primary"
+                          title="Use these shared inputs for the next mission run. Displayed history stays unchanged."
                           onClick={() => setView('earth')}
                         >
-                          Watch displayed history ↗
+                          Update on Earth <span>↗</span>
                         </button>
                         {dirty && (
                           <span className="eyebrow">UNRUN EDITS · displayed history retained</span>

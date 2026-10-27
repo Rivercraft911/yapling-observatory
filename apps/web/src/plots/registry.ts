@@ -100,16 +100,16 @@ export const plotDefinitions: PlotDefinition[] = [
     unit: 'kb/s',
     stepped: true,
     description:
-      'Rate estimate for the fixed RF profile, gated by contact and alternating transmit/receive windows. Zero during the other direction’s slot. Adaptive MODCOD delivery appears under Frame rate.',
+      'Ideal rate estimate for the fixed RF profile with its original net-efficiency assumption, gated by contact and transmit/receive windows. Zero during the other direction’s slot. Selected-frame readiness appears under Payload rate; completed-frame delivery is separate.',
     read: (s) => paired(s, 'ideal_rate_bps', 1000),
   },
   {
     id: 'frame_rate',
-    title: 'Frame rate',
+    title: 'Payload rate',
     unit: 'kb/s',
     stepped: true,
     description:
-      'Selected adaptive MODCOD useful rate when the modeled receiver is ready. Acquisition, reconfiguration and inactive windows return zero. This is a hard-threshold prediction, not measured throughput.',
+      'Nominal selected-frame useful payload rate while the modeled receiver is active, locked and above the decode threshold. Acquisition, reconfiguration and inactive windows return zero; unresolved inputs remain unavailable. This is a hard-threshold prediction, not measured throughput. Completed-frame delivery is separate; a pending frame can still be lost.',
     read: (s) =>
       (['uplink', 'downlink'] as const).map((direction) => ({
         label: direction === 'uplink' ? 'UL' : 'DL',
@@ -488,12 +488,14 @@ export const plotDefinitions: PlotDefinition[] = [
   },
   {
     id: 'actuator_power',
-    title: 'Actuator power',
+    title: 'Actuator electrical power',
     unit: 'W',
-    description: 'Actual actuator electrical input and dissipated heat.',
+    description:
+      'Returned combined, wheel and magnetorquer electrical draw over the preceding dynamics interval.',
     read: (s) => [
-      { label: 'Electrical', values: s.power?.actuator_bus_w || [] },
-      { label: 'Heat', values: s.power?.actuator_heat_w || [] },
+      { label: 'Total', values: s.power?.actuator_bus_w || [] },
+      { label: 'Wheels', values: s.power?.component_electrical_w?.wheels || [] },
+      { label: 'MTQ', values: s.power?.component_electrical_w?.magnetorquers || [] },
     ],
   },
   {

@@ -454,11 +454,14 @@ input[type='checkbox'] {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 26px;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 26px;
 }
 .playback {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 13px;
 }
 .play-button {
@@ -1461,6 +1464,20 @@ legend > span:last-child:not(:first-child) {
 }
 .workspace-views .reset-layout:hover {
   color: #e7b2ba;
+}
+.speed-presets {
+  display: flex;
+  gap: 4px;
+}
+.speed-presets button {
+  padding: 4px 7px;
+  font: 9px var(--mono);
+  white-space: nowrap;
+}
+.speed-presets button[aria-pressed='true'] {
+  color: #fff1ed;
+  background: #6d2632;
+  border-color: #ef6771;
 }
 .playback-speed {
   display: flex;

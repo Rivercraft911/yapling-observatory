@@ -1,14 +1,20 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import ts from 'typescript';
+import { build } from 'esbuild';
+import { fileURLToPath } from 'node:url';
 import { DataTexture, RedFormat, Texture } from 'three';
 
-const source = await readFile(new URL('./atmosphereAdapter.ts', import.meta.url), 'utf8');
-const compiled = ts
-  .transpileModule(source, {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
-  })
-  .outputText.replace(/from ['"]three['"]/g, `from '${import.meta.resolve('three')}'`);
+const bundled = await build({
+  entryPoints: [fileURLToPath(new URL('./atmosphereAdapter.ts', import.meta.url))],
+  bundle: true,
+  write: false,
+  platform: 'node',
+  format: 'esm',
+  external: ['three'],
+});
+const compiled = bundled.outputFiles[0].text.replace(
+  /from ['"]three['"]/g,
+  `from '${import.meta.resolve('three')}'`,
+);
 const { createEarthAppearance } = await import(
   `data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`
 );
@@ -48,6 +54,18 @@ assert.equal(appearance.surface.uniforms.nightGrayscale.value, false);
 const grayscale = new DataTexture(new Uint8Array([128]), 1, 1, RedFormat);
 const detailed = createEarthAppearance(day, cloud, ocean, 0, grayscale);
 assert.equal(detailed.surface.uniforms.nightGrayscale.value, true);
+assert.equal(detailed.surface.uniforms.regionalNightOpacity.value, 0);
+const bounds = [0.1, 0.2, 0.3, 0.4];
+detailed.setNightDetail({ texture: grayscale, bounds, opacity: 0.73 });
+assert.equal(detailed.surface.uniforms.regionalNightMap.value, grayscale);
+assert.equal(detailed.surface.uniforms.regionalNightOpacity.value, 0.73);
+assert.deepEqual(detailed.surface.uniforms.regionalNightBounds.value.toArray(), bounds);
+assert.match(detailed.surface.fragmentShader, /texture2DGradEXT\(regionalNightMap/);
+assert.match(detailed.surface.fragmentShader, /lights=mix\(lights,nativeLights,nightMix\)/);
+assert.match(detailed.surface.fragmentShader, /nightIntensity\*nightLightFade\(ndl\)/);
+detailed.setNightDetail({ texture: null, bounds, opacity: 1 });
+assert.equal(detailed.surface.uniforms.regionalNightOpacity.value, 0);
+assert.equal(detailed.surface.uniforms.regionalNightMap.value, grayscale);
 const decodeNight = scalarShader(detailed.surface.fragmentShader, 'nightDisplayToLinear');
 assert.equal(decodeNight(0), 0);
 assert.equal(decodeNight(1), 1);

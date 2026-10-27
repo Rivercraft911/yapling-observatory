@@ -5,6 +5,12 @@ import ts from 'typescript';
 import { plotDefinitions, plotTraces } from './registry.ts';
 
 const definition = (id) => plotDefinitions.find((item) => item.id === id);
+assert.equal(definition('frame_rate').title, 'Payload rate');
+assert.match(definition('frame_rate').description, /Nominal selected-frame useful payload rate/);
+assert.match(definition('frame_rate').description, /hard-threshold prediction/);
+assert.match(definition('frame_rate').description, /Completed-frame delivery is separate/);
+assert.equal(definition('rate').title, 'Fixed-mode rate');
+assert.match(definition('rate').description, /Ideal rate estimate/);
 const samples = {
   time_s: [0, 5, 10, 15],
   visible: [true, true, false, true],

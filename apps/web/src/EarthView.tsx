@@ -45,6 +45,7 @@ export function EarthView({
   const currentVariant = useRef(selectedVariant);
   currentVariant.current = selectedVariant;
   const [cameraMode, setCameraMode] = useState<EarthCameraMode>('earth');
+  const [earthLock, setEarthLock] = useState(false);
   const [pickingTarget, setPickingTarget] = useState(false);
   const [groundTrack, setGroundTrack] = useState(false);
   const [trackWindow, setTrackWindow] = useState(10800);
@@ -115,6 +116,9 @@ export function EarthView({
   useEffect(() => {
     scene.current?.setThermalView(thermalView);
   }, [thermalView, retry]);
+  useEffect(() => {
+    scene.current?.setFollowEarthLock(earthLock);
+  }, [earthLock, retry]);
   useEffect(() => {
     scene.current?.setRenderingVisible(!groundTrack);
   }, [groundTrack, retry]);
@@ -294,9 +298,20 @@ export function EarthView({
             </select>
           )}
           {follow ? (
-            <button onClick={() => scene.current?.resetFollow()} disabled={!samples}>
-              Frame SC
-            </button>
+            <>
+              <button onClick={() => scene.current?.resetFollow()} disabled={!samples}>
+                Frame SC
+              </button>
+              <button
+                className={earthLock ? 'active' : ''}
+                aria-pressed={earthLock}
+                disabled={!samples}
+                title="Keep this camera angle relative to Earth as the spacecraft moves. Drag or zoom to adjust."
+                onClick={() => setEarthLock(!earthLock)}
+              >
+                Earth lock
+              </button>
+            </>
           ) : !groundTrack ? (
             <>
               <button onClick={() => scene.current?.fitPass()} disabled={!samples}>
@@ -332,12 +347,12 @@ export function EarthView({
             href="/earth/NOTICE.txt"
             target="_blank"
             rel="noreferrer"
-            title="Earth imagery sources, transformations and license terms."
+            title="Earth imagery sources, rendering assumptions and license terms."
           >
             Imagery · SSS / NASA ↗
           </a>
-          <span title="Returned mission positions and attitudes. Camera changes never affect numerical results. Static clouds do not supply RF weather losses.">
-            ECEF · static cloud composite
+          <span title="Returned mission positions and attitudes. Static NASA cloud imagery has illustrative height and density. Camera and cloud rendering do not affect numerical results.">
+            ECEF · illustrative clouds
           </span>
         </div>
       </div>

@@ -382,11 +382,16 @@ export function LiveWorkspace({
             {live.numericalAcknowledgments.at(-1)!.command.effective_time_s.toFixed(2)} s
           </small>
         ) : null}
-        <div className="live-speed-presets">
-          {[1, 10, 100, 1000].map((value) => (
+        <div
+          className="live-speed-presets speed-presets"
+          role="group"
+          aria-label="Live speed presets"
+        >
+          {[1, 5, 20, 100, 1000].map((value) => (
             <button
               key={value}
               disabled={live.pending}
+              aria-pressed={speed === value}
               onClick={() => {
                 setSpeed(value);
                 if (live.active) void live.control({ speed: value });

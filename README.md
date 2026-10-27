@@ -18,8 +18,8 @@ With [Python 3.11+](https://www.python.org/downloads/) and [Node.js 22.12+](http
 python3 start.py
 ```
 
-Tested on macOS and Linux. First launch prepares the app and opens your browser. Ctrl-C stops it.
+Tested on macOS, Linux and Windows. First launch prepares the app and opens your browser. Ctrl-C stops it.
+
+[Local setup](services/simulator/README.md#run-locally) · [Music credits](apps/web/public/audio/CREDITS.md)
 
 ![random screenshot](docs/random-screenshot.png)
-
-[Local setup](services/simulator/README.md#run-locally)

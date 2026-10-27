@@ -184,6 +184,7 @@ def test_reference_identity_and_archive_roundtrip(selection):
 
 def test_moving_reference_still_enforces_wheel_torque_and_missing_actuator_limits():
     data=short_config(duration=60)
+    data["spacecraft"]["magnetic_unloading_enabled"] = False
     data["spacecraft"]["initial_q_body_from_inertial_wxyz"]=[1,0,0,0]
     for wheel in data["spacecraft"]["wheels"]: wheel["spec"]["max_motor_torque_nm"]=1e-7
     result=run_mission(MissionScenario.model_validate(data));gnc=result["samples"]["gnc"]

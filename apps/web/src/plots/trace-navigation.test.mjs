@@ -61,11 +61,15 @@ let created = 0,
 let chart;
 class Chart {
   static paths = {};
+  static join(sets) {
+    return [sets[0][0], ...sets.flatMap((data) => data.slice(1))];
+  }
   over = new Overlay();
   constructor(options, data) {
     created++;
     chart = this;
     this.data = data;
+    this.options = options;
     this.range = [options.scales.x.min, options.scales.x.max];
   }
   batch(change) {
@@ -144,8 +148,10 @@ const props = {
 const render = (extra = {}) => {
   position = 0;
   pending = [];
-  bindHost(exports.TracePlot({ ...props, timeRange, ...extra }));
+  const tree = exports.TracePlot({ ...props, timeRange, ...extra });
+  bindHost(tree);
   pending.forEach((effect) => effect());
+  return tree;
 };
 const send = (type, extra = {}) => {
   const event = new Event(type, { cancelable: true });
@@ -214,4 +220,64 @@ assert.equal(ranges.length, beforeUnmount);
 assert.equal(destroyed, 2);
 console.log(
   'Trace navigation passed: scale-only updates, visible-window click/drag scrub, zoom/pan cursor independence, original null data, new sample range and unmount cleanup.',
+);
+
+slots.length = 0;
+const rateValues = Object.freeze([0, 26700, null, 0.5, 0]);
+const comparisonValues = Object.freeze([0, 50000, 0, 0, 0]);
+const rateTraces = Object.freeze([{ label: 'UL', color: '#fff', values: rateValues }]);
+const comparison = Object.freeze({
+  times,
+  traces: Object.freeze([{ label: 'UL', color: '#777', values: comparisonValues }]),
+});
+const rateProps = {
+  title: 'Payload rate',
+  description: 'Nominal ready useful payload rate; completed-frame delivery is separate.',
+  unit: 'kb/s',
+  times,
+  traces: rateTraces,
+  baseline: comparison,
+  cursorTime: 10,
+};
+function text(tree) {
+  if (tree == null || tree === false) return '';
+  if (Array.isArray(tree)) return tree.map(text).join('');
+  return typeof tree === 'object' ? text(tree.props?.children) : String(tree);
+}
+let tree = render(rateProps);
+assert.equal(tree.props['aria-label'], 'Payload rate in Mb/s');
+assert.match(text(tree), /UL26.7 Mb\/s/);
+assert.equal(tree.props.children[0].props.children[0].props.title, rateProps.description);
+assert.deepEqual(chart.options.axes[1].values(chart, [0, 10000, 20000, 30000]), [
+  '0',
+  '10',
+  '20',
+  '30',
+]);
+assert.strictEqual(chart.data[1], rateValues);
+assert.strictEqual(chart.data[2], comparisonValues);
+const rateChartCount = created;
+tree = render({ ...rateProps, cursorTime: 60, timeRange: [30, 100] });
+assert.equal(tree.props['aria-label'], 'Payload rate in Mb/s');
+assert.match(text(tree), /UL0.0005 Mb\/s/);
+assert.equal(created, rateChartCount, 'Cursor and zoom cannot change the whole-run rate unit');
+send('pointermove', { clientX: 100 });
+tree = render({ ...rateProps, cursorTime: 60, timeRange: [30, 100] });
+assert.match(text(tree), /UL— Mb\/s/);
+assert.equal(tree.props['aria-label'], 'Payload rate in Mb/s');
+assert.equal(created, rateChartCount);
+send('pointerleave');
+const fastComparison = {
+  times,
+  traces: [{ label: 'UL', color: '#777', values: [0, 2000000, 0, 0, 0] }],
+};
+tree = render({ ...rateProps, baseline: fastComparison });
+assert.equal(tree.props['aria-label'], 'Payload rate in Gb/s');
+assert.match(text(tree), /UL0.0267 Gb\/s/);
+assert.deepEqual(chart.options.axes[1].values(chart, [0, 1000000, 2000000]), ['0', '1', '2']);
+assert.deepEqual(rateValues, [0, 26700, null, 0.5, 0]);
+assert.deepEqual(comparisonValues, [0, 50000, 0, 0, 0]);
+for (const slot of slots) slot?.cleanup?.();
+console.log(
+  'Rate plot flow passed: matching heading/axis/hover units, comparison-wide scale, stable cursor/window units, decimal small rates, descriptive title and original null/raw data.',
 );

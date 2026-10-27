@@ -65,6 +65,7 @@ if (typeof NIGHT_MAP_TEST === 'undefined') {
       runtime_bytes: bytes.length,
       runtime_sha256: createHash('sha256').update(bytes).digest('hex'),
       runtime_dimensions: [width, height],
+      runtime_mime: options.mime,
     };
     const state = { fetches: 0, decodes: 0, closed: 0, canvases: [], draws: [], reads: [] };
     const bitmap = {
@@ -84,7 +85,7 @@ if (typeof NIGHT_MAP_TEST === 'undefined') {
     globalThis.createImageBitmap = async (blob, decodeOptions) => {
       state.decodes++;
       state.decodeOptions = decodeOptions;
-      assert.equal(blob.type, 'image/jpeg');
+      assert.equal(blob.type, options.mime || 'image/jpeg');
       assert.deepEqual(new Uint8Array(await blob.arrayBuffer()), bytes);
       if (options.decodeError) throw new Error('Independent decode failure');
       await options.onDecode?.();
@@ -189,6 +190,13 @@ if (typeof NIGHT_MAP_TEST === 'undefined') {
   texture.addEventListener('dispose', () => disposed++);
   texture.dispose();
   assert.equal(disposed, 1, 'Caller owns the returned texture lifetime');
+
+  const webp = fixture({ width: 2, height: 2, mime: 'image/webp' });
+  const { readNightDetail } = await import('./NightDetail.ts');
+  const webpTexture = await readNightDetail(webp.asset, new AbortController().signal, 16);
+  assert.equal(webpTexture.wrapS, ClampToEdgeWrapping);
+  assertReleased(webp.state);
+  webpTexture.dispose();
 
   for (const cap of [4, 0, NaN]) {
     const small = fixture({ width: 2, height: 2 });

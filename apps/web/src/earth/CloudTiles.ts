@@ -40,10 +40,15 @@ const assets = cloudImagery.tiles as CloudTileAsset[];
 const byId = new Map(assets.map((asset) => [asset.id, asset]));
 const { width, height, interior_pixels: interior, columns, rows } = cloudImagery.grid;
 export const CLOUD_TILE_LIMIT = 9;
-export function cloudTileBudget(capabilities: CloudCapabilities) {
-  // Surface day/ocean/global-cloud/regional-day/night samplers remain active.
+export function cloudCoverageByte(code: number) {
+  const t = Math.min(1, Math.max(0, code / cloudImagery.display_transfer.toe_code));
+  return Math.floor(code * t * t * (3 - 2 * t) + 0.5);
+}
+const coverageCodes = Uint8Array.from({ length: 256 }, (_, code) => cloudCoverageByte(code));
+export function cloudTileBudget(capabilities: CloudCapabilities, reservedSamplers = 5) {
+  // Reserve every surface sampler even while its detail opacity is zero.
   return capabilities.maxTextureSize >= 2048
-    ? Math.max(0, Math.min(CLOUD_TILE_LIMIT, capabilities.maxTextures - 5))
+    ? Math.max(0, Math.min(CLOUD_TILE_LIMIT, capabilities.maxTextures - reservedSamplers))
     : 0;
 }
 export function selectCloudTiles(position: { x: number; y: number; z: number }) {
@@ -98,7 +103,9 @@ export async function readCloudTile(
     context.drawImage(bitmap, 0, 0);
     const rgba = context.getImageData(0, 0, tileWidth, tileHeight).data;
     const mask = new Uint8Array(tileWidth * tileHeight);
-    for (let i = 0; i < mask.length; i++) mask[i] = rgba[i * 4];
+    // The image is display artwork, not linear fractional cloud coverage.
+    // Remap native texels before mip filtering so sparse bright wisps retain their area average.
+    for (let i = 0; i < mask.length; i++) mask[i] = coverageCodes[rgba[i * 4]];
     signal.throwIfAborted();
     const texture = new DataTexture(mask, tileWidth, tileHeight, RedFormat, UnsignedByteType);
     texture.colorSpace = NoColorSpace;
@@ -183,7 +190,12 @@ export class CloudTileLayer {
           if (this.disposed || controller.signal.aborted) texture.dispose();
           else {
             this.failed.delete(asset.id);
-            this.resident.set(asset.id, { asset, texture, opacity: 0, lastUsed: this.now });
+            this.resident.set(asset.id, {
+              asset,
+              texture,
+              opacity: 0,
+              lastUsed: this.now,
+            });
           }
         })
         .catch((error: unknown) => {

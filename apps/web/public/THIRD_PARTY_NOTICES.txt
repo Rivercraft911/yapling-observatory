@@ -63,3 +63,11 @@ The supplied SSI/SATS mark and the authored spacecraft exports retain their
 owners' rights. See brand/NOTICE.txt and the Python service's
 assets/spacecraft/NOTICE.txt for provenance and scope. These third-party
 notices do not grant a project-wide source-code, model or trademark license.
+
+Music
+
+"Brittle Rille", "Frozen Star" and "Impact Lento" by Kevin MacLeod
+(incompetech.com) are CC BY 4.0. See audio/CREDITS.md for per-track attribution,
+source links and modification statements, audio/asset-provenance.json for file
+identities, and licenses/CC-BY-4.0.txt for the full license. These original MP3s
+come from the author's official Kerbal Space Program collection.

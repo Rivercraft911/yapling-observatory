@@ -33,6 +33,9 @@ import { createEarthAppearance } from './atmosphereAdapter';
 import type { EarthAppearance } from './atmosphereAdapter';
 import { earthGeometry, earthDepthRange } from './geometry';
 import { SpacecraftFollow } from './SpacecraftFollow';
+import { EarthComposite } from './EarthComposite';
+import { CloudVolumePass } from './CloudVolumePass';
+import { CLOUD_VOLUME_MESH_M } from './cloudVolume';
 import { FollowLink } from './FollowLink';
 import { SunDisplay } from './SunDisplay';
 import { TargetDisplay, activeTargetAtSample } from './TargetDisplay';
@@ -41,6 +44,8 @@ import cloudImagery from './cloud-tiles.json';
 import globalCloudImagery from './cloud-global.json';
 import nightImagery from './night-map.json';
 import { loadDetailedNightMap } from './nightMap';
+import nightDetailImagery from './night-detail.json';
+import { NightDetailLayer, readNightDetail } from './NightDetail';
 import { CloudTileLayer, cloudTileBudget, readCloudTile } from './CloudTiles';
 import type { FollowStatus } from './SpacecraftFollow';
 import {
@@ -75,6 +80,9 @@ export type EarthCameraMode = 'earth' | 'spacecraft';
 export class EarthScene {
   private readonly scene = new Scene();
   private readonly renderer = createRenderer().renderer;
+  private readonly composite = new EarthComposite(this.renderer);
+  private readonly cloudPass = new CloudVolumePass(this.renderer);
+  private readonly cloudScene = new Scene();
   private readonly camera = new PerspectiveCamera(34, 1, 0.001, 40);
   private readonly controls: OrbitControls;
   private readonly follow: SpacecraftFollow;
@@ -172,6 +180,7 @@ export class EarthScene {
   private regionalAbort: AbortController | null = null;
   private regionalFailed = false;
   private cloudTiles: CloudTileLayer | null = null;
+  private nightDetail: NightDetailLayer | null = null;
   private regionalUnusedSince = 0;
   private regionalNeededSince = 0;
   private snapshot: RunSnapshot | null = null;
@@ -240,7 +249,11 @@ export class EarthScene {
     canvas.dataset.cloudTileState = 'global-only';
     canvas.dataset.cloudTileRevision = cloudImagery.revision;
     canvas.dataset.cloudTileEpoch = cloudImagery.acquisition_epoch;
-    canvas.dataset.cloudTileBudget = String(cloudTileBudget(this.renderer.capabilities));
+    canvas.dataset.cloudTileBudget = String(cloudTileBudget(this.renderer.capabilities, 6));
+    canvas.dataset.nightDetailState = 'global-only';
+    canvas.dataset.nightDetailRevision = nightDetailImagery.revision;
+    canvas.dataset.nightDetailSha256 = nightDetailImagery.runtime_sha256;
+    canvas.dataset.nightDetailBounds = JSON.stringify(nightDetailImagery.bounds_deg);
     canvas.dataset.imageryProvenanceUrl = '/earth/asset-provenance.json';
     this.scene.add(
       this.history,
@@ -332,13 +345,15 @@ export class EarthScene {
           ? '8192x4096'
           : '2048x1024'
       : 'unavailable';
-    const tileBudget = cloudTileBudget(this.renderer.capabilities);
+    const tileBudget = cloudTileBudget(this.renderer.capabilities, 6);
     this.appearance = createEarthAppearance(
       textures[0],
       textures[1],
       textures[2],
       tileBudget,
       textures[3] || null,
+      this.renderer.capabilities.maxTextureSize >= 4096 &&
+        this.renderer.capabilities.maxTextures >= tileBudget + 4,
     );
     this.cloudTiles = new CloudTileLayer(
       tileBudget,
@@ -347,13 +362,21 @@ export class EarthScene {
       (asset, signal) =>
         readCloudTile(asset, signal, this.renderer.capabilities.getMaxAnisotropy()),
     );
+    this.nightDetail = new NightDetailLayer(
+      nightDetailImagery,
+      (view) => this.appearance?.setNightDetail(view),
+      this.renderer.domElement.dataset,
+      (asset, signal) =>
+        readNightDetail(asset, signal, this.renderer.capabilities.getMaxAnisotropy()),
+    );
     const surface = new Mesh(earthGeometry(), this.appearance.surface);
-    const clouds = new Mesh(earthGeometry(8000), this.appearance.clouds);
-    clouds.renderOrder = 1;
+    const clouds = new Mesh(earthGeometry(CLOUD_VOLUME_MESH_M), this.appearance.clouds);
+    clouds.renderOrder = 2;
     const atmosphere = new Mesh(earthGeometry(80000, 128, 64), this.appearance.atmosphere);
-    atmosphere.renderOrder = 2;
+    atmosphere.renderOrder = 1;
     this.earthMeshes = [surface, clouds, atmosphere];
-    this.scene.add(...this.earthMeshes);
+    this.scene.add(surface, atmosphere);
+    this.cloudScene.add(clouds);
     this.updateSample(this.sampleIndex);
     this.onLoad();
   }
@@ -496,7 +519,15 @@ export class EarthScene {
         ])
       : visualSunDirection(snapshot.scenario.epoch_utc, visualTime);
     this.appearance?.setSun(sun);
-    this.follow.setSun(sun);
+    const visibility = samples.power?.sun_visibility;
+    const lowerVisibility = visibility?.[index] ?? 1;
+    // Appearance follows the same display clock as attitude. Returned eclipse
+    // samples, power telemetry and event timing remain untouched.
+    const sunVisibility = bracket
+      ? lowerVisibility +
+        ((visibility?.[bracket.upper] ?? lowerVisibility) - lowerVisibility) * bracket.alpha
+      : lowerVisibility;
+    this.follow.setSun(sun, sunVisibility);
     this.sunDisplay.setDirection(sun);
     this.follow.setPosition(p);
     this.targetDisplay.setTarget(
@@ -600,6 +631,9 @@ export class EarthScene {
         : 'Follow spacecraft. Drag to orbit the spacecraft; scroll to dolly. The spacecraft stays centered.',
     );
   }
+  setFollowEarthLock(enabled: boolean) {
+    this.follow.setEarthLock(enabled);
+  }
   resetFollow = () => {
     this.follow.resetView();
   };
@@ -668,6 +702,7 @@ export class EarthScene {
       this.frame = requestAnimationFrame(this.animate);
     } else {
       cancelAnimationFrame(this.frame);
+      this.nightDetail?.suspend();
     }
   }
 
@@ -678,6 +713,8 @@ export class EarthScene {
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(width, height, false);
+      this.composite.resize();
+      this.cloudPass.resize();
       this.follow.setSize(width, height);
     });
     const displayTime = this.displayTimeSource?.current;
@@ -744,15 +781,33 @@ export class EarthScene {
     this.renderer.domElement.dataset.pointingTargetActive = String(
       this.targetDisplay.group.visible,
     );
+    this.nightDetail?.update(
+      activeCamera.position,
+      this.renderer.capabilities.maxTextureSize >= nightDetailImagery.runtime_dimensions[0] &&
+        !document.hidden &&
+        this.host.clientWidth > 0 &&
+        this.host.clientHeight > 0,
+      now,
+    );
     this.updateRegionalImagery(activeCamera, now);
+    const cloudVolume =
+      this.appearance?.setCloudView(activeCamera.position, activeCamera.near) ?? 0;
+    this.renderer.domElement.dataset.cloudVolumeMix = cloudVolume.toFixed(3);
+    this.renderer.domElement.dataset.cloudRendering =
+      cloudVolume > 0
+        ? 'volume 12 view / 2 light + full resolution resolve'
+        : 'full resolution shell';
     this.sunDisplay.updateCue(activeCamera, this.host.clientWidth, this.host.clientHeight);
     const autoClear = this.renderer.autoClear;
     try {
-      this.renderer.autoClear = true;
-      this.sunDisplay.renderBackground(this.renderer, activeCamera);
-      this.renderer.autoClear = false;
-      // Opaque Earth and spacecraft cover the solar disk in their own depth ranges.
-      this.renderer.render(this.scene, activeCamera);
+      this.composite.render(() => {
+        this.renderer.autoClear = true;
+        this.sunDisplay.renderBackground(this.renderer, activeCamera);
+        this.renderer.autoClear = false;
+        this.renderer.render(this.scene, activeCamera);
+        if (this.appearance)
+          this.cloudPass.render(this.cloudScene, activeCamera, this.appearance.clouds);
+      });
       if (follow) {
         this.renderer.clearDepth();
         this.followLink.render();
@@ -772,6 +827,9 @@ export class EarthScene {
         this.renderer.domElement.dataset.meanFrameMs = (
           this.frameTimes.reduce((a, b) => a + b, 0) / 120
         ).toFixed(2);
+        const ordered = [...this.frameTimes].sort((a, b) => a - b);
+        this.renderer.domElement.dataset.p95FrameMs = ordered[113].toFixed(2);
+        this.renderer.domElement.dataset.maxFrameMs = ordered[119].toFixed(2);
         this.frameTimes = [];
       }
     }
@@ -999,12 +1057,15 @@ export class EarthScene {
     this.renderer.domElement.removeEventListener('pointerup', this.pickUp);
     this.controls.dispose();
     this.follow.dispose();
+    this.composite.dispose();
+    this.cloudPass.dispose();
     this.followLink.dispose();
     this.sunDisplay.dispose();
     this.targetDisplay.dispose();
     this.regionalAbort?.abort();
     this.releaseRegionalImagery();
     this.cloudTiles?.dispose();
+    this.nightDetail?.dispose();
     this.clearHistory();
     this.earthMeshes.forEach((mesh) => mesh.geometry.dispose());
     this.appearance?.dispose();

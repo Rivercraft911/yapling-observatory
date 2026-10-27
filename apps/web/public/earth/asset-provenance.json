@@ -217,9 +217,9 @@
     },
     {
       "collection": "clouds-native",
-      "role": "Active close-camera native cloud LOD; global8K artwork remains fallback.",
+      "role": "Static 2D cloud-image input for close views; rendered volume shape, height and density are illustrative.",
       "manifest": "/earth/cloud-tiles.json",
-      "revision": "nasa-blue-marble-cloud-2001-native-tiles-v2",
+      "revision": "nasa-blue-marble-cloud-2001-native-tiles-v3",
       "publisher": "NASA Earth Observatory",
       "publisher_page": "https://science.nasa.gov/earth/earth-observatory/the-blue-marble-true-color-global-imagery-at-1km-resolution/",
       "license": "NASA imagery-use guidelines; educational/informational use with source acknowledgment; no endorsement.",
@@ -260,7 +260,7 @@
           "source_sha256": "11eb1aaf8e6056b9aebc0de4894dc5ad8a21cbe8738c6ddc92e88701eb7e1b99"
         }
       ],
-      "transform": "Native-pixel crops; eight real neighboring-pixel gutters on all edges, longitude wraps and latitude clamps. Grayscale WebP quality90/method4, no resize, sharpening, inpainting or procedural detail. Pillow 11.2.1.",
+      "transform": "Native-pixel crops; eight real neighboring-pixel gutters on all edges, longitude wraps and latitude clamps. Grayscale WebP quality90/method4, no resize, sharpening, inpainting or procedural detail. Pillow 11.2.1. Runtime applies the documented pointwise soft-toe display transfer to decoded native mask values before mip generation; original encoded tile bytes remain unchanged.",
       "compression_validation": {
         "mean_absolute_channel_error": 0.8062966794008031,
         "maximum_absolute_channel_error": 21,
@@ -269,11 +269,20 @@
       },
       "limits": [
         "Static visual coverage artwork only; not cloud-water, historical weather, RF attenuation or thermal-environment truth.",
-        "Source composite artifacts, including a western-US mosaic wedge, are preserved.",
+        "Source composite artifacts, including the western-US mosaic wedge and the fixed longitude 0 degree west/east join over the Southern Ocean, are preserved.",
         "Native nominal1km is coarser than the500m regional land imagery.",
         "Nine tile resident limit, two concurrent loads, single-channel R8 textures; GPU mips at most48MiB and retained CPU mask data at most36MiB.",
-        "Only camera-neighborhood coverage is resident; global artwork remains beyond loaded tiles and near some horizon/polar edges."
-      ]
+        "Only camera-neighborhood coverage is resident; matched area-reduced NASA global coverage remains beyond loaded tiles and near some horizon/polar edges.",
+        "Display-only soft toe reduces source low-gray mosaic plateaus and genuine faint clouds; it does not repair bright mosaic boundaries or the longitude0 source seam. R8 quantization is explicit in display_transfer."
+      ],
+      "display_transfer": {
+        "revision": "cloud-mask-soft-toe-v1",
+        "purpose": "Display-only low-code suppression of visible NASA composite swath plateaus; not a calibrated cloud fraction, optical depth or gamma correction.",
+        "toe_code": 64,
+        "formula": "For source code c in[0,255], t=min(1,c/64); output=floor(c*t*t*(3-2*t)+0.5). Codes64..255 are unchanged.",
+        "quantization": "8-bit R8/gray coverage, round-half-up in both Python and JavaScript. Codes0..9 map to0; genuine faint cloud signal is reduced along with source artifacts.",
+        "filter_order": "Apply to native source/decoded tile texels before area reduction or GPU mip generation. Never apply the nonlinear toe to an already filtered coverage sample."
+      }
     },
     {
       "file": "earth-night-2k.jpg",
@@ -365,8 +374,8 @@
         8192,
         4096
       ],
-      "runtime_bytes": 15403658,
-      "runtime_sha256": "7ec41e8824c47ff131560ada2acf083a5f691ecfcbefe56e2f09d501967cd51b",
+      "runtime_bytes": 14266198,
+      "runtime_sha256": "c2aba38c8f34a48b8d52d88dfaef2026545930adbb57c86d7f1850e9f1af949f",
       "encoding": "lossless WebP; achromatic RGB decode of one grayscale coverage channel",
       "gpu_format": "RGBA8 with the existing TextureLoader; sampled as NoColorSpace coverage",
       "gpu_bytes_with_mipmaps": 178956972,
@@ -374,9 +383,9 @@
       "validation": {
         "maximum_channel_error": 0,
         "grayscale_channels_equal": true,
-        "comparison": "Complete decoded image compared with the BOX-reduced L image before encoding"
+        "comparison": "Complete decode equals soft-toe-before-BOX coverage, not original display-image codes"
       },
-      "revision": "nasa-blue-marble-cloud-2001-global-matched-v1",
+      "revision": "nasa-blue-marble-cloud-2001-global-soft-toe-v2",
       "publisher": "NASA Goddard Space Flight Center / Reto Stöckli; Robert Simmon",
       "credit": "NASA Goddard Space Flight Center / Reto Stöckli; compositing enhancements by Robert Simmon.",
       "license": "NASA imagery-use guidelines; educational/informational use with source acknowledgment; no endorsement.",
@@ -404,10 +413,18 @@
           "source_sha256": "11eb1aaf8e6056b9aebc0de4894dc5ad8a21cbe8738c6ddc92e88701eb7e1b99"
         }
       ],
-      "transform": "Process each checked 21600 x 21600 L hemisphere separately with Pillow BOX area resampling to 4096 x 4096; concatenate W then E into 8192 x 4096. Reduce that map to 4096 x 2048 with BOX. Encode lossless WebP. Coverage changes are limited to area averaging. No full native global mosaic, sharpening, inpainting, or synthetic cloud detail.",
+      "transform": "Verify each original NASA grayscale hemisphere, apply the documented 256-code pointwise display-only soft-toe LUT to native texels, then BOX-reduce each hemisphere to4096square and join W then E into8192x4096. BOX-reduce that result2x2 to4096x2048. Encode lossless WebP. No geographic painting, synthetic clouds, sharpening or gap filling. The remap precedes all spatial reduction; runtime does not apply a second transfer to these global coverage values.",
       "role": "Matched NASA global 8k cloud-coverage fallback for the native tiles; display-only, not simulated-date weather.",
       "manifest": "/earth/cloud-global.json",
-      "source_limitation": "The checked western and eastern source images have a hard cloud-coverage discontinuity at longitude 0 degrees, visible over the Southern Ocean. This fixed geographical seam is preserved in both the global maps and native tiles; it is not a runtime tile boundary."
+      "source_limitation": "The checked western and eastern source images have a hard cloud-coverage discontinuity at longitude 0 degrees, visible over the Southern Ocean. This fixed geographical seam is preserved in both the global maps and native tiles; it is not a runtime tile boundary.",
+      "display_transfer": {
+        "revision": "cloud-mask-soft-toe-v1",
+        "purpose": "Display-only low-code suppression of visible NASA composite swath plateaus; not a calibrated cloud fraction, optical depth or gamma correction.",
+        "toe_code": 64,
+        "formula": "For source code c in[0,255], t=min(1,c/64); output=floor(c*t*t*(3-2*t)+0.5). Codes64..255 are unchanged.",
+        "quantization": "8-bit R8/gray coverage, round-half-up in both Python and JavaScript. Codes0..9 map to0; genuine faint cloud signal is reduced along with source artifacts.",
+        "filter_order": "Apply to native source/decoded tile texels before area reduction or GPU mip generation. Never apply the nonlinear toe to an already filtered coverage sample."
+      }
     },
     {
       "file": "earth-clouds-nasa-4k.webp",
@@ -416,8 +433,8 @@
         4096,
         2048
       ],
-      "runtime_bytes": 4280062,
-      "runtime_sha256": "444f51ccfe2b576ccd040008c7b573795fb5e4943e66c0afd252d08d5e7cd909",
+      "runtime_bytes": 4038162,
+      "runtime_sha256": "e7388f0af812c2c5bac2e5bf10c323047ad11bcdf549cf54787af47ec8f65e65",
       "encoding": "lossless WebP; achromatic RGB decode of one grayscale coverage channel",
       "gpu_format": "RGBA8 with the existing TextureLoader; sampled as NoColorSpace coverage",
       "gpu_bytes_with_mipmaps": 44739244,
@@ -425,9 +442,9 @@
       "validation": {
         "maximum_channel_error": 0,
         "grayscale_channels_equal": true,
-        "comparison": "Complete decoded image compared with the BOX-reduced L image before encoding"
+        "comparison": "Complete decode equals soft-toe-before-BOX coverage, not original display-image codes"
       },
-      "revision": "nasa-blue-marble-cloud-2001-global-matched-v1",
+      "revision": "nasa-blue-marble-cloud-2001-global-soft-toe-v2",
       "publisher": "NASA Goddard Space Flight Center / Reto Stöckli; Robert Simmon",
       "credit": "NASA Goddard Space Flight Center / Reto Stöckli; compositing enhancements by Robert Simmon.",
       "license": "NASA imagery-use guidelines; educational/informational use with source acknowledgment; no endorsement.",
@@ -455,16 +472,36 @@
           "source_sha256": "11eb1aaf8e6056b9aebc0de4894dc5ad8a21cbe8738c6ddc92e88701eb7e1b99"
         }
       ],
-      "transform": "Process each checked 21600 x 21600 L hemisphere separately with Pillow BOX area resampling to 4096 x 4096; concatenate W then E into 8192 x 4096. Reduce that map to 4096 x 2048 with BOX. Encode lossless WebP. Coverage changes are limited to area averaging. No full native global mosaic, sharpening, inpainting, or synthetic cloud detail.",
+      "transform": "Verify each original NASA grayscale hemisphere, apply the documented 256-code pointwise display-only soft-toe LUT to native texels, then BOX-reduce each hemisphere to4096square and join W then E into8192x4096. BOX-reduce that result2x2 to4096x2048. Encode lossless WebP. No geographic painting, synthetic clouds, sharpening or gap filling. The remap precedes all spatial reduction; runtime does not apply a second transfer to these global coverage values.",
       "role": "Matched NASA global 4k cloud-coverage fallback for the native tiles; display-only, not simulated-date weather.",
       "manifest": "/earth/cloud-global.json",
-      "source_limitation": "The checked western and eastern source images have a hard cloud-coverage discontinuity at longitude 0 degrees, visible over the Southern Ocean. This fixed geographical seam is preserved in both the global maps and native tiles; it is not a runtime tile boundary."
+      "source_limitation": "The checked western and eastern source images have a hard cloud-coverage discontinuity at longitude 0 degrees, visible over the Southern Ocean. This fixed geographical seam is preserved in both the global maps and native tiles; it is not a runtime tile boundary.",
+      "display_transfer": {
+        "revision": "cloud-mask-soft-toe-v1",
+        "purpose": "Display-only low-code suppression of visible NASA composite swath plateaus; not a calibrated cloud fraction, optical depth or gamma correction.",
+        "toe_code": 64,
+        "formula": "For source code c in[0,255], t=min(1,c/64); output=floor(c*t*t*(3-2*t)+0.5). Codes64..255 are unchanged.",
+        "quantization": "8-bit R8/gray coverage, round-half-up in both Python and JavaScript. Codes0..9 map to0; genuine faint cloud signal is reduced along with source artifacts.",
+        "filter_order": "Apply to native source/decoded tile texels before area reduction or GPU mip generation. Never apply the nonlinear toe to an already filtered coverage sample."
+      }
     }
   ],
-  "updated_utc": "2026-10-26T20:09:02.957628+00:00",
+  "updated_utc": "2026-10-26T21:31:25.276413+00:00",
   "regional_lod_manifest": "/earth/regional-lod.json",
   "regional_cloud_manifest": "/earth/regional-cloud.json",
   "native_cloud_manifest": "/earth/cloud-tiles.json",
   "night_map_manifest": "/earth/night-map.json",
-  "global_cloud_manifest": "/earth/cloud-global.json"
+  "global_cloud_manifest": "/earth/cloud-global.json",
+  "native_night_detail_manifest": "/earth/night-detail.json",
+  "cloud_rendering": {
+    "revision": "illustrative-cloud-volume-v1",
+    "coverage_manifests": [
+      "/earth/cloud-global.json",
+      "/earth/cloud-tiles.json"
+    ],
+    "source_scope": "NASA identities, resolution and composite epoch describe the static 2D raster inputs only; they do not validate 3D cloud geometry or density.",
+    "procedural_detail": "Project-authored shape noise, vertical density profile and approximate optical response; not measured cloud height, thickness, optical depth or simulated-date weather.",
+    "implementation": "apps/web/src/earth/cloudVolume.ts",
+    "science_coupling": "None. Cloud rendering does not alter orbit, attitude, RF, electrical-power or thermal results."
+  }
 }

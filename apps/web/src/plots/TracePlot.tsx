@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import uPlot from 'uplot';
-import { formatAxisValues, formatElapsedSeconds, formatValue } from './traceFormatting';
+import {
+  formatAxisValues,
+  formatElapsedSeconds,
+  formatRateAxisValues,
+  formatRateValue,
+  formatValue,
+  selectRateUnit,
+} from './traceFormatting';
 import {
   attachTimeWindowNavigation,
   clampTimeRange,
@@ -19,6 +26,7 @@ export interface Trace {
 export function TracePlot({
   title,
   unit,
+  description,
   times,
   traces,
   cursorTime,
@@ -32,6 +40,7 @@ export function TracePlot({
 }: {
   title: string;
   unit: string;
+  description?: string;
   times: number[];
   traces: Trace[];
   cursorTime: number;
@@ -48,6 +57,15 @@ export function TracePlot({
   const scrub = useRef(onScrub);
   scrub.current = onScrub;
   const domain = useMemo(() => sampleTimeDomain(times), [times]);
+  const rateUnit = useMemo(
+    () =>
+      selectRateUnit(
+        unit,
+        [...traces, ...(baseline?.traces || [])].map((trace) => trace.values),
+      ),
+    [unit, traces, baseline],
+  );
+  const displayUnit = rateUnit?.unit ?? unit;
   const navigation = useRef({ domain, range: timeRange, onChange: onTimeRangeChange });
   navigation.current = { domain, range: timeRange, onChange: onTimeRangeChange };
   const hovering = useRef(false);
@@ -104,7 +122,10 @@ export function TracePlot({
           font: '10px IBM Plex Mono',
           grid: { show: true, stroke: '#2a3337', width: 1 },
           ticks: { show: false },
-          values: (_u, values) => formatAxisValues(values),
+          values: (_u, values) =>
+            rateUnit
+              ? formatRateAxisValues(values.map((value) => value / rateUnit.divisor))
+              : formatAxisValues(values),
         },
       ],
       series: [
@@ -209,7 +230,7 @@ export function TracePlot({
       plot.current = null;
       instance.destroy();
     };
-  }, [times, traces, baseline, minimumSpan, stepped, domain, title]);
+  }, [times, traces, baseline, minimumSpan, stepped, domain, title, rateUnit]);
   useEffect(() => {
     const instance = plot.current;
     if (!instance || !domain) return;
@@ -230,11 +251,11 @@ export function TracePlot({
   }, [cursorTime]);
   const index = closestIndex(times, hoverTime ?? cursorTime);
   return (
-    <section className="trace-panel" aria-label={`${title} in ${unit}`}>
+    <section className="trace-panel" aria-label={`${title} in ${displayUnit}`}>
       <div className="trace-heading">
-        <h2>
+        <h2 title={description}>
           {titleControl || title}
-          <span>{unit}</span>
+          <span>{displayUnit}</span>
         </h2>
         <div className="trace-values" data-inspecting={hoverTime !== null}>
           {hoverTime !== null && (
@@ -244,7 +265,11 @@ export function TracePlot({
             <span key={trace.label} style={{ color: trace.color }}>
               <i />
               {trace.label}
-              <b>{formatValue(trace.values[index])}</b>
+              <b>
+                {rateUnit
+                  ? `${formatRateValue(trace.values[index] == null ? null : trace.values[index]! / rateUnit.divisor)} ${displayUnit}`
+                  : formatValue(trace.values[index])}
+              </b>
             </span>
           ))}
         </div>

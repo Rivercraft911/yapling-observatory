@@ -180,6 +180,8 @@ if (typeof ASSET_DIR === 'undefined') {
     observer: { disconnect() {} },
     controls: noop,
     follow: noop,
+    composite: noop,
+    cloudPass: noop,
     followLink: noop,
     sunDisplay: noop,
     targetDisplay: noop,

@@ -1,6 +1,16 @@
-import { AdditiveBlending, BackSide, RedFormat, ShaderMaterial, Vector3, Vector4 } from 'three';
+import {
+  AdditiveBlending,
+  BackSide,
+  RedFormat,
+  ShaderMaterial,
+  Vector2,
+  Vector3,
+  Vector4,
+} from 'three';
 import type { Texture } from 'three';
 import type { CloudTileView } from './CloudTiles';
+import type { NightDetailView } from './NightDetail';
+import { cloudVolumeFragment, cloudVolumeWeight, createCloudNoise } from './cloudVolume';
 
 // Independent compatibility implementation. Replace this boundary with Takram's
 // renderer-context/TSL atmosphere API when the app adopts that pipeline.
@@ -12,11 +22,69 @@ export interface EarthAppearance {
   setRegionalMap: (texture: Texture | null, bounds?: readonly number[]) => void;
   setRegionalOpacity: (opacity: number) => void;
   setCloudTiles: (tiles: readonly CloudTileView[]) => void;
+  setNightDetail: (view: NightDetailView) => void;
+  setCloudView: (position: { x: number; y: number; z: number }, near: number) => number;
   dispose: () => void;
 }
 const vertex = `
 varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
 void main(){vUv=uv;vPosition=(modelMatrix*vec4(position,1.)).xyz;vNormal=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}
+`;
+
+// Display-only single scattering. Coefficients are per km; the scene uses Earth radii.
+const atmosphericLight = `
+const float atmosphereRadius=1.01255;
+const float earthRadiusKm=6378.137;
+const vec3 earthAxes=vec3(1.,.9966471893,1.);
+const vec3 betaRayleigh=vec3(.0058,.0135,.0331);
+const vec3 betaMie=vec3(.003);
+vec2 atmosphereIntersection(vec3 o,vec3 d,float radius){
+ float b=dot(o,d),c=dot(o,o)-radius*radius,h=b*b-c;
+ if(h<0.)return vec2(1e5,-1e5);
+ float s=sqrt(h);return vec2(-b-s,-b+s);
+}
+vec2 atmosphereDensity(vec3 point){
+ float altitude=max(0.,(length(point)-1.)*earthRadiusKm);
+ return exp(-altitude/vec2(8.,1.2));
+}
+vec3 integrateAtmosphere(vec3 origin,vec3 ray,float start,float end,bool surfacePath,out vec3 transmission){
+ vec3 light=normalize(sun/earthAxes);
+ float mu=dot(ray,light),g=.76;
+ float phaseRayleigh=3./(16.*3.141592654)*(1.+mu*mu);
+ float phaseMie=(1.-g*g)/(4.*3.141592654*pow(1.+g*g-2.*g*mu,1.5));
+ vec2 optical=vec2(0.);vec3 scatter=vec3(0.);
+ for(int i=0;i<16;i++){
+  float u=(float(i)+.5)/16.;
+  float distance=surfacePath?end-(end-start)*(1.-u)*(1.-u):mix(start,end,u);
+  float stepSize=(end-start)/16.*(surfacePath?2.*(1.-u):1.);
+  vec3 p=origin+ray*distance;vec2 local=atmosphereDensity(p)*stepSize*earthRadiusKm;
+  vec2 halfway=optical+.5*local;optical+=local;
+  float r=length(p),muSun=dot(p/r,light);
+  float horizonMu=-sqrt(max(0.,1.-1./(r*r)));
+  float solarHalfAngle=.00465/r;
+  float visibility=smoothstep(horizonMu-solarHalfAngle,horizonMu+solarHalfAngle,muSun);
+  if(visibility<=0.)continue;
+  float sunPath=max(0.,atmosphereIntersection(p,light,atmosphereRadius).y);
+  vec2 sunOptical=vec2(0.);
+  for(int j=0;j<6;j++){
+   float v=(float(j)+.5)/6.;
+   sunOptical+=atmosphereDensity(p+light*(v*v*sunPath))*sunPath/6.*(2.*v)*earthRadiusKm;
+  }
+  vec3 extinction=exp(-betaRayleigh*(halfway.x+sunOptical.x)-betaMie*(halfway.y+sunOptical.y));
+  scatter+=visibility*extinction*(local.x*betaRayleigh*phaseRayleigh+local.y*betaMie*phaseMie);
+ }
+ transmission=exp(-betaRayleigh*optical.x-betaMie*optical.y);
+ return scatter*4.;
+}
+vec3 throughAtmosphere(vec3 endpoint,vec3 radiance){
+ vec3 origin=cameraPosition/earthAxes,delta=endpoint/earthAxes-origin;
+ float distance=length(delta);vec3 ray=delta/max(distance,1e-6);
+ vec2 hit=atmosphereIntersection(origin,ray,atmosphereRadius);
+ float start=max(0.,hit.x),end=min(distance,hit.y);
+ if(end<=start)return radiance;
+ vec3 transmission;vec3 scatter=integrateAtmosphere(origin,ray,start,end,true,transmission);
+ return radiance*transmission+scatter;
+}
 `;
 function cloudSampling(tileCount: number) {
   const samples = Array.from(
@@ -50,14 +118,17 @@ uniform float nativeCloudOpacity[${tileCount}];`
 float combineCloudCoverage(float base,float nativeCoverage,float nativeWeight){
  return base*(1.-min(nativeWeight,1.))+nativeCoverage/max(nativeWeight,1.);
 }
-float cloudCoverage(vec2 uv){
- // Explicit derivatives remain valid across geographic branches and longitude wrap.
- vec2 dx=dFdx(uv),dy=dFdy(uv);dx.x-=floor(dx.x+.5);dy.x-=floor(dy.x+.5);
+float cloudCoverageGrad(vec2 uv,vec2 dx,vec2 dy){
  float base=texture2DGradEXT(cloudMap,uv,dx,dy).r;
  float nativeCoverage=0.;float nativeWeight=0.;
 ${samples}
  // Normalize overlapping gutters so async tile order cannot change coverage.
  return combineCloudCoverage(base,nativeCoverage,nativeWeight);
+}
+float cloudCoverage(vec2 uv){
+ // Compute these before any divergent march; ray samples use the explicit variant.
+ vec2 dx=dFdx(uv),dy=dFdy(uv);dx.x-=floor(dx.x+.5);dy.x-=floor(dy.x+.5);
+ return cloudCoverageGrad(uv,dx,dy);
 }
 `;
 }
@@ -67,7 +138,9 @@ export function createEarthAppearance(
   ocean: Texture,
   cloudTileCount = 0,
   night: Texture | null = null,
+  volumeEnabled = false,
 ): EarthAppearance {
+  const noise = volumeEnabled ? createCloudNoise() : null;
   const sun = { value: new Vector3(1, 0, 0) };
   const cloudUniforms = {
     cloudMap: { value: cloud },
@@ -88,6 +161,9 @@ export function createEarthAppearance(
     nightMap: { value: night || day },
     nightIntensity: { value: night ? 0.35 : 0 },
     nightGrayscale: { value: night?.format === RedFormat },
+    regionalNightMap: { value: night || day },
+    regionalNightBounds: { value: new Vector4(0, 0, 1, 1) },
+    regionalNightOpacity: { value: 0 },
     regionalDayMap: { value: day },
     regionalBounds: { value: new Vector4(0, 0, 1, 1) },
     regionalOpacity: { value: 0 },
@@ -98,7 +174,10 @@ export function createEarthAppearance(
     fragmentShader: `
 uniform sampler2D dayMap;uniform sampler2D oceanMap;uniform vec3 sun;
 uniform sampler2D nightMap;uniform float nightIntensity;uniform bool nightGrayscale;
+uniform sampler2D regionalNightMap;uniform vec4 regionalNightBounds;uniform float regionalNightOpacity;
+${atmosphericLight}
 float nightDisplayToLinear(float value){return value<=.04045?value/12.92:pow((value+.055)/1.055,2.4);}
+vec3 nightMaskToLinear(float mask){return vec3(1.,.78,.50)*nightDisplayToLinear(pow(clamp(mask,0.,1.),.65));}
 float nightLightFade(float muSun){return 1.-smoothstep(-.14,.02,muSun);}
 
 ${cloudSampling(cloudTileCount)}
@@ -124,24 +203,46 @@ void main(){
  vec3 halfSum=sun+view;vec3 halfVector=halfSum/max(length(halfSum),1e-6);float specular=pow(max(dot(n,halfVector),0.),100.)*water*smoothstep(0.,.15,ndl);
  float fresnel=.025+.975*pow(1.-max(dot(n,view),0.),5.);
  color+=vec3(1.,.91,.77)*specular*fresnel*1.8;
- float grazing=pow(1.-max(dot(n,view),0.),3.);color+=vec3(.015,.045,.085)*grazing*smoothstep(-.15,.35,ndl);
  vec3 lights=texture2D(nightMap,vUv).rgb;
- if(nightGrayscale)lights=vec3(1.,.78,.50)*nightDisplayToLinear(pow(clamp(lights.r,0.,1.),.65));
+ if(nightGrayscale)lights=nightMaskToLinear(lights.r);
+ vec2 nightExtent=regionalNightBounds.zw-regionalNightBounds.xy;
+ vec2 nightUv=(vUv-regionalNightBounds.xy)/nightExtent;
+ vec2 nightDx=dFdx(vUv)/nightExtent,nightDy=dFdy(vUv)/nightExtent;
+ float nightEdge=min(min(nightUv.x,nightUv.y),min(1.-nightUv.x,1.-nightUv.y));
+ float nightMix=regionalNightOpacity*smoothstep(0.,.07,nightEdge);
+ if(nightMix>0.){
+  float mask=texture2DGradEXT(regionalNightMap,clamp(nightUv,0.,1.),nightDx,nightDy).r;
+  vec3 nativeLights=nightMaskToLinear(mask);
+  lights=mix(lights,nativeLights,nightMix);
+ }
  color+=lights*nightIntensity*nightLightFade(ndl);
- gl_FragColor=vec4(color,1.);
+ gl_FragColor=vec4(throughAtmosphere(vPosition,color),1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
 }`,
   });
   const clouds = new ShaderMaterial({
-    uniforms: { sun, ...cloudUniforms },
+    uniforms: {
+      sun,
+      ...cloudUniforms,
+      cloudNoise: { value: noise },
+      cloudVolumeMix: { value: 0 },
+      cloudCameraNear: { value: 0.0001 },
+      cloudResolved: { value: false },
+      cloudVolumeColor: { value: null },
+      cloudVolumeDepth: { value: null },
+      cloudVolumeTexel: { value: new Vector2(1, 1) },
+      cloudOutputSize: { value: new Vector2(1, 1) },
+    },
     vertexShader: vertex,
     transparent: true,
     depthWrite: false,
+    side: BackSide,
     // Linear coverage commutes with mip filtering; a post-filter threshold loses wisps at distance.
     fragmentShader: `
 ${cloudSampling(cloudTileCount)}
 uniform vec3 sun;varying vec2 vUv;varying vec3 vPosition;varying vec3 vNormal;
+${atmosphericLight}
 // Display-only diffuse shell: the elevated cloud horizon lies below the surface horizon.
 float cloudSunlight(float muSun,float radius){
  float horizonMu=-sqrt(max(0.,1.-1./(radius*radius)));
@@ -150,14 +251,7 @@ float cloudSunlight(float muSun,float radius){
  float wrapped=clamp((muSun-horizonMu+solarHalfAngle)/(1.-horizonMu+solarHalfAngle),0.,1.);
  return visibility*pow(wrapped,.52);
 }
-void main(){
- float density=cloudCoverage(vUv);float opacity=density*.94;
- vec3 axes=vec3(1.,.9966471893,1.);vec3 p=vPosition/axes;
- float light=cloudSunlight(dot(normalize(p),normalize(sun/axes)),length(p));
- vec3 color=vec3(.99,.99,1.)*(.008+light*1.4);gl_FragColor=vec4(color,opacity);
- #include <tonemapping_fragment>
- #include <colorspace_fragment>
-}`,
+${cloudVolumeFragment}`,
   });
   const atmosphere = new ShaderMaterial({
     uniforms: { sun },
@@ -168,25 +262,17 @@ void main(){
     side: BackSide,
     blending: AdditiveBlending,
     fragmentShader: `
-uniform vec3 sun;varying vec3 vPosition;const float R=6378.137;const float PI=3.141592653589793;
-vec2 intersectSphere(vec3 o,vec3 d,float radius){float b=dot(o,d),c=dot(o,o)-radius*radius,h=b*b-c;if(h<0.)return vec2(1e5,-1e5);float s=sqrt(h);return vec2(-b-s,-b+s);}
+uniform vec3 sun;varying vec3 vPosition;
+${atmosphericLight}
 void main(){
- vec3 axes=vec3(1.,.9966471893,1.);vec3 ro=cameraPosition/axes;vec3 rd=normalize((vPosition-cameraPosition)/axes);vec3 light=normalize(sun/axes);
- vec2 hit=intersectSphere(ro,rd,1.01255);float start=max(hit.x,0.);float end=hit.y;vec2 ground=intersectSphere(ro,rd,1.);if(ground.x>0.)end=min(end,ground.x);if(end<=start)discard;
- float stepSize=(end-start)/32.;vec2 optical=vec2(0.);vec3 scatter=vec3(0.);vec3 betaR=vec3(.0058,.0135,.0331);vec3 betaM=vec3(.003);
- float mu=dot(rd,light);float phaseR=3./(16.*PI)*(1.+mu*mu);float g=.76;float phaseM=(1.-g*g)/(4.*PI*pow(1.+g*g-2.*g*mu,1.5));
- for(int i=0;i<32;i++){
-  vec3 p=ro+rd*(start+(float(i)+.5)*stepSize);float altitude=max(0.,(length(p)-1.)*R);vec2 density=exp(-altitude/vec2(8.,1.2));vec2 local=density*stepSize*R;optical+=local;
-  // A finite solar disk gives continuous illumination at the geometric horizon.
-  // Optical depth above is still accumulated for every view sample, including shadow.
-  float r=length(p);float muSun=dot(p/r,light);float horizonMu=-sqrt(max(0.,1.-1./(r*r)));
-  float solarHalfAngle=.00465/r;float visibility=smoothstep(horizonMu-solarHalfAngle,horizonMu+solarHalfAngle,muSun);
-  if(visibility<=0.)continue;
-  float sunPath=max(0.,intersectSphere(p,light,1.01255).y);vec2 sunOptical=vec2(0.);
-  for(int j=0;j<8;j++){float u=(float(j)+.5)/8.;vec3 s=p+light*(u*u*sunPath);float h=max(0.,(length(s)-1.)*R);sunOptical+=exp(-h/vec2(8.,1.2))*sunPath/8.*(2.*u)*R;}
-  vec3 extinction=exp(-betaR*(optical.x+sunOptical.x)-betaM*(optical.y+sunOptical.y));scatter+=visibility*extinction*(local.x*betaR*phaseR+local.y*betaM*phaseM);
- }
- gl_FragColor=vec4(scatter*4.,1.);
+ vec3 origin=cameraPosition/earthAxes;vec3 ray=normalize((vPosition-cameraPosition)/earthAxes);
+ vec2 ground=atmosphereIntersection(origin,ray,1.);
+ // Ground and clouds already include their own view path. This pass supplies only sky.
+ if(ground.x>0.&&ground.y>0.)discard;
+ vec2 hit=atmosphereIntersection(origin,ray,atmosphereRadius);
+ float start=max(hit.x,0.),end=hit.y;if(end<=start)discard;
+ vec3 transmission;vec3 scatter=integrateAtmosphere(origin,ray,start,end,false,transmission);
+ gl_FragColor=vec4(scatter,1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
 }`,
@@ -196,6 +282,15 @@ void main(){
     clouds,
     atmosphere,
     setSun: (direction) => sun.value.set(direction[0], direction[1], direction[2]).normalize(),
+    setCloudView: (position, near) => {
+      const weight = cloudVolumeWeight(
+        Math.hypot(position.x, position.y / 0.9966471893, position.z),
+        volumeEnabled,
+      );
+      clouds.uniforms.cloudVolumeMix.value = weight;
+      clouds.uniforms.cloudCameraNear.value = near;
+      return weight;
+    },
     setRegionalMap: (texture, bounds) => {
       uniforms.regionalDayMap.value = texture || day;
       if (bounds) uniforms.regionalBounds.value.fromArray(bounds);
@@ -203,6 +298,11 @@ void main(){
     },
     setRegionalOpacity: (opacity) => {
       uniforms.regionalOpacity.value = opacity;
+    },
+    setNightDetail: (view) => {
+      uniforms.regionalNightMap.value = view.texture || night || day;
+      uniforms.regionalNightBounds.value.fromArray(view.bounds);
+      uniforms.regionalNightOpacity.value = view.texture ? view.opacity : 0;
     },
     setCloudTiles: (tiles) => {
       for (let i = 0; i < cloudTileCount; i++) {
@@ -219,6 +319,7 @@ void main(){
       surface.dispose();
       clouds.dispose();
       atmosphere.dispose();
+      noise?.dispose();
     },
   };
 }

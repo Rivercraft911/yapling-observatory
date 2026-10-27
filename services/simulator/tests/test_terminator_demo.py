@@ -23,6 +23,7 @@ def test_terminator_inputs_and_initial_attitude(scenario):
     assert scenario.orbit.force_model == "j2"
     assert scenario.power.battery.electrical.initial_soc == 0.5
     assert scenario.duration_s == 86400
+    assert scenario.spacecraft.magnetic_unloading_enabled
     assert scenario.conops.ground_tracking_min_elevation_deg == 25
     assert scenario.station.minimum_elevation_deg == 10
     sun_body = rotate(scenario.spacecraft.initial_q_body_from_inertial_wxyz, sun_direction_inertial(scenario.epoch_utc))
