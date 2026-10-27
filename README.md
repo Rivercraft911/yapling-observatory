@@ -20,6 +20,6 @@ python3 start.py
 
 Tested on macOS, Linux and Windows. First launch prepares the app and opens your browser. Ctrl-C stops it.
 
-[Local setup](services/simulator/README.md#run-locally)
+[Local setup](services/simulator/README.md#run-locally) · [Music credits](apps/web/public/audio/CREDITS.md)
 
 ![random screenshot](docs/random-screenshot.png)
