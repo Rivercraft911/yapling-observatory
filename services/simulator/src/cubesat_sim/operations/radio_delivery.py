@@ -150,7 +150,12 @@ class _Direction:
         self.counters["mode_change_count"] += 1
         self.acquisition_started = self.loss_started = None
         self.reconfigure_until = time + _seconds(self.profile.mode_change_s)
-        self._state("reconfiguring", time, "adaptive_mode_change" if self.profile.policy == "adaptive" else "scheduled_mode_change")
+        cause = "adaptive_mode_change" if self.profile.policy == "adaptive" else "scheduled_mode_change"
+        if self.state == "reconfiguring":
+            # A later scheduled MODCOD can replace one still being configured.
+            self._event(time, cause)
+        else:
+            self._state("reconfiguring", time, cause)
 
     def _normalize(self, time, cn0, known_outage):
         desired = self._desired(time, cn0, known_outage)
